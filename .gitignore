@@ -24,3 +24,6 @@ Thumbs.db
 # Archivos temporales
 *.tmp
 *.temp
+
+# token (credenciales) para validarse en el repositorio!
+.token

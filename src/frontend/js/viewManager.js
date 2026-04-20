@@ -24,11 +24,13 @@ ViewManager.routes = [
   { pattern: 'selector-productos', module: 'SelectorProductos', action: 'index' },
 
   // Proveedores
+  // Proveedores
   { pattern: 'proveedores', module: 'Proveedores', action: 'index' },
   { pattern: 'proveedores/listado', module: 'Proveedores', action: 'listado' },
   { pattern: 'proveedores/nuevo', module: 'Proveedores', action: 'formulario' },
   { pattern: 'proveedores/editar/:id', module: 'Proveedores', action: 'formulario' },
   { pattern: 'proveedores/ver/:id', module: 'Proveedores', action: 'ficha' },
+  { pattern: 'proveedores/contactos/:id', module: 'Proveedores', action: 'contactos' },
 
   // Compras
   { pattern: 'compras', module: 'Compras', action: 'index' },

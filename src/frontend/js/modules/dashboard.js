@@ -261,13 +261,6 @@ Dashboard.renderSidebar = function () {
         <a class="nav-link text-white active" href="#dashboard">
           <i class="fas fa-tachometer-alt me-2"></i>Dashboard
         </a>
-        <a class="nav-link text-white-50" href="#inventario">
-          <i class="fas fa-warehouse me-2"></i>Inventario
-        </a>
-        <a class="nav-link text-white-50" href="#compras">
-          <i class="fas fa-shopping-cart me-2"></i>Compras
-          <span class="badge bg-warning ms-2">3</span>
-        </a>
         <a class="nav-link text-white-50" href="#ventas">
           <i class="fas fa-cash-register me-2"></i>Ventas
         </a>
@@ -276,6 +269,13 @@ Dashboard.renderSidebar = function () {
         </a>
         <a class="nav-link text-white-50" href="#proveedores">
           <i class="fas fa-truck me-2"></i>Proveedores
+        </a>
+        <a class="nav-link text-white-50" href="#compras">
+          <i class="fas fa-shopping-cart me-2"></i>Compras
+          <span class="badge bg-warning ms-2">3</span>
+        </a>
+        <a class="nav-link text-white-50" href="#inventario">
+          <i class="fas fa-warehouse me-2"></i>Inventario
         </a>
         <a class="nav-link text-white-50" href="#promociones">
           <i class="fas fa-tags me-2"></i>Promociones

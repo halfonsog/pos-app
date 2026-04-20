@@ -566,14 +566,14 @@ Compras.formulario = async function (params) {
     }
 
     // Restaurar datos del formulario si existen
+    // Restaurar datos del formulario si existen (solo si tienen valor)
     if (tempData && !id) {
       const data = JSON.parse(tempData);
-      Object.keys(data).forEach(key => {
-        const value = data[key];
-        if (key === 'fecha_compra' || key === 'codigo_factura' || key === 'proveedor_id' || key === 'pagoInicial' || key === 'metodoPago') {
-          $(`#${key}`).val(value);
-        }
-      });
+      if (data.fecha_compra) $('#fechaCompra').val(data.fecha_compra);
+      if (data.codigo_factura) $('#codigoFactura').val(data.codigo_factura);
+      if (data.proveedor_id) $('#proveedorId').val(data.proveedor_id);
+      if (data.pagoInicial) $('#pagoInicial').val(data.pagoInicial);
+      if (data.metodoPago) $('#metodoPago').val(data.metodoPago);
       sessionStorage.removeItem('compraFormTemp');
     }
 
@@ -734,10 +734,11 @@ Compras.renderFormularioLayout = function (compra, proveedores, productos) {
             <!-- Opción de llevar a stock -->
             <div class="mb-4">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="llevarAStock" ${!isEdit ? 'checked' : ''}>
+                <input class="form-check-input" type="checkbox" id="llevarAStock">
                 <label class="form-check-label">
                   <i class="fas fa-warehouse me-1"></i>Llevar a stock al guardar
                 </label>
+                <small class="text-muted d-block">Puedes llevar a stock más tarde desde la ficha de la compra</small>
               </div>
             </div>
             
@@ -788,8 +789,17 @@ Compras.bindFormularioEvents = function (id, productos) {
   });
 
   // Agregar producto - ABRIR VISTA
+  // Agregar producto - Usar SelectorProductos unificado
   $('#btnAgregarProducto').on('click', function () {
-    sessionStorage.setItem('compraFormTemp', JSON.stringify(Compras.recopilarDatosFormulario()));
+    // Guardar estado actual del formulario (solo campos visibles)
+    const formData = {
+      fecha_compra: $('#fechaCompra').val(),
+      codigo_factura: $('#codigoFactura').val(),
+      proveedor_id: $('#proveedorId').val(),
+      pagoInicial: $('#pagoInicial').val(),
+      metodoPago: $('#metodoPago').val()
+    };
+    sessionStorage.setItem('compraFormTemp', JSON.stringify(formData));
     sessionStorage.setItem('compraDetallesTemp', JSON.stringify(Compras._detallesTemporales));
 
     const compraId = $('#compraId').val();
@@ -816,6 +826,7 @@ Compras.bindFormularioEvents = function (id, productos) {
   });
 
   // Actualizar cantidades y precios
+  // Actualizar cantidades y precios - Sin reconstruir tabla
   $('#detalleCompraBody').on('input', '.cantidad, .precio', function () {
     const row = $(this).closest('tr');
     const index = row.data('index');
@@ -825,11 +836,18 @@ Compras.bindFormularioEvents = function (id, productos) {
     if (index !== undefined && Compras._detallesTemporales[index]) {
       Compras._detallesTemporales[index].cantidad = cantidad;
       Compras._detallesTemporales[index].precio_unitario = precio;
-      Compras._detallesTemporales[index].total = cantidad * precio;
-    }
 
-    Compras.renderizarDetalleTabla();
-    Compras.actualizarEstadoPago();
+      const subtotal = cantidad * precio;
+      Compras._detallesTemporales[index].total = subtotal;
+
+      // Actualizar SOLO la celda del total, sin reconstruir toda la tabla
+      row.find('.total-fila').text(Utils.formatMoney(subtotal));
+
+      // Actualizar el total general
+      const total = Compras.calcularTotal();
+      $('#totalCompra').text(Utils.formatMoney(total));
+      Compras.actualizarEstadoPago();
+    }
   });
 
   // Cancelar / Volver
@@ -968,7 +986,7 @@ Compras.actualizarTotalCompra = function () {
 };
 
 Compras.calcularTotal = function () {
-  return Compras._detallesTemporales.reduce((sum, d) => sum + (d.cantidad * d.precio_unitario), 0);
+  return Compras._detallesTemporales.reduce((sum, d) => sum + ((d.cantidad || 0) * (d.precio_unitario || 0)), 0);
 };
 
 Compras.validarFormulario = function () {
