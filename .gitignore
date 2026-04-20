@@ -1,0 +1,26 @@
+# Dependencias
+node_modules/
+scripts/
+
+# Base de datos
+database/*.db
+database/*.backup_*
+
+# Variables de entorno
+.env
+
+# Archivos subidos
+src/frontend/uploads/
+frontend/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+*.tmp
+*.temp

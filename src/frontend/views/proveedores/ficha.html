@@ -1,0 +1,123 @@
+<div class="view-container">
+  <!-- Header con navegación -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <button class="btn btn-outline-secondary" id="btnVolver">
+      <i class="fas fa-arrow-left me-1"></i>Volver
+    </button>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnEditar">
+        <i class="fas fa-edit me-1"></i>Editar
+      </button>
+      <button class="btn btn-danger" id="btnEliminar">
+        <i class="fas fa-trash me-1"></i>Eliminar
+      </button>
+      <button class="btn btn-info" id="btnVerCompras">
+        <i class="fas fa-shopping-cart me-1"></i>Compras
+      </button>
+    </div>
+  </div>
+
+  <!-- Información general (Card de Bootstrap) -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-info-circle me-2"></i>Información General
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="text-muted small">Nombre</label>
+          <p class="fs-5 fw-bold mb-0" id="detNombre">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted small">ID Fiscal</label>
+          <p class="mb-0" id="detIdFiscal">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted small">Teléfono</label>
+          <p class="mb-0" id="detTelefono">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted small">Término de Pago</label>
+          <p class="mb-0" id="detTerminoPago">-</p>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="text-muted small">Dirección</label>
+          <p class="mb-0" id="detDireccion">-</p>
+        </div>
+        <div class="col-md-6">
+          <label class="text-muted small">Estado</label>
+          <p class="mb-0" id="detEstado">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Saldo Pendiente (Card destacada) -->
+  <div class="card mb-4 border-warning">
+    <div class="card-header bg-warning bg-opacity-10">
+      <h5 class="mb-0">
+        <i class="fas fa-money-bill me-2"></i>Estado de Cuenta
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <label class="text-muted small">Saldo Pendiente</label>
+          <p class="display-6 mb-0" id="detSaldoPendiente">$0.00</p>
+        </div>
+        <div class="col-md-6">
+          <label class="text-muted small">Próximo Vencimiento</label>
+          <p class="mb-0" id="detProximoVencimiento">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contactos (Card con lista) -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="fas fa-users me-2"></i>Contactos
+      </h5>
+      <button class="btn btn-sm btn-outline-primary" id="btnNuevoContacto">
+        <i class="fas fa-plus me-1"></i>Añadir
+      </button>
+    </div>
+    <div class="card-body p-0">
+      <div id="contactosList">
+        <!-- Lista de contactos (List Group de Bootstrap) -->
+        <div class="list-group list-group-flush">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Últimas Compras (Card con tabla) -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-history me-2"></i>Últimas Compras
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Factura</th>
+              <th class="text-end">Total</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="ultimasCompras">
+            <!-- Se llena dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

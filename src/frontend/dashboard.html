@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS System</title>
+
+  <!-- Local CSS -->
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/datatables.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+
+  <!-- Mínimo CSS personalizado -->
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+
+<body>
+  <div class="app-wrapper">
+    <!-- Sidebar (colapsable en móvil) -->
+    <nav class="sidebar bg-dark text-white" id="sidebar">
+      <!-- Menú -->
+    </nav>
+
+    <!-- Contenido principal -->
+    <main class="main-content">
+      <!-- Navbar superior (con botón hamburguesa para móvil) -->
+      <nav class="navbar navbar-light bg-light border-bottom">
+        <button class="btn btn-link d-md-none" id="toggleSidebar">
+          <i class="fas fa-bars"></i>
+        </button>
+        <span class="navbar-brand">POS Admin</span>
+      </nav>
+
+      <!-- Contenedor de vistas dinámicas -->
+      <div class="container-fluid p-3" id="viewContainer">
+        <!-- Aquí se cargan las vistas -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Local JS -->
+  <script src="/lib/js/jquery-3.7.1.min.js"></script>
+  <script src="/lib/js/bootstrap.bundle.min.js"></script>
+  <script src="/lib/js/datatables.min.js"></script>
+  <script src="/lib/js/chart.umd.min.js"></script>
+
+  <!-- App JS -->
+  <script src="/js/app.js"></script>
+</body>
+
+</html>

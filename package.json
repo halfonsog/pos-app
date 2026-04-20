@@ -1,0 +1,41 @@
+{
+  "name": "punto-de-venta",
+  "version": "1.0.0",
+  "description": "Sistema de Gestion para Puntos de Venta",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "db:init": "node database/scripts/init.js",
+    "db:migrate": "node database/scripts/migrate.js",
+    "db:seed": "node database/scripts/seed.js",
+    "db:reset": "node database/scripts/init.js && node database/scripts/seed.js",
+    "download-libs": "node scripts/download-libs.js",
+    "test": "jest"
+  },
+  "keywords": [
+    "punto-de-venta",
+    "pos",
+    "gestion",
+    "ventas"
+  ],
+  "author": "Heriberto Alfonso",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "sharp": "^0.34.5",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.14"
+  }
+}
