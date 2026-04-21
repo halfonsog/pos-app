@@ -44,6 +44,16 @@ ViewManager.routes = [
   { pattern: 'proveedores/ver/:id', module: 'Proveedores', action: 'ficha' },
   { pattern: 'proveedores/contactos/:id', module: 'Proveedores', action: 'contactos' },
 
+  // Inventario
+  { pattern: 'inventario', module: 'Inventario', action: 'index' },
+  { pattern: 'inventario/stock', module: 'Inventario', action: 'stock' },
+  { pattern: 'inventario/movimientos', module: 'Inventario', action: 'movimientos' },
+  { pattern: 'inventario/preparar', module: 'Inventario', action: 'preparar' },
+  { pattern: 'inventario/preparar/:id', module: 'Inventario', action: 'preparar' },
+  { pattern: 'inventario/ajuste', module: 'Inventario', action: 'ajuste' },
+  { pattern: 'inventario/ajuste/:id', module: 'Inventario', action: 'ajuste' },
+  { pattern: 'inventario/merma', module: 'Inventario', action: 'ajuste' },
+
   // Configuración
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
   { pattern: 'categorias', module: 'Categorias', action: 'listado' },

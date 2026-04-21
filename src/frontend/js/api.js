@@ -150,6 +150,14 @@ const API = {
     eliminar: (id) => API.delete(`/compras/${id}`),
     pagar: (id, data) => API.post(`/compras/${id}/pagar`, data),
     inventariar: (id) => API.post(`/compras/${id}/inventariar`)
+  },
+
+  inventario: {
+    resumen: () => API.get('/inventario/resumen'),
+    stock: () => API.get('/inventario/stock'),
+    movimientos: () => API.get('/inventario/movimientos'),
+    preparables: () => API.get('/inventario/preparables'),
+    preparar: (id, data) => API.post(`/inventario/preparar/${id}`, data)
   }
 };
 

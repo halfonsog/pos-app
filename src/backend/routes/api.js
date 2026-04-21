@@ -9,6 +9,7 @@ const unidadesRoutes = require('./unidades');
 const authRoutes = require('./auth');
 const comprasRoutes = require('./compras');
 const catalogoController = require('../controllers/catalogoController');
+const inventarioRoutes = require('./inventario');
 
 // Health check (público)
 router.get('/health', (req, res) => {
@@ -30,5 +31,6 @@ router.use('/productos', productosRoutes);
 router.use('/categorias', categoriasRoutes);
 router.use('/unidades', unidadesRoutes);
 router.use('/compras', comprasRoutes);
+router.use('/inventario', inventarioRoutes);
 
 module.exports = router;
