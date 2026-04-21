@@ -765,7 +765,6 @@ Proveedores.renderFichaLayout = function (proveedor) {
               <li class="breadcrumb-item active">${proveedor.nombre}</li>
             </ol>
           </nav>
-          
           <div class="d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center">
               <button class="btn btn-outline-secondary me-3" id="btnVolver">
@@ -1120,8 +1119,7 @@ Proveedores.renderContactosLayout = function (proveedor) {
               <li class="breadcrumb-item"><span class="text-muted">${proveedor.nombre}</span></li>
               <li class="breadcrumb-item active">Contactos</li>
             </ol>
-          </nav>
-          
+          </nav>         
           <div class="d-flex align-items-center mb-4">
             <button class="btn btn-outline-secondary me-3" id="btnVolver">
               <i class="fas fa-arrow-left me-1"></i>Volver

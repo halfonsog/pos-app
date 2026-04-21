@@ -7,6 +7,8 @@ var ViewManager = window.ViewManager || {};
 ViewManager.currentView = null;
 ViewManager.currentParams = null;
 ViewManager.history = [];
+ViewManager._ignorePopState = false;
+
 
 // Definición de rutas como ARRAY de objetos
 ViewManager.routes = [
@@ -123,13 +125,11 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
   const queryParams = parsed.params;
   const finalParams = { ...queryParams, ...params };
 
-  // Si es navegación desde menú lateral, limpiar historial
   if (options.reset) {
     this.history = [];
     console.log('🔄 Historial reiniciado');
   }
 
-  // Guardar vista actual en historial ANTES de cambiar
   if (this.currentView && !options.reset && !options.replace) {
     this.history.push({
       ruta: this.currentView,
@@ -138,12 +138,27 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
     console.log('📝 Historial:', this.history.length);
   }
 
-  // Actualizar URL (esto NO dispara popstate porque usamos pushState)
+  // Desactivar popstate temporalmente
+  this._ignorePopState = true;
   window.location.hash = ruta;
+  setTimeout(() => { this._ignorePopState = false; }, 100);
 
-  // Cargar la vista
   await this._cargarVista(ruta, finalParams);
 };
+
+// Evento popstate
+window.addEventListener('popstate', function (e) {
+  if (ViewManager._ignorePopState) {
+    console.log('⏭️ Ignorando popstate');
+    return;
+  }
+
+  const hash = window.location.hash.substring(1);
+  if (hash) {
+    console.log('⬅️ popstate: navegando a', hash);
+    ViewManager._cargarVista(hash, {});
+  }
+});
 
 /**
  * Carga una vista (usado internamente)
@@ -221,10 +236,15 @@ ViewManager.refresh = async function () {
 
 // Capturar el botón "atrás" del navegador
 window.addEventListener('popstate', function (e) {
+  // ✅ Ignorar si fue causado por navegación interna
+  if (ViewManager._ignorePopState) {
+    console.log('⏭️ Ignorando popstate (navegación interna)');
+    return;
+  }
+
   const hash = window.location.hash.substring(1);
   if (hash) {
     console.log('⬅️ popstate: navegando a', hash);
-    // Cargar la vista sin modificar el historial
     ViewManager._cargarVista(hash, {});
   }
 });
