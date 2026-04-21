@@ -683,11 +683,12 @@ Proveedores.bindFormularioEvents = function (id, params) {
 
       const nuevoId = id || result.id;
 
-      // Si venimos de compras, volver allí
+      //  Si venimos de compras, volver allí
       if (params.retorno) {
         ViewManager.navegar(params.retorno);
       } else {
-        ViewManager.navegar('proveedores/ver/' + nuevoId, {}, { replace: true });
+        //ViewManager.navegar('proveedores/ver/' + nuevoId, {}, { replace: true });
+        ViewManager.volver();
       }
 
     } catch (error) {
@@ -1204,7 +1205,7 @@ Proveedores.renderContactosLayout = function (proveedor) {
 };
 
 Proveedores.bindContactosEvents = function (proveedor) {
-  $('#btnVolver').on('click', () => ViewManager.navegar('proveedores/ver/' + proveedor.id));
+  $('#btnVolver').on('click', () => ViewManager.volver());
   $('.breadcrumb-back').on('click', (e) => {
     e.preventDefault();
     ViewManager.volver();
