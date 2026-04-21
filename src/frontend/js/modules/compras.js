@@ -577,6 +577,11 @@ Compras.formulario = async function (params) {
       sessionStorage.removeItem('compraFormTemp');
     }
 
+    if (params.proveedor_id) {
+      $('#proveedorId').val(params.proveedor_id);
+      Toast.success('Nuevo proveedor seleccionado');
+    }
+
     Compras.bindFormularioEvents(id, productos);
     Compras.actualizarEstadoPago();
 
