@@ -73,6 +73,7 @@ const State = {
   },
 
   invalidateCache: function (key) {
+    console.log('🗑️ Invalidando caché:', key || 'TODAS');
     if (key) {
       delete this.cache[key];
     } else {
@@ -80,7 +81,8 @@ const State = {
         proveedores: null,
         productos: null,
         categorias: null,
-        unidades: null
+        unidades: null,
+        compras: null
       };
     }
   },

@@ -113,12 +113,12 @@ const API = {
     listar: () => API.get('/proveedores'),
     obtener: (id) => API.get(`/proveedores/${id}`),
     crear: (data) => API.post('/proveedores', data),
-    //    actualizar: (id, data) => API.put(`/proveedores/${id}`, data),
-    actualizar: (id, formData) => {
-      console.log('📤 API.productos.actualizar llamado con id:', id);
-      return API.putFormData(`/productos/${id}`, formData);
-    },
-    eliminar: (id) => API.delete(`/proveedores/${id}`)
+    actualizar: (id, data) => API.put(`/proveedores/${id}`, data),
+    eliminar: (id) => API.delete(`/proveedores/${id}`),
+    listarContactos: (id) => API.get(`/proveedores/${id}/contactos`),
+    crearContacto: (id, data) => API.post(`/proveedores/${id}/contactos`, data),
+    actualizarContacto: (id, contactoId, data) => API.put(`/proveedores/${id}/contactos/${contactoId}`, data),
+    eliminarContacto: (id, contactoId) => API.delete(`/proveedores/${id}/contactos/${contactoId}`)
   },
 
   productos: {

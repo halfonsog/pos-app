@@ -8,23 +8,25 @@ const proveedorController = {
       const db = await getDb();
 
       const proveedores = await db.all(`
-                SELECT 
-                    p.*,
-                    tp.nombre as termino_pago_nombre,
-                    COALESCE((
-                        SELECT SUM(c.total - c.pagado) 
-                        FROM compras c 
-                        WHERE c.proveedor_id = p.id 
-                        AND c.estado_pago != 'pagado'
-                    ), 0) as saldo_pendiente
-                FROM proveedores p
-                LEFT JOIN terminos_pago tp ON p.termino_pago_id = tp.id
-                ORDER BY saldo_pendiente DESC, p.nombre ASC
-            `);
+        SELECT 
+          p.*,
+          tp.nombre as termino_pago_nombre,
+          COALESCE((
+            SELECT SUM(c.total - c.pagado) 
+            FROM compras c 
+            WHERE c.proveedor_id = p.id 
+            AND c.estado_pago != 'pagado'
+          ), 0) as saldo_pendiente,
+          (SELECT COUNT(*) FROM compras WHERE proveedor_id = p.id) as total_compras
+        FROM proveedores p
+        LEFT JOIN terminos_pago tp ON p.termino_pago_id = tp.id
+        ORDER BY saldo_pendiente DESC, p.nombre ASC
+      `);
 
       res.json(proveedores);
     } catch (error) {
-      next(error);
+      console.error('Error en listar proveedores:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -35,44 +37,47 @@ const proveedorController = {
       const { id } = req.params;
 
       const proveedor = await db.get(`
-                SELECT 
-                    p.*,
-                    tp.nombre as termino_pago_nombre,
-                    tp.dias as termino_pago_dias,
-                    COALESCE((
-                        SELECT SUM(c.total - c.pagado) 
-                        FROM compras c 
-                        WHERE c.proveedor_id = p.id 
-                        AND c.estado_pago != 'pagado'
-                    ), 0) as saldo_pendiente
-                FROM proveedores p
-                LEFT JOIN terminos_pago tp ON p.termino_pago_id = tp.id
-                WHERE p.id = ?
-            `, [id]);
+        SELECT 
+          p.*,
+          tp.nombre as termino_pago_nombre,
+          tp.dias as termino_pago_dias,
+          COALESCE((
+            SELECT SUM(c.total - c.pagado) 
+            FROM compras c 
+            WHERE c.proveedor_id = p.id 
+            AND c.estado_pago != 'pagado'
+          ), 0) as saldo_pendiente,
+          (SELECT COUNT(*) FROM compras WHERE proveedor_id = p.id) as total_compras
+        FROM proveedores p
+        LEFT JOIN terminos_pago tp ON p.termino_pago_id = tp.id
+        WHERE p.id = ?
+      `, [id]);
 
       if (!proveedor) {
         return res.status(404).json({ error: 'Proveedor no encontrado' });
       }
 
       // Obtener contactos
-      const contactos = await db.all(
-        'SELECT * FROM proveedor_contactos WHERE proveedor_id = ?',
+      proveedor.contactos = await db.all(
+        'SELECT * FROM proveedor_contactos WHERE proveedor_id = ? ORDER BY nombre',
         [id]
       );
 
-      proveedor.contactos = contactos;
+      // Obtener últimas compras
+      proveedor.ultimas_compras = await db.all(`
+        SELECT id, fecha_compra, codigo_factura, total, pagado, estado_pago
+        FROM compras 
+        WHERE proveedor_id = ? 
+        ORDER BY fecha_compra DESC 
+        LIMIT 5
+      `, [id]);
 
-      // Verificar si tiene compras asociadas
-      const comprasCount = await db.get(
-        'SELECT COUNT(*) as count FROM compras WHERE proveedor_id = ?',
-        [id]
-      );
-
-      proveedor.tiene_compras = comprasCount.count > 0;
+      proveedor.tiene_compras = proveedor.total_compras > 0;
 
       res.json(proveedor);
     } catch (error) {
-      next(error);
+      console.error('Error en obtener proveedor:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -87,16 +92,17 @@ const proveedorController = {
       }
 
       const result = await db.run(`
-                INSERT INTO proveedores (nombre, id_fiscal, direccion, telefono, termino_pago_id, activo)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `, [nombre, id_fiscal, direccion, telefono, termino_pago_id, activo !== false ? 1 : 0]);
+        INSERT INTO proveedores (nombre, id_fiscal, direccion, telefono, termino_pago_id, activo)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, activo !== false ? 1 : 0]);
 
       res.status(201).json({
         id: result.lastID,
         message: 'Proveedor creado exitosamente'
       });
     } catch (error) {
-      next(error);
+      console.error('Error en crear proveedor:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -108,15 +114,16 @@ const proveedorController = {
       const { nombre, id_fiscal, direccion, telefono, termino_pago_id, activo } = req.body;
 
       await db.run(`
-                UPDATE proveedores 
-                SET nombre = ?, id_fiscal = ?, direccion = ?, telefono = ?, 
-                    termino_pago_id = ?, activo = ?
-                WHERE id = ?
-            `, [nombre, id_fiscal, direccion, telefono, termino_pago_id, activo ? 1 : 0, id]);
+        UPDATE proveedores 
+        SET nombre = ?, id_fiscal = ?, direccion = ?, telefono = ?, 
+            termino_pago_id = ?, activo = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, activo !== false ? 1 : 0, id]);
 
       res.json({ message: 'Proveedor actualizado exitosamente' });
     } catch (error) {
-      next(error);
+      console.error('Error en actualizar proveedor:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -138,7 +145,7 @@ const proveedorController = {
         });
       }
 
-      // Eliminar contactos primero (por si acaso, aunque debería ser CASCADE)
+      // Eliminar contactos primero
       await db.run('DELETE FROM proveedor_contactos WHERE proveedor_id = ?', [id]);
 
       // Eliminar proveedor
@@ -146,7 +153,90 @@ const proveedorController = {
 
       res.json({ message: 'Proveedor eliminado exitosamente' });
     } catch (error) {
-      next(error);
+      console.error('Error en eliminar proveedor:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // GET /api/proveedores/:id/contactos
+  listarContactos: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+
+      const contactos = await db.all(
+        'SELECT * FROM proveedor_contactos WHERE proveedor_id = ? ORDER BY nombre',
+        [id]
+      );
+
+      res.json(contactos);
+    } catch (error) {
+      console.error('Error en listar contactos:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // POST /api/proveedores/:id/contactos
+  crearContacto: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+      const { nombre, cargo, telefono_movil, email } = req.body;
+
+      if (!nombre) {
+        return res.status(400).json({ error: 'El nombre del contacto es requerido' });
+      }
+
+      const result = await db.run(`
+        INSERT INTO proveedor_contactos (proveedor_id, nombre, cargo, telefono_movil, email)
+        VALUES (?, ?, ?, ?, ?)
+      `, [id, nombre, cargo || null, telefono_movil || null, email || null]);
+
+      res.status(201).json({
+        id: result.lastID,
+        message: 'Contacto agregado exitosamente'
+      });
+    } catch (error) {
+      console.error('Error en crear contacto:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // PUT /api/proveedores/:id/contactos/:contactoId
+  actualizarContacto: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id, contactoId } = req.params;
+      const { nombre, cargo, telefono_movil, email } = req.body;
+
+      await db.run(`
+        UPDATE proveedor_contactos 
+        SET nombre = ?, cargo = ?, telefono_movil = ?, email = ?
+        WHERE id = ? AND proveedor_id = ?
+      `, [nombre, cargo || null, telefono_movil || null, email || null, contactoId, id]);
+
+      res.json({ message: 'Contacto actualizado exitosamente' });
+    } catch (error) {
+      console.error('Error en actualizar contacto:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // DELETE /api/proveedores/:id/contactos/:contactoId
+  eliminarContacto: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id, contactoId } = req.params;
+
+      await db.run(
+        'DELETE FROM proveedor_contactos WHERE id = ? AND proveedor_id = ?',
+        [contactoId, id]
+      );
+
+      res.json({ message: 'Contacto eliminado exitosamente' });
+    } catch (error) {
+      console.error('Error en eliminar contacto:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };

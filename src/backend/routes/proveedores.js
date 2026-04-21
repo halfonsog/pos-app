@@ -17,4 +17,10 @@ router.put('/:id', proveedorController.actualizar);
 // DELETE /api/proveedores/:id
 router.delete('/:id', proveedorController.eliminar);
 
+// Contactos
+router.get('/:id/contactos', proveedorController.listarContactos);
+router.post('/:id/contactos', proveedorController.crearContacto);
+router.put('/:id/contactos/:contactoId', proveedorController.actualizarContacto);
+router.delete('/:id/contactos/:contactoId', proveedorController.eliminarContacto);
+
 module.exports = router;

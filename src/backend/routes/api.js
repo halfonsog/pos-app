@@ -8,11 +8,15 @@ const categoriasRoutes = require('./categorias');
 const unidadesRoutes = require('./unidades');
 const authRoutes = require('./auth');
 const comprasRoutes = require('./compras');
+const catalogoController = require('../controllers/catalogoController');
 
 // Health check (público)
 router.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+
+// GET /api/terminos-pago
+router.get('/terminos-pago', catalogoController.listarTerminosPago);
 
 // Rutas públicas
 router.use('/auth', authRoutes);
