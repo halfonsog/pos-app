@@ -133,7 +133,7 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
     return;
   }
 
-  // Guardar en historial (si no es replace y no es duplicado)
+  // ✅ CORREGIDO: Guardar en historial SOLO si NO es replace
   if (!options.replace && this.currentView) {
     const lastEntry = this.history[this.history.length - 1];
     if (!lastEntry || lastEntry.ruta !== this.currentView) {
@@ -187,7 +187,7 @@ ViewManager.volver = function () {
   if (this.history.length > 0) {
     const previous = this.history.pop();
     console.log('↩️ Volviendo a:', previous.ruta);
-    // Usar replace: true para no añadir otra entrada al historial
+    // ✅ Usar replace: true para no añadir otra entrada
     this.navegar(previous.ruta, previous.params, { replace: true });
   } else {
     console.log('⚠️ No hay historial, yendo a dashboard');
@@ -201,6 +201,7 @@ ViewManager.volver = function () {
 ViewManager.refresh = async function () {
   if (this.currentView) {
     console.log('🔄 Refrescando vista:', this.currentView);
+    // ✅ Usar replace: true Y force: true
     await this.navegar(this.currentView, this.currentParams, { replace: true, force: true });
   }
 };

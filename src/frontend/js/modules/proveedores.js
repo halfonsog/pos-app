@@ -1117,7 +1117,7 @@ Proveedores.renderContactosLayout = function (proveedor) {
             <ol class="breadcrumb">
               <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
               <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Proveedores</a></li>
-              <li class="breadcrumb-item"><a href="#proveedores/ver/${proveedor.id}">${proveedor.nombre}</a></li>
+              <li class="breadcrumb-item"><span class="text-muted">${proveedor.nombre}</span></li>
               <li class="breadcrumb-item active">Contactos</li>
             </ol>
           </nav>
@@ -1207,7 +1207,10 @@ Proveedores.renderContactosLayout = function (proveedor) {
 
 Proveedores.bindContactosEvents = function (proveedor) {
   $('#btnVolver').on('click', () => ViewManager.navegar('proveedores/ver/' + proveedor.id));
-  $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
+  $('.breadcrumb-back').on('click', (e) => {
+    e.preventDefault();
+    ViewManager.volver();
+  });
 
   // Agregar contacto
   $('#contactoVistaForm').on('submit', async function (e) {
