@@ -1034,15 +1034,12 @@ Proveedores.bindFichaEvents = function (proveedor) {
         await API.proveedores.crearContacto(proveedor.id, data);
       }
 
-      // ✅ Forzar recarga de datos
       State.invalidateCache('proveedores');
-
       Utils.hideLoading();
       Toast.success('Contacto guardado');
       contactoModal.hide();
 
-      // ✅ Recargar la vista completamente
-      await ViewManager.refresh();
+      ViewManager.refresh();
 
     } catch (error) {
       Utils.hideLoading();
@@ -1060,14 +1057,11 @@ Proveedores.bindFichaEvents = function (proveedor) {
       Utils.showLoading('Eliminando...');
       await API.proveedores.eliminarContacto(proveedor.id, contactoId);
 
-      // ✅ Forzar recarga de datos
       State.invalidateCache('proveedores');
-
       Utils.hideLoading();
       Toast.success('Contacto eliminado');
 
-      // ✅ Recargar la vista completamente
-      await ViewManager.refresh();
+      ViewManager.refresh();
 
     } catch (error) {
       Utils.hideLoading();
@@ -1235,7 +1229,7 @@ Proveedores.bindContactosEvents = function (proveedor) {
     };
 
     try {
-      Utils.showLoading(editingId ? 'Actualizando contacto...' : 'Agregando contacto...');
+      Utils.showLoading(editingId ? 'Actualizando...' : 'Agregando...');
 
       if (editingId) {
         await API.proveedores.actualizarContacto(proveedor.id, editingId, data);
@@ -1244,19 +1238,11 @@ Proveedores.bindContactosEvents = function (proveedor) {
       }
 
       State.invalidateCache('proveedores');
-
       Utils.hideLoading();
       Toast.success(editingId ? 'Contacto actualizado' : 'Contacto agregado');
 
-      // Limpiar formulario
-      $('#contactoVistaNombre').val('');
-      $('#contactoVistaCargo').val('');
-      $('#contactoVistaTelefono').val('');
-      $('#contactoVistaEmail').val('');
-      $(this).removeAttr('data-editing-id');
-      $('#contactoVistaForm button[type="submit"]').html('<i class="fas fa-plus me-1"></i>Agregar Contacto');
+      ViewManager.refresh();
 
-      await ViewManager.refresh();
     } catch (error) {
       Utils.hideLoading();
       Toast.error(error.message);
@@ -1296,19 +1282,17 @@ Proveedores.bindContactosEvents = function (proveedor) {
       Utils.showLoading('Eliminando...');
       await API.proveedores.eliminarContacto(proveedor.id, contactoId);
 
-      // ✅ Forzar recarga
       State.invalidateCache('proveedores');
-
       Utils.hideLoading();
       Toast.success('Contacto eliminado');
 
-      await ViewManager.refresh();
+      ViewManager.refresh();
+
     } catch (error) {
       Utils.hideLoading();
       Toast.error(error.message);
     }
   });
-
   Proveedores.bindCommonEvents();
 };
 

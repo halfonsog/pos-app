@@ -119,18 +119,21 @@ ViewManager.matchPattern = function (pattern, ruta) {
 ViewManager.navegar = async function (ruta, params = {}, options = {}) {
   console.log(`🧭 Navegando a: ${ruta}`, params);
 
+  // Parsear query parameters de la ruta
   const parsed = this.parseUrl(ruta);
   const rutaBase = parsed.ruta;
   const queryParams = parsed.params;
+
+  // Combinar todos los parámetros
   const finalParams = { ...queryParams, ...params };
 
-  // Si no es forzado y ya estamos en esa vista, ignorar
+  // Evitar navegación duplicada a la misma vista
   if (this.currentView === ruta && !options.force) {
     console.log('⚠️ Ya estás en esta vista, ignorando navegación');
     return;
   }
 
-  // Guardar en historial si no es replace
+  // Guardar en historial (si no es replace y no es duplicado)
   if (!options.replace && this.currentView) {
     const lastEntry = this.history[this.history.length - 1];
     if (!lastEntry || lastEntry.ruta !== this.currentView) {
@@ -155,14 +158,19 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
   const allParams = { ...urlParams, ...finalParams };
 
   this.currentView = ruta;
-  this.currentParams = finalParams;
+  this.currentParams = allParams;
+
+  // Actualizar URL
   window.location.hash = ruta;
 
   // Ejecutar acción del módulo
   try {
-    const module = window[routeMatch.route.module];
-    if (module && typeof module[routeMatch.route.action] === 'function') {
-      await module[routeMatch.route.action](finalParams);
+    const module = window[route.module];
+    if (module && typeof module[route.action] === 'function') {
+      await module[route.action](allParams);
+    } else {
+      console.error(`❌ Módulo ${route.module} o acción ${route.action} no encontrado`);
+      Toast.error('Error cargando la vista');
     }
   } catch (error) {
     console.error('❌ Error cargando vista:', error);
@@ -193,19 +201,7 @@ ViewManager.volver = function () {
 ViewManager.refresh = async function () {
   if (this.currentView) {
     console.log('🔄 Refrescando vista:', this.currentView);
-
-    // Obtener el módulo actual de la ruta
-    const routeMatch = this.findRoute(this.currentView);
-    if (routeMatch) {
-      const moduleName = routeMatch.route.module.toLowerCase();
-      // Invalidar caché del módulo actual
-      State.invalidateCache(moduleName);
-    }
-
-    // Forzar navegación a la misma vista
     await this.navegar(this.currentView, this.currentParams, { replace: true, force: true });
-
-    console.log('✅ Vista refrescada');
   }
 };
 
