@@ -126,15 +126,14 @@ const inventarioController = {
       console.error('Error en listar movimientos:', error);
       res.status(500).json({ error: error.message });
     }
-  }
-};
+  },
 
-// GET /api/inventario/preparables
-listarPreparables: async (req, res, next) => {
-  try {
-    const db = await getDb();
+  // GET /api/inventario/preparables
+  listarPreparables: async (req, res, next) => {
+    try {
+      const db = await getDb();
 
-    const productos = await db.all(`
+      const productos = await db.all(`
       SELECT 
         p.id, p.codigo, p.nombre,
         p.stock_actual, uv.abreviatura as unidad_abrev,
@@ -148,9 +147,9 @@ listarPreparables: async (req, res, next) => {
       ORDER BY p.nombre
     `);
 
-    // Verificar cuáles tienen componentes con stock suficiente
-    for (const p of productos) {
-      const componentes = await db.all(`
+      // Verificar cuáles tienen componentes con stock suficiente
+      for (const p of productos) {
+        const componentes = await db.all(`
         SELECT 
           pr.nombre, pr.stock_actual, r.cantidad,
           pr.stock_actual >= r.cantidad as suficiente
@@ -159,166 +158,167 @@ listarPreparables: async (req, res, next) => {
         WHERE r.producto_padre_id = ?
       `, [p.id]);
 
-      p.componentes = componentes;
-      p.todos_suficientes = componentes.every(c => c.suficiente);
+        p.componentes = componentes;
+        p.todos_suficientes = componentes.every(c => c.suficiente);
 
-      // Calcular cantidad máxima preparable
-      if (p.todos_suficientes) {
-        const maxPorComponente = componentes.map(c => Math.floor(c.stock_actual / c.cantidad));
-        p.cantidad_maxima = Math.min(...maxPorComponente);
-      } else {
-        p.cantidad_maxima = 0;
+        // Calcular cantidad máxima preparable
+        if (p.todos_suficientes) {
+          const maxPorComponente = componentes.map(c => Math.floor(c.stock_actual / c.cantidad));
+          p.cantidad_maxima = Math.min(...maxPorComponente);
+        } else {
+          p.cantidad_maxima = 0;
+        }
       }
+
+      res.json(productos);
+    } catch (error) {
+      console.error('Error en listar preparables:', error);
+      res.status(500).json({ error: error.message });
     }
+  },
 
-    res.json(productos);
-  } catch (error) {
-    console.error('Error en listar preparables:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// POST /api/inventario/preparar/:id
-prepararProducto: async (req, res, next) => {
-  try {
-    const db = await getDb();
-    const { id } = req.params;
-    const { cantidad } = req.body;
-    const usuario_id = 1; // TODO: Obtener del token
-
-    await db.run('BEGIN TRANSACTION');
-
+  // POST /api/inventario/preparar/:id
+  prepararProducto: async (req, res, next) => {
     try {
-      // Obtener receta
-      const componentes = await db.all(`
+      const db = await getDb();
+      const { id } = req.params;
+      const { cantidad } = req.body;
+      const usuario_id = 1; // TODO: Obtener del token
+
+      await db.run('BEGIN TRANSACTION');
+
+      try {
+        // Obtener receta
+        const componentes = await db.all(`
         SELECT producto_hijo_id, cantidad
         FROM recetas
         WHERE producto_padre_id = ?
       `, [id]);
 
-      // Verificar stock suficiente
-      for (const c of componentes) {
-        const stock = await db.get(
-          'SELECT stock_actual FROM productos WHERE id = ?',
-          [c.producto_hijo_id]
-        );
+        // Verificar stock suficiente
+        for (const c of componentes) {
+          const stock = await db.get(
+            'SELECT stock_actual FROM productos WHERE id = ?',
+            [c.producto_hijo_id]
+          );
 
-        if (stock.stock_actual < c.cantidad * cantidad) {
-          throw new Error(`Stock insuficiente para el componente`);
+          if (stock.stock_actual < c.cantidad * cantidad) {
+            throw new Error(`Stock insuficiente para el componente`);
+          }
         }
-      }
 
-      // Descontar componentes
-      for (const c of componentes) {
-        await db.run(
-          'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
-          [c.cantidad * cantidad, c.producto_hijo_id]
-        );
+        // Descontar componentes
+        for (const c of componentes) {
+          await db.run(
+            'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
+            [c.cantidad * cantidad, c.producto_hijo_id]
+          );
 
-        await db.run(`
+          await db.run(`
           INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
           VALUES (?, 'preparacion_salida', ?, ?, ?, 'Preparación de producto')
         `, [c.producto_hijo_id, -c.cantidad * cantidad, id, usuario_id]);
-      }
+        }
 
-      // Aumentar stock del producto preparado
-      await db.run(
-        'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
-        [cantidad, id]
-      );
+        // Aumentar stock del producto preparado
+        await db.run(
+          'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
+          [cantidad, id]
+        );
 
-      await db.run(`
+        await db.run(`
         INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
         VALUES (?, 'preparacion_entrada', ?, ?, ?, 'Producto preparado')
       `, [id, cantidad, id, usuario_id]);
 
-      await db.run('COMMIT');
+        await db.run('COMMIT');
 
-      res.json({ message: `Se prepararon ${cantidad} unidades correctamente` });
+        res.json({ message: `Se prepararon ${cantidad} unidades correctamente` });
+
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
 
     } catch (error) {
-      await db.run('ROLLBACK');
-      throw error;
+      console.error('Error en preparar producto:', error);
+      res.status(500).json({ error: error.message });
     }
+  },
 
-  } catch (error) {
-    console.error('Error en preparar producto:', error);
-    res.status(500).json({ error: error.message });
-  }
-}
-
-// POST /api/inventario/ajuste
-crearAjuste: async (req, res, next) => {
-  try {
-    const db = await getDb();
-    const { producto_id, tipo, cantidad, observaciones } = req.body;
-    const usuario_id = 1; // TODO: Obtener del token
-
-    // Validaciones
-    if (!producto_id || !tipo || !cantidad) {
-      return res.status(400).json({ error: 'Faltan datos requeridos' });
-    }
-
-    // Para merma, donación, autoconsumo: la cantidad debe ser negativa (descuenta stock)
-    // Para ajuste manual: puede ser positiva o negativa
-    let cantidadFinal = parseFloat(cantidad);
-
-    if (['merma', 'donacion', 'autoconsumo'].includes(tipo)) {
-      cantidadFinal = -Math.abs(cantidadFinal);
-    }
-
-    // Verificar stock suficiente para descuentos
-    if (cantidadFinal < 0) {
-      const producto = await db.get(
-        'SELECT stock_actual, nombre FROM productos WHERE id = ?',
-        [producto_id]
-      );
-
-      if (!producto) {
-        return res.status(404).json({ error: 'Producto no encontrado' });
-      }
-
-      if (producto.stock_actual < Math.abs(cantidadFinal)) {
-        return res.status(400).json({
-          error: `Stock insuficiente. Stock actual: ${producto.stock_actual}`
-        });
-      }
-    }
-
-    await db.run('BEGIN TRANSACTION');
-
+  // POST /api/inventario/ajuste
+  crearAjuste: async (req, res, next) => {
     try {
-      // Actualizar stock
-      await db.run(
-        'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
-        [cantidadFinal, producto_id]
-      );
+      const db = await getDb();
+      const { producto_id, tipo, cantidad, observaciones } = req.body;
+      const usuario_id = 1; // TODO: Obtener del token
 
-      // Registrar movimiento
-      const observacionesFinal = observaciones ||
-        `Ajuste por ${tipo}${cantidadFinal < 0 ? ' (salida)' : ' (entrada)'}`;
+      // Validaciones
+      if (!producto_id || !tipo || !cantidad) {
+        return res.status(400).json({ error: 'Faltan datos requeridos' });
+      }
 
-      await db.run(`
+      // Para merma, donación, autoconsumo: la cantidad debe ser negativa (descuenta stock)
+      // Para ajuste manual: puede ser positiva o negativa
+      let cantidadFinal = parseFloat(cantidad);
+
+      if (['merma', 'donacion', 'autoconsumo'].includes(tipo)) {
+        cantidadFinal = -Math.abs(cantidadFinal);
+      }
+
+      // Verificar stock suficiente para descuentos
+      if (cantidadFinal < 0) {
+        const producto = await db.get(
+          'SELECT stock_actual, nombre FROM productos WHERE id = ?',
+          [producto_id]
+        );
+
+        if (!producto) {
+          return res.status(404).json({ error: 'Producto no encontrado' });
+        }
+
+        if (producto.stock_actual < Math.abs(cantidadFinal)) {
+          return res.status(400).json({
+            error: `Stock insuficiente. Stock actual: ${producto.stock_actual}`
+          });
+        }
+      }
+
+      await db.run('BEGIN TRANSACTION');
+
+      try {
+        // Actualizar stock
+        await db.run(
+          'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
+          [cantidadFinal, producto_id]
+        );
+
+        // Registrar movimiento
+        const observacionesFinal = observaciones ||
+          `Ajuste por ${tipo}${cantidadFinal < 0 ? ' (salida)' : ' (entrada)'}`;
+
+        await db.run(`
         INSERT INTO movimientos_stock (producto_id, tipo, cantidad, usuario_id, observaciones)
         VALUES (?, ?, ?, ?, ?)
       `, [producto_id, tipo, cantidadFinal, usuario_id, observacionesFinal]);
 
-      await db.run('COMMIT');
+        await db.run('COMMIT');
 
-      const accion = cantidadFinal > 0 ? 'incrementó' : 'decrementó';
-      res.json({
-        message: `Stock ${accion} en ${Math.abs(cantidadFinal)} unidades correctamente`
-      });
+        const accion = cantidadFinal > 0 ? 'incrementó' : 'decrementó';
+        res.json({
+          message: `Stock ${accion} en ${Math.abs(cantidadFinal)} unidades correctamente`
+        });
+
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
 
     } catch (error) {
-      await db.run('ROLLBACK');
-      throw error;
+      console.error('Error en crear ajuste:', error);
+      res.status(500).json({ error: error.message });
     }
-
-  } catch (error) {
-    console.error('Error en crear ajuste:', error);
-    res.status(500).json({ error: error.message });
   }
-}
+};
 
 module.exports = inventarioController;
