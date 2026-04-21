@@ -21,16 +21,6 @@ ViewManager.routes = [
   { pattern: 'productos/ver/:id', module: 'Productos', action: 'ficha' },
   { pattern: 'productos/costo/:id', module: 'Productos', action: 'costo' },
   { pattern: 'productos/receta/:id', module: 'Productos', action: 'receta' },
-  { pattern: 'selector-productos', module: 'SelectorProductos', action: 'index' },
-
-  // Proveedores
-  // Proveedores
-  { pattern: 'proveedores', module: 'Proveedores', action: 'index' },
-  { pattern: 'proveedores/listado', module: 'Proveedores', action: 'listado' },
-  { pattern: 'proveedores/nuevo', module: 'Proveedores', action: 'formulario' },
-  { pattern: 'proveedores/editar/:id', module: 'Proveedores', action: 'formulario' },
-  { pattern: 'proveedores/ver/:id', module: 'Proveedores', action: 'ficha' },
-  { pattern: 'proveedores/contactos/:id', module: 'Proveedores', action: 'contactos' },
 
   // Compras
   { pattern: 'compras', module: 'Compras', action: 'index' },
@@ -40,14 +30,23 @@ ViewManager.routes = [
   { pattern: 'compras/ver/:id', module: 'Compras', action: 'ficha' },
   { pattern: 'compras/pagar/:id', module: 'Compras', action: 'pagar' },
   { pattern: 'compras/inventariar/:id', module: 'Compras', action: 'inventariar' },
-  { pattern: 'compras/seleccionar-productos', module: 'Compras', action: 'seleccionarProductos' },
+
+  // Selector de productos
+  { pattern: 'selector-productos', module: 'SelectorProductos', action: 'index' },
+
+  // Proveedores
+  { pattern: 'proveedores', module: 'Proveedores', action: 'index' },
+  { pattern: 'proveedores/listado', module: 'Proveedores', action: 'listado' },
+  { pattern: 'proveedores/nuevo', module: 'Proveedores', action: 'formulario' },
+  { pattern: 'proveedores/editar/:id', module: 'Proveedores', action: 'formulario' },
+  { pattern: 'proveedores/ver/:id', module: 'Proveedores', action: 'ficha' },
+  { pattern: 'proveedores/contactos/:id', module: 'Proveedores', action: 'contactos' },
 
   // Configuración
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
   { pattern: 'categorias', module: 'Categorias', action: 'listado' },
   { pattern: 'categorias/nuevo', module: 'Categorias', action: 'formulario' },
   { pattern: 'unidades', module: 'Unidades', action: 'listado' }
-
 ];
 
 /**
@@ -114,38 +113,44 @@ ViewManager.matchPattern = function (pattern, ruta) {
 };
 
 /**
- * Navega a una ruta específica
+ * Navega a una ruta específica (AVANZA)
  */
 ViewManager.navegar = async function (ruta, params = {}, options = {}) {
   console.log(`🧭 Navegando a: ${ruta}`, params);
 
-  // Parsear query parameters de la ruta
   const parsed = this.parseUrl(ruta);
   const rutaBase = parsed.ruta;
   const queryParams = parsed.params;
-
-  // Combinar todos los parámetros
   const finalParams = { ...queryParams, ...params };
 
-  // Evitar navegación duplicada a la misma vista
-  if (this.currentView === ruta && !options.force) {
-    console.log('⚠️ Ya estás en esta vista, ignorando navegación');
-    return;
+  // Si es navegación desde menú lateral, limpiar historial
+  if (options.reset) {
+    this.history = [];
+    console.log('🔄 Historial reiniciado');
   }
 
-  // ✅ CORREGIDO: Guardar en historial SOLO si NO es replace
-  if (!options.replace && this.currentView) {
-    const lastEntry = this.history[this.history.length - 1];
-    if (!lastEntry || lastEntry.ruta !== this.currentView) {
-      this.history.push({
-        ruta: this.currentView,
-        params: this.currentParams
-      });
-      console.log('📝 Historial actualizado:', this.history.length);
-    }
+  // Guardar vista actual en historial ANTES de cambiar
+  if (this.currentView && !options.reset && !options.replace) {
+    this.history.push({
+      ruta: this.currentView,
+      params: this.currentParams
+    });
+    console.log('📝 Historial:', this.history.length);
   }
 
-  // Buscar la ruta base
+  // Actualizar URL (esto NO dispara popstate porque usamos pushState)
+  window.location.hash = ruta;
+
+  // Cargar la vista
+  await this._cargarVista(ruta, finalParams);
+};
+
+/**
+ * Carga una vista (usado internamente)
+ */
+ViewManager._cargarVista = async function (ruta, params) {
+  const parsed = this.parseUrl(ruta);
+  const rutaBase = parsed.ruta;
   const routeMatch = this.findRoute(rutaBase);
 
   if (!routeMatch) {
@@ -155,15 +160,11 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
   }
 
   const { route, params: urlParams } = routeMatch;
-  const allParams = { ...urlParams, ...finalParams };
+  const allParams = { ...urlParams, ...params };
 
   this.currentView = ruta;
   this.currentParams = allParams;
 
-  // Actualizar URL
-  window.location.hash = ruta;
-
-  // Ejecutar acción del módulo
   try {
     const module = window[route.module];
     if (module && typeof module[route.action] === 'function') {
@@ -179,7 +180,7 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
 };
 
 /**
- * Vuelve a la vista anterior
+ * Volver a la vista anterior
  */
 ViewManager.volver = function () {
   console.log('⬅️ Volviendo atrás. Historial:', this.history.length);
@@ -187,11 +188,11 @@ ViewManager.volver = function () {
   if (this.history.length > 0) {
     const previous = this.history.pop();
     console.log('↩️ Volviendo a:', previous.ruta);
-    // ✅ Usar replace: true para no añadir otra entrada
+    // Usar replace: true para no duplicar en historial
     this.navegar(previous.ruta, previous.params, { replace: true });
   } else {
     console.log('⚠️ No hay historial, yendo a dashboard');
-    this.navegar('dashboard');
+    this.navegar('dashboard', {}, { reset: true });
   }
 };
 
@@ -201,20 +202,30 @@ ViewManager.volver = function () {
 ViewManager.refresh = async function () {
   if (this.currentView) {
     console.log('🔄 Refrescando vista:', this.currentView);
-    // ✅ Usar replace: true Y force: true
-    await this.navegar(this.currentView, this.currentParams, { replace: true, force: true });
+
+    // Invalidar caché del módulo actual
+    const routeMatch = this.findRoute(this.currentView);
+    if (routeMatch) {
+      const moduleName = routeMatch.route.module.toLowerCase();
+      State.invalidateCache(moduleName);
+    }
+
+    // Recargar la vista sin modificar historial
+    await this._cargarVista(this.currentView, this.currentParams);
   }
 };
 
-window.ViewManager = ViewManager;
+// ============================================
+// SINCRONIZACIÓN CON EL NAVEGADOR
+// ============================================
 
-// Manejar cambios de hash en la URL
-$(window).on('hashchange', function () {
+// Capturar el botón "atrás" del navegador
+window.addEventListener('popstate', function (e) {
   const hash = window.location.hash.substring(1);
-  // Solo navegar si el cambio NO fue iniciado por ViewManager
-  if (hash && hash !== ViewManager.currentView) {
-    console.log('🔄 Hash cambiado externamente:', hash);
-    ViewManager.navegar(hash);
+  if (hash) {
+    console.log('⬅️ popstate: navegando a', hash);
+    // Cargar la vista sin modificar el historial
+    ViewManager._cargarVista(hash, {});
   }
 });
 
@@ -222,7 +233,8 @@ $(window).on('hashchange', function () {
 $(document).ready(function () {
   const hash = window.location.hash.substring(1);
   if (hash) {
-    ViewManager.navegar(hash);
+    ViewManager.navegar(hash, {}, { reset: true });
   }
-
 });
+
+window.ViewManager = ViewManager;
