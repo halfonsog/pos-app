@@ -21,7 +21,6 @@ Inventario.index = async function () {
 
   } catch (error) {
     console.error('Error cargando inventario:', error);
-    Toast.error('Error al cargar el módulo de inventario');
   }
 };
 
@@ -179,7 +178,6 @@ Inventario.stock = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar stock: ' + error.message);
     console.error(error);
   }
 };
@@ -524,7 +522,6 @@ Inventario.movimientos = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar movimientos: ' + error.message);
     console.error(error);
   }
 };
@@ -715,24 +712,27 @@ Inventario.preparar = async function (params) {
   try {
     Utils.showLoading('Cargando productos preparables...');
 
-    const productos = await API.inventario.preparables();
-    const layout = Inventario.renderPrepararLayout(productos);
+    const productos = await API.inventario.preparables();  // ← Este endpoint
 
+    const layout = Inventario.renderPrepararLayout(productos);
     $('#app').html(layout);
+
     Inventario.bindPrepararEvents(productos);
 
     Utils.hideLoading();
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
 
 Inventario.renderPrepararLayout = function (productos) {
   const user = State.getUser();
-  const preparables = productos.filter(p => p.todos_suficientes);
+
+  // Separar productos
+  const listos = productos.filter(p => p.todos_suficientes);
+  const pendientes = productos.filter(p => !p.todos_suficientes && p.componentes.length > 0);
 
   return `
     <div class="app-wrapper">
@@ -756,48 +756,68 @@ Inventario.renderPrepararLayout = function (productos) {
             <h2 class="mb-0"><i class="fas fa-flask me-2"></i>Preparar Producto</h2>
           </div>
           
-          ${preparables.length === 0 ? `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle me-2"></i>
-              No hay productos listos para preparar en este momento.
-            </div>
-          ` : `
-            <div class="row">
-              <div class="col-lg-8">
-                <div class="card">
-                  <div class="card-header">
-                    <h5 class="mb-0">Selecciona un producto para preparar</h5>
-                  </div>
-                  <div class="card-body">
-                    <div class="row g-3">
-                      ${preparables.map(p => `
-                        <div class="col-md-6">
-                          <div class="card producto-preparable" data-id="${p.id}" data-max="${p.cantidad_maxima}">
-                            <div class="card-body">
-                              <h6>${p.nombre}</h6>
-                              <small class="text-muted">${p.codigo}</small>
-                              <div class="mt-2">
-                                <span class="badge bg-info">Stock actual: ${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_abrev}</span>
-                                <span class="badge bg-success">Máx. preparable: ${p.cantidad_maxima}</span>
-                              </div>
-                              <div class="mt-3">
-                                <label class="form-label">Cantidad a preparar</label>
-                                <input type="number" class="form-control form-control-sm cantidad-preparar" 
-                                       value="1" min="1" max="${p.cantidad_maxima}" step="1">
-                              </div>
-                              <button class="btn btn-primary w-100 mt-2 btn-preparar">
-                                <i class="fas fa-flask me-1"></i>Preparar
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      `).join('')}
+          <!-- ✅ LISTOS PARA PREPARAR -->
+          ${listos.length > 0 ? `
+            <h4 class="mb-3"><i class="fas fa-check-circle text-success me-2"></i>Listos para preparar</h4>
+            <div class="row g-3 mb-4">
+              ${listos.map(p => `
+                <div class="col-md-6">
+                  <div class="card producto-preparable" data-id="${p.id}" data-max="${p.cantidad_maxima}">
+                    <div class="card-body">
+                      <h6>${p.nombre} <span class="badge bg-success">${p.cantidad_maxima} preparables</span></h6>
+                      <small class="text-muted">${p.codigo}</small>
+                      <div class="mt-3">
+                        <label class="form-label">Cantidad a preparar</label>
+                        <input type="number" class="form-control form-control-sm cantidad-preparar" 
+                               value="1" min="1" max="${p.cantidad_maxima}" step="1">
+                      </div>
+                      <button class="btn btn-primary w-100 mt-2 btn-preparar">
+                        <i class="fas fa-flask me-1"></i>Preparar
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
+              `).join('')}
             </div>
-          `}
+          ` : ''}
+          
+          <!-- ⚠️ PENDIENTES DE STOCK -->
+          ${pendientes.length > 0 ? `
+            <h4 class="mb-3"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Pendientes de stock</h4>
+            <div class="row g-3">
+              ${pendientes.map(p => `
+                <div class="col-md-6">
+                  <div class="card border-warning">
+                    <div class="card-body">
+                      <h6>${p.nombre}</h6>
+                      <small class="text-muted">${p.codigo}</small>
+                      <div class="mt-2">
+                        <span class="badge bg-warning">Stock insuficiente</span>
+                      </div>
+                      <div class="mt-2 small">
+                        <strong>Componentes faltantes:</strong>
+                        <ul class="mb-2 mt-1">
+                          ${p.componentes.filter(c => !c.suficiente).map(c => `
+                            <li>${c.nombre}: necesita ${c.cantidad}, hay ${c.stock_actual}</li>
+                          `).join('')}
+                        </ul>
+                      </div>
+                      <a href="#productos/receta/${p.id}" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="fas fa-list-ul me-1"></i>Ver receta
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          
+          ${listos.length === 0 && pendientes.length === 0 ? `
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              No hay productos compuestos que requieran preparación.
+            </div>
+          ` : ''}
         </div>
       </main>
     </div>
@@ -842,7 +862,7 @@ Inventario.bindPrepararEvents = function (productos) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -856,19 +876,32 @@ Inventario.ajuste = async function (params) {
   console.log('⚖️ Cargando ajuste de inventario', params);
 
   const productoId = params.id || null;
+  const tipoInicial = params.tipo || '';  // ✅ Recibir tipo
+
 
   try {
     Utils.showLoading('Cargando...');
 
     const productos = await API.productos.listar();
-    const productosActivos = productos.filter(p => p.activo);
+    const productosAjustables = productos.filter(p =>
+      p.activo && (
+        p.tipo === 'simple' ||
+        (p.tipo === 'compuesto' && !p.requiere_preparacion)
+      )
+    );
+    const layout = Inventario.renderAjusteLayout(productosAjustables, productoId, tipoInicial);
 
-    const layout = Inventario.renderAjusteLayout(productosActivos, productoId);
     $('#app').html(layout);
 
     if (productoId) {
       $('#productoId').val(productoId);
       await Inventario.cargarInfoProducto(productoId);
+    }
+
+    // ✅ Seleccionar tipo si viene en params
+    if (tipoInicial) {
+      $('#tipoAjuste').val(tipoInicial);
+      Inventario.validarAjuste();
     }
 
     Inventario.bindAjusteEvents();
@@ -877,12 +910,11 @@ Inventario.ajuste = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
 
-Inventario.renderAjusteLayout = function (productos, productoSeleccionado) {
+Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoInicial) {
   const user = State.getUser();
 
   const productosOptions = productos
@@ -936,10 +968,10 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado) {
                       <label class="form-label">Tipo de Ajuste <span class="text-danger">*</span></label>
                       <select class="form-select" id="tipoAjuste" required>
                         <option value="">Seleccione tipo...</option>
-                        <option value="merma">🗑️ Merma (pérdida)</option>
-                        <option value="donacion">🎁 Donación (salida sin venta)</option>
-                        <option value="autoconsumo">🍽️ Autoconsumo</option>
-                        <option value="ajuste">⚖️ Ajuste Manual (+/-)</option>
+                        <option value="merma" ${tipoInicial === 'merma' ? 'selected' : ''}>🗑️ Merma (pérdida)</option>
+                        <option value="donacion" ${tipoInicial === 'donacion' ? 'selected' : ''}>🎁 Donación (salida sin venta)</option>
+                        <option value="autoconsumo" ${tipoInicial === 'autoconsumo' ? 'selected' : ''}>🍽️ Autoconsumo</option>
+                        <option value="ajuste" ${tipoInicial === 'ajuste' ? 'selected' : ''}>⚖️ Ajuste Manual (+/-)</option>
                       </select>
                     </div>
                     
@@ -1062,7 +1094,7 @@ Inventario.bindAjusteEvents = function () {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1114,6 +1146,17 @@ Inventario.validarAjuste = function () {
   }
 
   return esValido;
+};
+
+// ============================================
+// VISTA MERMA (llama a ajuste con tipo=merma)
+// ============================================
+Inventario.merma = async function (params) {
+  console.log('🗑️ Cargando registro de merma');
+
+  // Simplemente llamar a ajuste con el tipo predefinido
+  params.tipo = 'merma';
+  await Inventario.ajuste(params);
 };
 
 window.Inventario = Inventario;

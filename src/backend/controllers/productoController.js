@@ -92,7 +92,6 @@ const productoController = {
       producto.tiene_dependencias = (ventas.count > 0 || compras.count > 0 || recetaPadre.count > 0);
 
       res.json(producto);
-      res.json(producto);
     } catch (error) {
       next(error);
     }
@@ -193,35 +192,69 @@ const productoController = {
       const { id } = req.params;
       const { producto_hijo_id, cantidad } = req.body;
 
+      console.log('📝 [BACKEND] Agregando componente:', { id, producto_hijo_id, cantidad });
+
       // Verificar que el producto padre sea compuesto
       const padre = await db.get(
-        'SELECT tipo FROM productos WHERE id = ?',
+        'SELECT tipo, nombre FROM productos WHERE id = ?',
         [id]
       );
 
+      console.log('📦 [BACKEND] Producto padre:', padre);
+
       if (!padre || padre.tipo !== 'compuesto') {
+        console.log('❌ [BACKEND] El producto padre no es compuesto');
         return res.status(400).json({
           error: 'Solo productos compuestos pueden tener receta'
         });
       }
 
+      // Verificar que el producto hijo existe
+      const hijo = await db.get(
+        'SELECT id, nombre FROM productos WHERE id = ?',
+        [producto_hijo_id]
+      );
+
+      console.log('📦 [BACKEND] Producto hijo:', hijo);
+
+      if (!hijo) {
+        console.log('❌ [BACKEND] El producto hijo no existe');
+        return res.status(400).json({
+          error: 'El producto seleccionado no existe'
+        });
+      }
+
       // Verificar que no se agregue a sí mismo
       if (parseInt(id) === parseInt(producto_hijo_id)) {
+        console.log('❌ [BACKEND] No puede agregarse a sí mismo');
         return res.status(400).json({
           error: 'Un producto no puede ser componente de sí mismo'
         });
       }
 
-      await db.run(`
+      // Insertar
+      const result = await db.run(`
       INSERT INTO recetas (producto_padre_id, producto_hijo_id, cantidad)
       VALUES (?, ?, ?)
       ON CONFLICT(producto_padre_id, producto_hijo_id) 
       DO UPDATE SET cantidad = ?
     `, [id, producto_hijo_id, cantidad, cantidad]);
 
+      console.log('✅ [BACKEND] Componente agregado. Filas afectadas:', result.changes);
+
+      // Verificar que se guardó
+      const verificacion = await db.get(`
+      SELECT * FROM recetas 
+      WHERE producto_padre_id = ? AND producto_hijo_id = ?
+    `, [id, producto_hijo_id]);
+
+      console.log('🔍 [BACKEND] Verificación:', verificacion);
+
       res.json({ message: 'Componente agregado exitosamente' });
+
     } catch (error) {
-      next(error);
+      console.error('❌ [BACKEND] Error en agregarComponente:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 

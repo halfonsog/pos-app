@@ -126,6 +126,7 @@ const API = {
     obtener: (id) => API.get(`/productos/${id}`),
     crear: (formData) => API.postFormData('/productos', formData),
     actualizar: (id, formData) => API.putFormData(`/productos/${id}`, formData), // ✅ Usar putFormData
+    actualizarSimple: (id, data) => API.put(`/productos/${id}`, data),           // ✅ Para datos simples. No usar putFormData
     eliminar: (id) => API.delete(`/productos/${id}`),
     actualizarCosto: (id, data) => API.put(`/productos/${id}/costo`, data),  // ← AÑADIR
     obtenerReceta: (id) => API.get(`/productos/${id}/receta`),

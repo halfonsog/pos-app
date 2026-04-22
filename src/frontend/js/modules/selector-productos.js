@@ -43,7 +43,6 @@ SelectorProductos.index = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar productos: ' + error.message);
     console.error(error);
   }
 };

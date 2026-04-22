@@ -23,7 +23,6 @@ Compras.index = async function () {
 
   } catch (error) {
     console.error('Error cargando compras:', error);
-    Toast.error('Error al cargar el módulo de compras');
   }
 };
 
@@ -220,7 +219,6 @@ Compras.listado = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar compras: ' + error.message);
     console.error(error);
   }
 };
@@ -589,7 +587,6 @@ Compras.formulario = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar el formulario: ' + error.message);
     console.error(error);
   }
 };
@@ -905,7 +902,6 @@ Compras.bindFormularioEvents = function (id, productos) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error('Error al guardar: ' + error.message);
       console.error(error);
     }
   });
@@ -1064,7 +1060,6 @@ Compras.seleccionarProductos = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar productos: ' + error.message);
     console.error(error);
   }
 };
@@ -1214,7 +1209,6 @@ Compras.ficha = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
@@ -1397,7 +1391,7 @@ Compras.bindFichaEvents = function (compra) {
         ViewManager.refresh();
       } catch (error) {
         Utils.hideLoading();
-        Toast.error(error.message);
+        console.log(error);
       }
     });
   }
@@ -1426,7 +1420,6 @@ Compras.pagar = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
@@ -1564,7 +1557,7 @@ Compras.bindPagarEvents = function (compra) {
       ViewManager.navegar('compras/ver/' + compra.id, {}, { replace: true });
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1595,7 +1588,7 @@ Compras.inventariar = async function (params) {
     ViewManager.navegar('compras/ver/' + id);
   } catch (error) {
     Utils.hideLoading();
-    Toast.error(error.message);
+    console.log(error);
     ViewManager.navegar('compras/ver/' + id);
   }
 };

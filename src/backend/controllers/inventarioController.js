@@ -136,8 +136,7 @@ const inventarioController = {
       const productos = await db.all(`
       SELECT 
         p.id, p.codigo, p.nombre,
-        p.stock_actual, uv.abreviatura as unidad_abrev,
-        (SELECT COUNT(*) FROM recetas WHERE producto_padre_id = p.id) as num_componentes
+        p.stock_actual, uv.abreviatura as unidad_abrev
       FROM productos p
       LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
       WHERE p.tipo = 'compuesto' 
@@ -147,21 +146,20 @@ const inventarioController = {
       ORDER BY p.nombre
     `);
 
-      // Verificar cuáles tienen componentes con stock suficiente
+      // Para cada producto, obtener componentes
       for (const p of productos) {
         const componentes = await db.all(`
         SELECT 
-          pr.nombre, pr.stock_actual, r.cantidad,
-          pr.stock_actual >= r.cantidad as suficiente
+          pr.id, pr.nombre, pr.stock_actual, r.cantidad,
+          CASE WHEN pr.stock_actual >= r.cantidad THEN 1 ELSE 0 END as suficiente
         FROM recetas r
         JOIN productos pr ON r.producto_hijo_id = pr.id
         WHERE r.producto_padre_id = ?
       `, [p.id]);
 
         p.componentes = componentes;
-        p.todos_suficientes = componentes.every(c => c.suficiente);
+        p.todos_suficientes = componentes.every(c => c.suficiente === 1);
 
-        // Calcular cantidad máxima preparable
         if (p.todos_suficientes) {
           const maxPorComponente = componentes.map(c => Math.floor(c.stock_actual / c.cantidad));
           p.cantidad_maxima = Math.min(...maxPorComponente);

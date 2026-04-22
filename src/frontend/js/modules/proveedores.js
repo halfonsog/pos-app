@@ -21,7 +21,6 @@ Proveedores.index = async function () {
 
   } catch (error) {
     console.error('Error cargando proveedores:', error);
-    Toast.error('Error al cargar el módulo de proveedores');
   }
 };
 
@@ -177,7 +176,6 @@ Proveedores.listado = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar proveedores: ' + error.message);
     console.error(error);
   }
 };
@@ -396,7 +394,7 @@ Proveedores.bindListadoEvents = function (params) {
       ViewManager.refresh();
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -529,7 +527,6 @@ Proveedores.formulario = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar el formulario: ' + error.message);
     console.error(error);
   }
 };
@@ -693,7 +690,6 @@ Proveedores.bindFormularioEvents = function (id, params) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error('Error al guardar: ' + error.message);
       console.error(error);
     }
   });
@@ -743,7 +739,6 @@ Proveedores.ficha = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
@@ -976,7 +971,7 @@ Proveedores.bindFichaEvents = function (proveedor) {
       ViewManager.volver();
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1043,7 +1038,7 @@ Proveedores.bindFichaEvents = function (proveedor) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1065,7 +1060,7 @@ Proveedores.bindFichaEvents = function (proveedor) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1098,7 +1093,6 @@ Proveedores.contactos = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
@@ -1247,7 +1241,7 @@ Proveedores.bindContactosEvents = function (proveedor) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1292,7 +1286,7 @@ Proveedores.bindContactosEvents = function (proveedor) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
   Proveedores.bindCommonEvents();

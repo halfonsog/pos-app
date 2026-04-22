@@ -83,7 +83,7 @@ Categorias.formulario = async function (params) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error.message);
     }
   });
 };

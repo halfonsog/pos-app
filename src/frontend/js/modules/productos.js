@@ -22,7 +22,6 @@ Productos.index = async function () {
 
   } catch (error) {
     console.error('Error cargando productos:', error);
-    Toast.error('Error al cargar el módulo de productos');
   }
 };
 
@@ -229,7 +228,6 @@ Productos.listado = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar productos: ' + error.message);
     console.error(error);
   }
 };
@@ -497,7 +495,6 @@ Productos.formulario = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar el formulario: ' + error.message);
     console.error(error);
   }
 };
@@ -978,7 +975,6 @@ Productos.bindFormularioEvents = function (id, params) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error('Error al guardar: ' + error.message);
       console.error(error);
     }
   });
@@ -1067,6 +1063,7 @@ Productos.recopilarDatosFormulario = function () {
     nombre: $('#nombre').val().trim(),
     tipo: tipo,
     sub_tipo: tipo === 'simple' ? subTipo : null,
+    requiere_preparacion: tipo === 'compuesto' ? $('#requierePreparacion').is(':checked') : false,
     categoria_id: $('#categoriaId').val() || null,
     unidad_venta_id: parseInt($('#unidadVentaId').val()),
     unidad_compra_id: (tipo === 'simple' && subTipo === 'granel') ? parseInt($('#unidadCompraId').val()) : null,
@@ -1097,7 +1094,6 @@ Productos.ficha = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar el producto: ' + error.message);
     console.error(error);
   }
 };
@@ -1336,7 +1332,7 @@ Productos.bindFichaEvents = function (producto) {
     } catch (error) {
       Utils.hideLoading();
       console.error('❌ Error al eliminar:', error);
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1372,7 +1368,6 @@ Productos.costo = async function (params) {
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar: ' + error.message);
     console.error(error);
   }
 };
@@ -1536,7 +1531,7 @@ Productos.bindCostoEvents = function (producto) {
       ViewManager.navegar(`productos/ver/${producto.id}`);
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1562,20 +1557,24 @@ Productos.receta = async function (params) {
   try {
     Utils.showLoading('Cargando receta...');
 
-    const producto = await API.productos.obtener(id);
-    const productosDisponibles = await API.productos.listar();
-    const componentesActuales = producto.receta || [];
+    // ✅ Obtener producto, receta y productos disponibles
+    const [producto, receta, productosDisponibles] = await Promise.all([
+      API.productos.obtener(id),
+      API.productos.obtenerReceta(id),  // ← ESTE ES EL ENDPOINT CORRECTO
+      API.productos.listar()
+    ]);
 
-    const layout = Productos.renderRecetaLayout(producto, productosDisponibles, componentesActuales);
+    console.log('📦 Receta obtenida:', receta);
+
+    const layout = Productos.renderRecetaLayout(producto, productosDisponibles, receta);
     $('#app').html(layout);
 
-    Productos.bindRecetaEvents(producto, componentesActuales);
+    Productos.bindRecetaEvents(producto, receta);
 
     Utils.hideLoading();
 
   } catch (error) {
     Utils.hideLoading();
-    Toast.error('Error al cargar receta: ' + error.message);
     console.error(error);
   }
 };
@@ -1781,7 +1780,7 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
 
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1800,7 +1799,7 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
       ViewManager.refresh();
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1811,14 +1810,16 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
         requiere_preparacion: $('#requierePreparacionReceta').is(':checked')
       };
 
+      console.log('Guardando configuración de preparación:', data);
       Utils.showLoading('Guardando...');
-      await API.productos.actualizar(producto.id, data);
+      await API.productos.actualizarSimple(producto.id, data);
+      //await API.productos.actualizar(producto.id, data);
       State.invalidateCache('productos');
       Utils.hideLoading();
       Toast.success('Configuración guardada');
     } catch (error) {
       Utils.hideLoading();
-      Toast.error(error.message);
+      console.log(error);
     }
   });
 
@@ -1983,7 +1984,7 @@ Productos.bindListadoEvents = function (params) {
       } catch (error) {
         Utils.hideLoading();
         console.error('❌ Error en eliminación:', error);
-        Toast.error(error.message);
+        console.log(error);
       }
     }
   });

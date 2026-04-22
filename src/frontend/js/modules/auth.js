@@ -86,7 +86,6 @@ const Auth = {
 
       } catch (error) {
         Utils.hideLoading();
-        Toast.error(error.message || 'Error al iniciar sesión');
         console.error(error);
       }
     });

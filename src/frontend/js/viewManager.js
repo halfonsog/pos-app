@@ -52,7 +52,7 @@ ViewManager.routes = [
   { pattern: 'inventario/preparar/:id', module: 'Inventario', action: 'preparar' },
   { pattern: 'inventario/ajuste', module: 'Inventario', action: 'ajuste' },
   { pattern: 'inventario/ajuste/:id', module: 'Inventario', action: 'ajuste' },
-  { pattern: 'inventario/merma', module: 'Inventario', action: 'ajuste' },
+  { pattern: 'inventario/merma', module: 'Inventario', action: 'merma' },
 
   // Configuración
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
@@ -180,7 +180,6 @@ ViewManager._cargarVista = async function (ruta, params) {
 
   if (!routeMatch) {
     console.error('❌ Ruta no encontrada:', rutaBase);
-    Toast.error('Vista no disponible');
     return;
   }
 
@@ -196,11 +195,9 @@ ViewManager._cargarVista = async function (ruta, params) {
       await module[route.action](allParams);
     } else {
       console.error(`❌ Módulo ${route.module} o acción ${route.action} no encontrado`);
-      Toast.error('Error cargando la vista');
     }
   } catch (error) {
     console.error('❌ Error cargando vista:', error);
-    Toast.error('Error al cargar la vista');
   }
 };
 

@@ -100,7 +100,6 @@ Configuracion.index = async function () {
 
   } catch (error) {
     console.error('Error cargando configuración:', error);
-    Toast.error('Error al cargar la configuración');
   }
 };
 
