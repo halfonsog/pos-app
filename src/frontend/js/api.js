@@ -158,7 +158,8 @@ const API = {
     stock: () => API.get('/inventario/stock'),
     movimientos: () => API.get('/inventario/movimientos'),
     preparables: () => API.get('/inventario/preparables'),
-    preparar: (id, data) => API.post(`/inventario/preparar/${id}`, data)
+    preparar: (id, data) => API.post(`/inventario/preparar/${id}`, data),
+    crearAjuste: (data) => API.post('/inventario/ajuste', data)
   }
 };
 

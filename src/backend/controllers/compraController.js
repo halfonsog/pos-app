@@ -164,6 +164,9 @@ const compraController = {
             INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
             VALUES (?, 'compra', ?, ?, 1)
           `, [d.producto_id, cantidadConvertida, id]);
+
+          //actualizar el costo del producto
+          await db.run(`INSERT INTO producto_costos (producto_id, costo_base) VALUES (?, ?) ON CONFLICT(producto_id) DO UPDATE SET costo_base = excluded.costo_base`, [d.producto_id, d.precio_unitario]);
         }
 
         // Actualizar estado de la compra

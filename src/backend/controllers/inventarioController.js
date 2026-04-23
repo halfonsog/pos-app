@@ -56,44 +56,47 @@ const inventarioController = {
       const db = await getDb();
 
       const productos = await db.all(`
+      WITH stock_componentes AS (
         SELECT 
-          p.id, p.codigo, p.nombre, p.tipo, p.sub_tipo,
-          p.stock_actual, p.stock_minimo, p.precio_venta,
-          p.requiere_preparacion, p.activo,
-          c.nombre as categoria_nombre,
-          uv.abreviatura as unidad_abrev,
-          CASE WHEN p.precio_venta > 0 THEN 1 ELSE 0 END as tiene_ficha_costo,
-          CASE 
-            WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 
-              AND EXISTS (SELECT 1 FROM recetas WHERE producto_padre_id = p.id)
-            THEN 1 ELSE 0 
-          END as es_preparable
-        FROM productos p
-        LEFT JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
-        WHERE p.activo = 1
-        ORDER BY p.nombre
-      `);
+          r.producto_padre_id,
+          MIN(pr.stock_actual / r.cantidad) as stock_efectivo
+        FROM recetas r
+        JOIN productos pr ON r.producto_hijo_id = pr.id
+        WHERE pr.activo = 1
+        GROUP BY r.producto_padre_id
+      )
+      SELECT 
+        p.id, p.codigo, p.nombre, p.tipo, p.sub_tipo,
+        CASE 
+          WHEN p.tipo = 'compuesto' THEN 
+            COALESCE(sc.stock_efectivo, 0)
+          ELSE 
+            p.stock_actual
+        END as stock_actual,  -- ✅ REEMPLAZAMOS el valor
+        p.stock_minimo, p.precio_venta,
+        p.requiere_preparacion, p.activo,
+        c.nombre as categoria_nombre,
+        uv.abreviatura as unidad_abrev,
+        CASE WHEN p.precio_venta > 0 THEN 1 ELSE 0 END as tiene_ficha_costo,
+        CASE 
+          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 
+            AND EXISTS (SELECT 1 FROM recetas WHERE producto_padre_id = p.id)
+          THEN 1 ELSE 0 
+        END as es_preparable
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+      LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
+      WHERE p.activo = 1
+      ORDER BY p.nombre
+    `);
 
-      // Para cada producto compuesto, verificar si tiene componentes sin stock
+      // Procesar resultados
       for (const p of productos) {
-        if (p.tipo === 'compuesto' && p.es_preparable) {
-          const componentesFaltantes = await db.all(`
-            SELECT pr.nombre
-            FROM recetas r
-            JOIN productos pr ON r.producto_hijo_id = pr.id
-            WHERE r.producto_padre_id = ? 
-              AND pr.stock_actual < r.cantidad
-          `, [p.id]);
-
-          p.componentes_faltantes = componentesFaltantes.map(c => c.nombre);
-          p.puede_prepararse = componentesFaltantes.length === 0;
-        } else {
-          p.componentes_faltantes = [];
-          p.puede_prepararse = false;
-        }
-
-        p.puede_venderse = p.tiene_ficha_costo && p.stock_actual > 0;
+        p.puede_prepararse = p.es_preparable === 1 && p.stock_actual > 0;
+        p.puede_venderse = p.tiene_ficha_costo === 1 && p.stock_actual > 0;
+        p.tiene_ficha_costo = p.tiene_ficha_costo === 1;
+        p.es_preparable = p.es_preparable === 1;
       }
 
       res.json(productos);

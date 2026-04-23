@@ -361,7 +361,9 @@ Productos.initDataTable = function (productos) {
         className: 'text-center',
         render: function (data, type, row) {
           const id = row[8];
-          const tieneDependencias = row[12]; // Añadir columna oculta con tiene_dependencias
+          const tipo = row[11];
+          const esCompuesto = tipo === 'compuesto';
+          const tieneDependencias = row[12];
 
           return `
           <div class="dropdown">
@@ -369,21 +371,21 @@ Productos.initDataTable = function (productos) {
               <i class="fas fa-ellipsis-v"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="#productos/ver/${id}"><i class="fas fa-eye me-2"></i>Ver ficha</a></li>
-              <li><a class="dropdown-item" href="#productos/editar/${id}"><i class="fas fa-edit me-2"></i>Editar</a></li>
-              <li><a class="dropdown-item" href="#productos/costo/${id}"><i class="fas fa-calculator me-2"></i>Ficha de costo</a></li>
-              <li><a class="dropdown-item" href="#productos/receta/${id}"><i class="fas fa-list-ul me-2"></i>Receta</a></li>
+              <li><a class="dropdown-item ver-producto" href="#" data-id="${id}"><i class="fas fa-eye me-2"></i>Ver ficha</a></li>
+              <li><a class="dropdown-item editar-producto" href="#" data-id="${id}"><i class="fas fa-edit me-2"></i>Editar</a></li>
+              <li><a class="dropdown-item costo-producto" href="#" data-id="${id}"><i class="fas fa-calculator me-2"></i>Ficha de costo</a></li>
+              ${esCompuesto ? `
+                <li><a class="dropdown-item receta-producto" href="#" data-id="${id}"><i class="fas fa-list-ul me-2"></i>Receta</a></li>
+              ` : ''}
               <li><hr class="dropdown-divider"></li>
-              <li>
                 ${tieneDependencias
               ? `<span class="dropdown-item text-muted" style="cursor: not-allowed;" title="No se puede eliminar: tiene movimientos asociados">
                       <i class="fas fa-trash me-2"></i>Eliminar
                     </span>`
-              : `<a class="dropdown-item text-danger" href="#" data-eliminar="${id}">
+              : `<a class="dropdown-item text-danger eliminar-producto" href="#" data-id="${id}">
                       <i class="fas fa-trash me-2"></i>Eliminar
                     </a>`
             }
-              </li>
             </ul>
           </div>
         `;
@@ -1164,7 +1166,7 @@ Productos.renderFichaLayout = function (producto) {
                 <div class="card-body">
                   <div class="d-flex justify-content-between mb-2">
                     <span>Costo Unitario:</span>
-                    <strong>${Utils.formatMoney(producto.costo_unitario || 0)}</strong>
+                    <strong>${Utils.formatMoney(producto.costo_unitario || producto.costo_base || 0)}</strong>
                   </div>
                   <div class="d-flex justify-content-between mb-2">
                     <span>Margen:</span>
@@ -1410,27 +1412,23 @@ Productos.renderCostoLayout = function (producto) {
                       <label class="form-label">Costo Base</label>
                       <input type="text" class="form-control" value="${Utils.formatMoney(producto.costo_base || 0)}" readonly disabled>
                       <small class="text-muted">
-                        ${producto.tipo === 'compuesto' ? 'Calculado a partir de la receta' : 'Basado en última compra'}
+                        ${producto.tipo === 'compuesto' ? 'Calculado a partir de la receta' : producto.ultima_compra_precio ? `Basado en última compra: ${Utils.formatMoney(producto.ultima_compra_precio)} (${Utils.formatDate(producto.ultima_compra_fecha)})` : 'No hay compras registradas'}
                       </small>
                     </div>
-                    
                     <div class="row">
                       <div class="col-md-6 mb-3">
                         <label class="form-label">Margen de Beneficio (%)</label>
-                        <input type="number" class="form-control" id="margen" 
-                               value="${producto.margen || 30}" step="1" min="0" max="100">
+                        <input type="number" class="form-control" id="margen" value="${producto.margen || 30}" step="1" min="0" max="100">
                       </div>
                       <div class="col-md-6 mb-3">
-                        <label class="form-label">Gastos Fijos (%)</label>
-                        <input type="number" class="form-control" id="gastosFijos" 
-                               value="${producto.gastos_fijos || 15}" step="1" min="0" max="100">
+                        <label class="form-label">Gastos Fijos</label>
+                        <input type="number" class="form-control" id="gastosFijos" value="${producto.gastos_fijos || 15}" step="1" min="0" max="100">
                       </div>
                     </div>
                     
                     <div class="mb-3">
                       <label class="form-label">Impuesto sobre Venta (%)</label>
-                      <input type="number" class="form-control" id="impuesto" 
-                             value="${producto.impuesto || 7}" step="0.5" min="0" max="100">
+                      <input type="number" class="form-control" id="impuesto" value="${producto.impuesto || 7}" step="0.5" min="0" max="100">
                     </div>
                     
                     <hr>
@@ -1453,9 +1451,11 @@ Productos.renderCostoLayout = function (producto) {
                         <span id="impuestoDisplay">${Utils.formatMoney((producto.costo_base || 0) * (1 + (producto.margen || 30) / 100 + (producto.gastos_fijos || 15) / 100) * (producto.impuesto || 7) / 100)}</span>
                       </div>
                       <hr>
-                      <div class="d-flex justify-content-between">
-                        <span class="fw-bold">Precio Final Sugerido:</span>
-                        <span class="fs-5 fw-bold text-primary" id="precioSugerido">${Utils.formatMoney(producto.precio_venta)}</span>
+                      <div class="mb-3">
+                        <label class="form-label">Precio de Venta Final</label>
+                        <input type="number" class="form-control" id="precioVentaManual" 
+                              value="${producto.precio_venta || 0}" step="0.01" min="0">
+                        <small class="text-muted">Puedes ajustar manualmente el precio calculado</small>
                       </div>
                     </div>
                     
@@ -1487,23 +1487,32 @@ Productos.bindCostoEvents = function (producto) {
 
   const calcularPrecio = function () {
     const costoBase = producto.costo_base || 0;
-    const margen = parseFloat($('#margen').val()) || 0;
+    const margen = parseFloat($('#margen').val()) || 0;       //%
     const gastos = parseFloat($('#gastosFijos').val()) || 0;
-    const impuesto = parseFloat($('#impuesto').val()) || 0;
+    const impuesto = parseFloat($('#impuesto').val()) || 0;   //%
 
     $('#margenValor').text(margen);
     $('#gastosValor').text(gastos);
     $('#impuestoValor').text(impuesto);
 
-    const subtotal = costoBase * (1 + margen / 100 + gastos / 100);
-    const total = subtotal * (1 + impuesto / 100);
+    //const subtotal = costoBase * (1 + margen / 100 + gastos / 100);
+    //const total = subtotal * (1 + impuesto / 100);
+    const subtotal = (costoBase + gastos) / (1 - (margen / 100));
+    const total = subtotal / (1 - (impuesto / 100));
 
+    // Solo actualizar si el usuario no ha modificado manualmente
+    if (!precioModificadoManualmente) {
+      $('#precioVentaManual').val(total.toFixed(2));
+    }
+    $('#precioSugerido').text(Utils.formatMoney(total));
+
+    /*
     $('#costoBaseDisplay').text(Utils.formatMoney(costoBase));
     $('#margenDisplay').text(Utils.formatMoney(costoBase * margen / 100));
     $('#gastosDisplay').text(Utils.formatMoney(costoBase * gastos / 100));
     $('#impuestoDisplay').text(Utils.formatMoney(subtotal * impuesto / 100));
     $('#precioSugerido').text(Utils.formatMoney(total));
-
+    */
     return total;
   };
 
@@ -1513,13 +1522,14 @@ Productos.bindCostoEvents = function (producto) {
   $('#costoForm').on('submit', async function (e) {
     e.preventDefault();
 
-    const precioFinal = calcularPrecio();
+    const precioManual = parseFloat($('#precioVentaManual').val()) || calcularPrecio();
+
     const data = {
       costo_base: producto.costo_base || 0,
       margen: parseFloat($('#margen').val()) || 30,
       gastos_fijos: parseFloat($('#gastosFijos').val()) || 15,
       impuesto: parseFloat($('#impuesto').val()) || 7,
-      precio_venta: precioFinal
+      precio_venta: precioManual  // ✅ Usar el valor manual
     };
 
     try {
@@ -1955,6 +1965,35 @@ Productos.bindListadoEvents = function (params) {
     ViewManager.navegar('productos/ver/' + id);
   });
 
+  // Ver producto
+  $('#productosTable').on('click', '.ver-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/ver/' + id);
+  });
+
+  // Editar producto
+  $('#productosTable').on('click', '.editar-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/editar/' + id);
+  });
+
+  // Ficha de costo
+  $('#productosTable').on('click', '.costo-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/costo/' + id);
+  });
+
+  // Receta (solo compuestos)
+  $('#productosTable').on('click', '.receta-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/receta/' + id);
+  });
+
+  // Eliminar
   $('#app').on('click', '[data-eliminar]', async function (e) {
     // Solo si estamos en el módulo de productos
     if (ViewManager.currentView?.startsWith('productos')) {

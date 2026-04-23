@@ -5,5 +5,8 @@ Todos:
 Compras
 - definir e implementar la edicion!
 
+Producto
+- No se muestra la descripcion de preparacion
+
 
 - hay numeros a-doc en el codigo q deben tirar del modulo de configuracion. Tales como margen, impuestos sobre ventas, etc

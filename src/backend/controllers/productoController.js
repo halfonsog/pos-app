@@ -65,6 +65,29 @@ const productoController = {
         return res.status(404).json({ error: 'Producto no encontrado' });
       }
 
+      // ✅ Para productos simples, obtener costo base de la última compra
+      if (producto.tipo === 'simple') {
+        const ultimaCompra = await db.get(`
+        SELECT cd.precio_unitario, c.fecha_compra
+        FROM compra_detalles cd
+        JOIN compras c ON cd.compra_id = c.id
+        WHERE cd.producto_id = ?
+        ORDER BY c.fecha_compra DESC
+        LIMIT 1
+      `, [id]);
+
+        if (ultimaCompra) {
+          // Si no hay costo_base configurado manualmente, usar el de la última compra
+          if (!producto.costo_base || producto.costo_base === 0) {
+            producto.costo_base = ultimaCompra.precio_unitario;
+          }
+          producto.ultima_compra_fecha = ultimaCompra.fecha_compra;
+          producto.ultima_compra_precio = ultimaCompra.precio_unitario;
+        } else {
+          producto.costo_base = producto.costo_base || 0;
+        }
+      }
+
       // Valores por defecto si no hay configuración
       producto.costo_base = producto.costo_base || 0;
       producto.margen = producto.margen || 30;
@@ -90,6 +113,23 @@ const productoController = {
       producto.tiene_ventas = ventas.count > 0;
       producto.tiene_compras = compras.count > 0;
       producto.tiene_dependencias = (ventas.count > 0 || compras.count > 0 || recetaPadre.count > 0);
+
+      // Obtener receta si es compuesto
+      if (producto.tipo === 'compuesto') {
+        const receta = await db.all(`
+        SELECT 
+          r.*,
+          p.nombre as producto_nombre,
+          p.codigo as producto_codigo,
+          u.abreviatura as unidad_abrev
+        FROM recetas r
+        JOIN productos p ON r.producto_hijo_id = p.id
+        JOIN unidades u ON p.unidad_venta_id = u.id
+        WHERE r.producto_padre_id = ?
+      `, [id]);
+
+        producto.receta = receta;
+      }
 
       res.json(producto);
     } catch (error) {
