@@ -16,6 +16,7 @@ frontend/uploads/
 # Logs
 *.log
 npm-debug.log*
+deleted/
 
 # Sistema operativo
 .DS_Store

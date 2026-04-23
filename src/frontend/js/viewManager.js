@@ -56,9 +56,12 @@ ViewManager.routes = [
 
   // Configuración
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
-  { pattern: 'categorias', module: 'Categorias', action: 'listado' },
-  { pattern: 'categorias/nuevo', module: 'Categorias', action: 'formulario' },
-  { pattern: 'unidades', module: 'Unidades', action: 'listado' }
+  { pattern: 'configuracion/general', module: 'Configuracion', action: 'general' },
+  { pattern: 'configuracion/gastos', module: 'Configuracion', action: 'gastos' },
+  { pattern: 'configuracion/categorias', module: 'Configuracion', action: 'categorias' },
+  { pattern: 'configuracion/unidades', module: 'Configuracion', action: 'unidades' },
+  { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' }
+
 ];
 
 /**

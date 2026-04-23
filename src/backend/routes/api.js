@@ -4,12 +4,10 @@ const router = express.Router();
 // Importar rutas (asegurarse de que exportan un Router)
 const proveedoresRoutes = require('./proveedores');
 const productosRoutes = require('./productos');
-const categoriasRoutes = require('./categorias');
-const unidadesRoutes = require('./unidades');
 const authRoutes = require('./auth');
 const comprasRoutes = require('./compras');
-const catalogoController = require('../controllers/catalogoController');
 const inventarioRoutes = require('./inventario');
+const configuracionRoutes = require('./configuracion');
 
 // Health check (público)
 router.get('/health', (req, res) => {
@@ -17,7 +15,7 @@ router.get('/health', (req, res) => {
 });
 
 // GET /api/terminos-pago
-router.get('/terminos-pago', catalogoController.listarTerminosPago);
+//router.get('/terminos-pago', catalogoController.listarTerminosPago);
 
 // Rutas públicas
 router.use('/auth', authRoutes);
@@ -28,9 +26,8 @@ router.use('/auth', authRoutes);
 // Rutas protegidas
 router.use('/proveedores', proveedoresRoutes);
 router.use('/productos', productosRoutes);
-router.use('/categorias', categoriasRoutes);
-router.use('/unidades', unidadesRoutes);
 router.use('/compras', comprasRoutes);
 router.use('/inventario', inventarioRoutes);
+router.use('/configuracion', configuracionRoutes);
 
 module.exports = router;

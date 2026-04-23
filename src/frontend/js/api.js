@@ -135,12 +135,15 @@ const API = {
   },
 
   categorias: {
-    listar: () => API.get('/categorias'),
-    crear: (data) => API.post('/categorias', data)
+    listar: () => API.get('/configuracion/categorias'),
+    crear: (data) => API.post('/configuracion/categorias', data),
+    actualizar: (id, data) => API.put(`/configuracion/categorias/${id}`, data)
   },
 
   unidades: {
-    listar: () => API.get('/unidades')
+    listar: () => API.get('/configuracion/unidades'),
+    crear: (data) => API.post('/configuracion/unidades', data),
+    actualizar: (id, data) => API.put(`/configuracion/unidades/${id}`, data)
   },
 
   compras: {
@@ -160,6 +163,15 @@ const API = {
     preparables: () => API.get('/inventario/preparables'),
     preparar: (id, data) => API.post(`/inventario/preparar/${id}`, data),
     crearAjuste: (data) => API.post('/inventario/ajuste', data)
+  },
+
+  configuracion: {
+    obtenerGeneral: () => API.get('/configuracion/general'),
+    actualizarGeneral: (data) => API.put('/configuracion/general', data),
+    listarGastos: () => API.get('/configuracion/gastos'),
+    crearGasto: (data) => API.post('/configuracion/gastos', data),
+    actualizarGasto: (id, data) => API.put(`/configuracion/gastos/${id}`, data),
+    eliminarGasto: (id) => API.delete(`/configuracion/gastos/${id}`)
   }
 };
 

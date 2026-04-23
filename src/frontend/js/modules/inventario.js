@@ -43,7 +43,7 @@ Inventario.renderIndexLayout = function (stats) {
 
   return `
     <div class="app-wrapper">
-      ${Inventario.renderSidebar()}
+      ${Sidebar.render('inventario')}
       <main class="main-content">
         ${Inventario.renderNavbar(user)}
         
@@ -188,7 +188,7 @@ Inventario.renderStockLayout = function (productos, params) {
 
   return `
     <div class="app-wrapper">
-      ${Inventario.renderSidebar()}
+      ${Sidebar.render('inventario')}
       <main class="main-content">
         ${Inventario.renderNavbar(user)}
         
@@ -411,48 +411,6 @@ Inventario.bindStockEvents = function (params) {
 // ============================================
 // MÉTODOS AUXILIARES
 // ============================================
-Inventario.renderSidebar = function () {
-  return `
-    <nav class="sidebar bg-dark text-white p-3" id="sidebar">
-      <h4 class="text-white mb-4">
-        <i class="fas fa-store me-2"></i>POS Admin
-      </h4>
-      <div class="nav flex-column">
-        <a class="nav-link text-white-50" href="#dashboard">
-          <i class="fas fa-tachometer-alt me-2"></i>Dashboard
-        </a>
-        <a class="nav-link text-white active" href="#inventario">
-          <i class="fas fa-warehouse me-2"></i>Inventario
-        </a>
-        <a class="nav-link text-white-50" href="#compras">
-          <i class="fas fa-shopping-cart me-2"></i>Compras
-        </a>
-        <a class="nav-link text-white-50" href="#ventas">
-          <i class="fas fa-cash-register me-2"></i>Ventas
-        </a>
-        <a class="nav-link text-white-50" href="#productos">
-          <i class="fas fa-box me-2"></i>Productos
-        </a>
-        <a class="nav-link text-white-50" href="#proveedores">
-          <i class="fas fa-truck me-2"></i>Proveedores
-        </a>
-        <a class="nav-link text-white-50" href="#promociones">
-          <i class="fas fa-tags me-2"></i>Promociones
-        </a>
-        <a class="nav-link text-white-50" href="#reportes">
-          <i class="fas fa-chart-bar me-2"></i>Reportes
-        </a>
-        <a class="nav-link text-white-50" href="#configuracion">
-          <i class="fas fa-cog me-2"></i>Configuración
-        </a>
-        <hr class="bg-secondary my-3">
-        <a class="nav-link text-danger" href="#" id="btnLogout">
-          <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
-        </a>
-      </div>
-    </nav>
-  `;
-};
 
 Inventario.renderNavbar = function (user) {
   return `
@@ -532,7 +490,7 @@ Inventario.renderMovimientosLayout = function (movimientos, params) {
 
   return `
     <div class="app-wrapper">
-      ${Inventario.renderSidebar()}
+      ${Sidebar.render('inventario')}
       <main class="main-content">
         ${Inventario.renderNavbar(user)}
         
@@ -736,7 +694,7 @@ Inventario.renderPrepararLayout = function (productos) {
 
   return `
     <div class="app-wrapper">
-      ${Inventario.renderSidebar()}
+      ${Sidebar.render('inventario')}
       <main class="main-content">
         ${Inventario.renderNavbar(user)}
         
@@ -923,7 +881,7 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoI
 
   return `
     <div class="app-wrapper">
-      ${Inventario.renderSidebar()}
+      ${Sidebar.render('inventario')}
       <main class="main-content">
         ${Inventario.renderNavbar(user)}
         
