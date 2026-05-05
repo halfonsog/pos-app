@@ -12,7 +12,8 @@ const State = {
     proveedores: null,
     productos: null,
     categorias: null,
-    unidades: null
+    unidades: null,
+    configuracion: null
   },
 
   // Configuración global
@@ -50,10 +51,21 @@ const State = {
       proveedores: null,
       productos: null,
       categorias: null,
-      unidades: null
+      unidades: null,
+      configuracion: null
     };
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+  },
+
+  getConfig: function () {  // ✅ Corregido: dos puntos
+    return this.getCache('configuracion') || {
+      impuesto_ventas: 15,
+      margen_recomendado: 20,
+      porcentaje_gastos: 0,
+      total_gastos_fijos: 0,
+      ventas_proyectadas: 10000
+    };
   },
 
   // Gestión de caché de módulos
@@ -82,7 +94,8 @@ const State = {
         productos: null,
         categorias: null,
         unidades: null,
-        compras: null
+        compras: null,
+        configuracion: null
       };
     }
   },

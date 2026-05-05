@@ -7,30 +7,46 @@ const App = {
   init: async function () {
     console.log('🚀 Inicializando POS App...');
 
-    // Verificar autenticación
     const token = State.getToken();
 
     if (!token) {
-      // Redirigir a login
       await ViewManager.navegar('auth/login');
       return;
     }
 
-    // Verificar token con el backend
     try {
       const response = await API.auth.verify();
       State.setUser(response.user);
 
-      // Cargar vista según rol
+      // ✅ Cargar datos iniciales (unidades, categorías, etc.)
+      await App.cargarDatosIniciales();
+
       if (response.user.rol === 'admin') {
         await ViewManager.navegar('dashboard');
       } else {
-        await ViewManager.navegar('ventas/nueva');
+        await ViewManager.navegar('ventas/pos');
       }
     } catch (error) {
       console.error('Token inválido:', error);
       State.clear();
       await ViewManager.navegar('auth/login');
+    }
+  },
+
+  cargarDatosIniciales: async function () {
+    try {
+      const [unidades, config] = await Promise.all([
+        API.get('/configuracion/unidades'),
+        API.get('/configuracion/general')
+      ]);
+
+      State.setCache('unidades', unidades);
+      State.setCache('configuracion', config);
+
+      console.log('✅ Unidades cargadas:', unidades.length);
+      console.log('✅ Configuración cargada:', config);
+    } catch (error) {
+      console.error('Error cargando datos iniciales:', error);
     }
   },
 

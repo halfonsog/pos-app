@@ -14,12 +14,14 @@ router.get('/:id', productoController.obtener);
 router.post('/', upload.single('foto'), procesarImagen, productoController.crear);
 
 // PUT /api/productos/:id
-//router.put('/:id', upload.single('foto'), procesarImagen, productoController.actualizar);
+router.put('/:id', upload.single('foto'), procesarImagen, productoController.actualizar);
+/*
 router.put('/:id', (req, res, next) => {
   console.log('🛣️ Ruta PUT /:id alcanzada');
   console.log('🛣️ Content-Type:', req.get('Content-Type'));
   next();
 }, upload.single('foto'), procesarImagen, productoController.actualizar);
+*/
 
 // DELETE /api/productos/:id
 router.delete('/:id', productoController.eliminar);

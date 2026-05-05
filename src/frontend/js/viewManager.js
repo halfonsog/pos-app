@@ -54,6 +54,12 @@ ViewManager.routes = [
   { pattern: 'inventario/ajuste/:id', module: 'Inventario', action: 'ajuste' },
   { pattern: 'inventario/merma', module: 'Inventario', action: 'merma' },
 
+  //Ventas
+  { pattern: 'ventas', module: 'Ventas', action: 'index' },
+  { pattern: 'ventas/pos', module: 'Ventas', action: 'pos' },
+  { pattern: 'ventas/listado', module: 'Ventas', action: 'listado' },
+  { pattern: 'ventas/ver/:id', module: 'Ventas', action: 'ficha' },
+
   // Configuración
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
   { pattern: 'configuracion/general', module: 'Configuracion', action: 'general' },

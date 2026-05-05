@@ -502,54 +502,70 @@ Configuracion.unidades = async function () {
 
   try {
     Utils.showLoading('Cargando...');
-    const unidades = await API.unidades.listar();
+    const unidades = await API.get('/configuracion/unidades');
 
     const layout = `
       <div class="app-wrapper">
-        ${Sidebar.render('configuracion')}
-        <main class="main-content">
-          ${Configuracion.renderNavbar(State.getUser())}
-          <div class="container-fluid p-4">
-            <nav aria-label="breadcrumb" class="mb-3">
-              <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Configuración</a></li>
-                <li class="breadcrumb-item active">Unidades de Medida</li>
-              </ol>
-            </nav>
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <div class="d-flex align-items-center">
-                <button class="btn btn-outline-secondary me-3" id="btnVolver"><i class="fas fa-arrow-left me-1"></i>Volver</button>
-                <h2 class="mb-0"><i class="fas fa-ruler me-2"></i>Unidades de Medida</h2>
-              </div>
-              <button class="btn btn-primary" id="btnNuevaUnidad"><i class="fas fa-plus me-1"></i>Nueva Unidad</button>
-            </div>
-            <div class="row">
-              <div class="col-lg-8">
-                <div class="card">
-                  <div class="card-body p-0">
-                    <table class="table table-hover mb-0">
-                      <thead class="table-light">
-                        <tr><th>Nombre</th><th>Abreviatura</th><th>Tipo</th><th class="text-center">Activo</th><th class="text-center" style="width: 100px;">Acciones</th></tr>
-                      </thead>
-                      <tbody>
-                        ${unidades.map(u => `
-                          <tr class="${u.activo ? '' : 'text-muted'}">
-                            <td>${u.nombre}</td>
-                            <td>${u.abreviatura}</td>
-                            <td>${u.tipo === 'venta' ? '<span class="badge bg-info">Venta</span>' : u.tipo === 'compra' ? '<span class="badge bg-warning">Compra</span>' : '<span class="badge bg-success">Ambas</span>'}</td>
-                            <td class="text-center">${u.activo ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
-                            <td class="text-center">
-                              <button class="btn btn-sm btn-outline-primary editar-unidad" data-id="${u.id}" data-nombre="${u.nombre}" data-abrev="${u.abreviatura}" data-tipo="${u.tipo}"><i class="fas fa-edit"></i></button>
-                            </td>
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <main class="main-content p-4">
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Configuración</a></li>
+              <li class="breadcrumb-item active">Unidades de Medida</li>
+            </ol>
+          </nav>
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-ruler me-2"></i>Unidades de Medida</h2>
+            <button class="btn btn-primary" id="btnNuevaUnidad">
+              <i class="fas fa-plus me-1"></i>Nueva Unidad
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Abreviatura</th>
+                  <th>Tipo</th>
+                  <th class="text-center">Coeficiente</th>
+                  <th class="text-center">Base</th>
+                  <th class="text-center">Activo</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${unidades.map(u => `
+                  <tr class="${u.activo ? '' : 'text-muted'}">
+                    <td>${u.nombre}</td>
+                    <td>${u.abreviatura}</td>
+                    <td>
+                      ${u.tipo === 'unidad' ? '<span class="badge bg-primary">Unidad</span>' :
+        u.tipo === 'volumen' ? '<span class="badge bg-info">Volumen</span>' :
+          u.tipo === 'peso' ? '<span class="badge bg-warning">Peso</span>' : '<span class="badge bg-secondary">Longitud</span>'}
+                    </td>
+                    <td class="text-center">${u.coeficiente}</td>
+                    <td class="text-center">
+                      ${u.es_base ? '<span class="badge bg-danger">Base</span>' : '<span class="badge bg-success">Custom</span>'}
+                    </td>
+                    <td class="text-center">
+                      ${u.activo ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>'}
+                    </td>
+                    <td class="text-center">
+                      ${u.id > 99 ? `
+                        <button class="btn btn-sm btn-outline-primary editar-unidad" 
+                          data-id="${u.id}" data-tipo="${u.tipo}" data-nombre="${u.nombre}" 
+                          data-abrev="${u.abreviatura}" data-coef="${u.coeficiente}">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger eliminar-unidad" data-id="${u.id}">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      ` : ''}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
           </div>
         </main>
       </div>
@@ -565,15 +581,31 @@ Configuracion.unidades = async function () {
             <div class="modal-body">
               <form id="unidadForm">
                 <input type="hidden" id="unidadId">
-                <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" id="unidadNombre" required></div>
-                <div class="mb-3"><label class="form-label">Abreviatura</label><input type="text" class="form-control" id="unidadAbrev" required></div>
                 <div class="mb-3">
-                  <label class="form-label">Tipo</label>
-                  <select class="form-select" id="unidadTipo">
-                    <option value="venta">Venta</option>
-                    <option value="compra">Compra</option>
-                    <option value="ambas">Ambas</option>
+                  <label class="form-label">Unidad base</label>
+                  <select class="form-select" id="unidadTipo" required>
+                    <option value="">Seleccione...</option>
+                    <option value="unidad">Unidad</option>
+                    <option value="volumen">Volumen</option>
+                    <option value="peso">Peso</option>
+                    <option value="longitud">Longitud</option>
                   </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Nombre</label>
+                  <input type="text" class="form-control" id="unidadNombre" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Abreviatura</label>
+                  <input type="text" class="form-control" id="unidadAbrev" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Coeficiente</label>
+                  <input type="number" class="form-control" id="unidadCoeficiente" 
+                         step="0.0001" min="0.0001" required>
+                  <small class="text-muted">
+                    Respecto a la unidad base del tipo seleccionado
+                  </small>
                 </div>
               </form>
             </div>
@@ -604,40 +636,70 @@ Configuracion._bindUnidadesEvents = function () {
   $('#btnNuevaUnidad').on('click', () => {
     $('#unidadModalTitle').text('Nueva Unidad');
     $('#unidadId').val('');
+    $('#unidadTipo').val('');
     $('#unidadNombre').val('');
     $('#unidadAbrev').val('');
-    $('#unidadTipo').val('venta');
+    $('#unidadCoeficiente').val('');
     modal.show();
   });
 
   $('.editar-unidad').on('click', function () {
     $('#unidadModalTitle').text('Editar Unidad');
     $('#unidadId').val($(this).data('id'));
+    $('#unidadTipo').val($(this).data('tipo'));
     $('#unidadNombre').val($(this).data('nombre'));
     $('#unidadAbrev').val($(this).data('abrev'));
-    $('#unidadTipo').val($(this).data('tipo'));
+    $('#unidadCoeficiente').val($(this).data('coef'));
     modal.show();
   });
 
   $('#btnGuardarUnidad').on('click', async function () {
     const id = $('#unidadId').val();
-    const nombre = $('#unidadNombre').val().trim();
-    const abrev = $('#unidadAbrev').val().trim();
     const tipo = $('#unidadTipo').val();
+    const nombre = $('#unidadNombre').val().trim();
+    const abreviatura = $('#unidadAbrev').val().trim();
+    const coeficiente = parseFloat($('#unidadCoeficiente').val());
 
-    if (!nombre || !abrev) { Toast.warning('Nombre y abreviatura requeridos'); return; }
+    if (!tipo || !nombre || !abreviatura) {
+      Toast.warning('Todos los campos son requeridos');
+      return;
+    }
+    if (isNaN(coeficiente) || coeficiente <= 0) {
+      Toast.warning('El coeficiente debe ser mayor a 0');
+      return;
+    }
+
+    const data = { tipo, nombre, abreviatura, coeficiente };
 
     try {
       Utils.showLoading('Guardando...');
       if (id) {
-        await API.unidades.actualizar(id, { nombre, abreviatura: abrev, tipo });
+        await API.put(`/configuracion/unidades/${id}`, data);
       } else {
-        await API.unidades.crear({ nombre, abreviatura: abrev, tipo });
+        await API.post('/configuracion/unidades', data);
       }
       State.invalidateCache('unidades');
       Utils.hideLoading();
       Toast.success('Unidad guardada');
       modal.hide();
+      ViewManager.refresh();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
+  });
+
+  $('.eliminar-unidad').on('click', async function () {
+    const id = $(this).data('id');
+    const confirmado = await Utils.confirm('¿Eliminar esta unidad?', 'Confirmar');
+    if (!confirmado) return;
+
+    try {
+      Utils.showLoading('Eliminando...');
+      await API.delete(`/configuracion/unidades/${id}`);
+      State.invalidateCache('unidades');
+      Utils.hideLoading();
+      Toast.success('Unidad eliminada');
       ViewManager.refresh();
     } catch (error) {
       Utils.hideLoading();

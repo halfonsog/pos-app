@@ -1,0 +1,745 @@
+/**
+ * ventas.js - Módulo de gestión de ventas
+ * Incluye: Dashboard, Pantalla POS, Turnos, Arqueo, Conteo de efectivo
+ */
+
+var Ventas = window.Ventas || {};
+
+Ventas._carrito = [];
+Ventas._impuestoPorcentaje = 0;
+
+// ============================================
+// VISTA PRINCIPAL (INDEX - Dashboard Admin)
+// ============================================
+Ventas.index = async function () {
+  console.log('💰 Cargando módulo de ventas');
+
+  try {
+    const turno = await API.ventas.turnoActual();
+    const ventasHoy = turno.abierto ? turno.ventas : { total_ventas: 0, total_general: 0 };
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          ${Ventas.renderNavbar(State.getUser())}
+          
+          <div class="container-fluid p-4">
+            <h2 class="mb-4"><i class="fas fa-cash-register me-2"></i>Gestión de Ventas</h2>
+            
+            <!-- Estado del Turno -->
+            <div class="row g-3 mb-4">
+              <div class="col-md-3">
+                <div class="card ${turno.abierto ? 'border-success' : 'border-danger'}">
+                  <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x ${turno.abierto ? 'text-success' : 'text-danger'} mb-2"></i>
+                    <h5>${turno.abierto ? 'Turno Abierto' : 'Turno Cerrado'}</h5>
+                    ${turno.abierto ? `
+                      <p class="text-muted small">${turno.vendedor_nombre} - ${Utils.formatDate(turno.abierto_at, 'datetime')}</p>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="summary-mini-card">
+                  <h4>${ventasHoy.total_ventas || 0}</h4>
+                  <p>Ventas Hoy</p>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="summary-mini-card text-success">
+                  <h4>${Utils.formatMoney(ventasHoy.total_general || 0)}</h4>
+                  <p>Total Facturado</p>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="summary-mini-card text-primary">
+                  <h4>${Utils.formatMoney(turno.monto_apertura || 0)}</h4>
+                  <p>Monto Apertura</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Acciones rápidas -->
+            <div class="row g-2 mb-4">
+              <div class="col-6 col-md-3">
+                ${turno.abierto ? `
+                  <button class="btn btn-danger w-100" id="btnCerrarTurno">
+                    <i class="fas fa-lock me-1"></i><span class="d-none d-md-inline">Cerrar</span> Turno
+                  </button>
+                ` : `
+                  <button class="btn btn-success w-100" id="btnAbrirTurno">
+                    <i class="fas fa-unlock me-1"></i><span class="d-none d-md-inline">Abrir</span> Turno
+                  </button>
+                `}
+              </div>
+              <div class="col-6 col-md-3">
+                <button class="btn btn-primary w-100" data-route="ventas/pos" ${!turno.abierto ? 'disabled' : ''}>
+                  <i class="fas fa-shopping-cart me-1"></i>Vender
+                </button>
+              </div>
+              <div class="col-6 col-md-3">
+                <button class="btn btn-outline-primary w-100" data-route="ventas/listado">
+                  <i class="fas fa-list me-1"></i>Historial
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindIndexEvents(turno);
+
+  } catch (error) {
+    console.error('Error cargando ventas:', error);
+  }
+};
+
+Ventas.bindIndexEvents = function (turno) {
+  $('[data-route]').on('click', function () {
+    const route = $(this).data('route');
+    if (route) ViewManager.navegar(route);
+  });
+
+  if (!turno.abierto) {
+    $('#btnAbrirTurno').on('click', () => Ventas.abrirTurno());
+  } else {
+    $('#btnCerrarTurno').on('click', () => Ventas.cerrarTurno());
+  }
+
+  Ventas.bindCommonEvents();
+};
+
+// ============================================
+// ABRIR TURNO
+// ============================================
+Ventas.abrirTurno = function () {
+  const modalHtml = `
+    <div class="modal fade" id="turnoModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Abrir Turno</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="abrirTurnoForm">
+              <div class="mb-3">
+                <label class="form-label">Monto de Apertura ($)</label>
+                <input type="number" class="form-control form-control-lg" id="montoApertura" 
+                       value="100" step="1" min="0" required autofocus>
+                <small class="text-muted">Dinero inicial en caja para dar cambio</small>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-success btn-lg" id="btnConfirmarApertura">
+              <i class="fas fa-unlock me-1"></i>Abrir Turno
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  $('body').append(modalHtml);
+  const modal = new bootstrap.Modal('#turnoModal');
+  modal.show();
+
+  $('#btnConfirmarApertura').on('click', async function () {
+    const monto = parseFloat($('#montoApertura').val());
+    if (!monto || monto < 0) { Toast.warning('Ingrese un monto válido'); return; }
+
+    try {
+      Utils.showLoading('Abriendo turno...');
+      await API.ventas.abrirTurno({ monto_apertura: monto });
+      Utils.hideLoading();
+      Toast.success('Turno abierto');
+      modal.hide();
+      $('#turnoModal').remove();
+      ViewManager.refresh();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
+  });
+
+  $('#turnoModal').on('hidden.bs.modal', function () { $(this).remove(); });
+};
+
+// ============================================
+// CERRAR TURNO (con arqueo y conteo)
+// ============================================
+Ventas.cerrarTurno = async function () {
+  try {
+    Utils.showLoading('Calculando cierre...');
+    const turno = await API.ventas.turnoActual();
+    Utils.hideLoading();
+
+    if (!turno.abierto) { Toast.warning('No hay turno abierto'); return; }
+
+    const montoApertura = turno.monto_apertura || 0;
+    const ventasEfectivo = turno.ventas?.total_efectivo || 0;
+    const montoEsperado = montoApertura + ventasEfectivo;
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          ${Ventas.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+                <li class="breadcrumb-item active">Cerrar Turno</li>
+              </ol>
+            </nav>
+            
+            <h2 class="mb-4"><i class="fas fa-lock me-2"></i>Cierre de Turno</h2>
+            
+            <div class="row">
+              <div class="col-lg-5">
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0">Resumen del Turno</h5></div>
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Monto de Apertura:</span>
+                      <strong>${Utils.formatMoney(montoApertura)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Ventas en Efectivo:</span>
+                      <strong>${Utils.formatMoney(ventasEfectivo)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Ventas con Tarjeta:</span>
+                      <strong>${Utils.formatMoney(turno.ventas?.total_tarjeta || 0)}</strong>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                      <span class="fw-bold">Monto Esperado en Caja:</span>
+                      <span class="fs-5 fw-bold text-primary">${Utils.formatMoney(montoEsperado)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-lg-7">
+                <div class="card">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Conteo de Efectivo</h5></div>
+                  <div class="card-body">
+                    <div class="row g-3" id="conteoEfectivo">
+                      ${Ventas.renderConteoEfectivo()}
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="fw-bold">Total Contado:</span>
+                      <span class="fs-4 fw-bold text-success" id="totalContado">$0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                      <span class="fw-bold">Diferencia:</span>
+                      <span class="fs-5 fw-bold" id="diferenciaCierre">-</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-flex justify-content-end mt-3">
+              <a href="#ventas" class="btn btn-secondary me-2">Cancelar</a>
+              <button class="btn btn-danger btn-lg" id="btnConfirmarCierre">
+                <i class="fas fa-lock me-1"></i>Confirmar Cierre
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindCierreTurnoEvents(montoEsperado);
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error:', error);
+  }
+};
+
+Ventas.renderConteoEfectivo = function () {
+  const denominaciones = [
+    { valor: 1000, label: 'Billetes de $1000' },
+    { valor: 500, label: 'Billetes de $500' },
+    { valor: 200, label: 'Billetes de $200' },
+    { valor: 100, label: 'Billetes de $100' },
+    { valor: 50, label: 'Billetes de $50' },
+    { valor: 20, label: 'Billetes de $20' },
+    { valor: 10, label: 'Billetes de $10' },
+    { valor: 5, label: 'Billetes de $5' }
+  ];
+
+  return denominaciones.map(d => `
+    <div class="col-md-6">
+      <label class="form-label">${d.label}</label>
+      <div class="input-group">
+        <input type="number" class="form-control conteo-cantidad" data-valor="${d.valor}" 
+               value="0" min="0" step="1">
+        <span class="input-group-text">= ${Utils.formatMoney(d.valor)} c/u</span>
+      </div>
+    </div>
+  `).join('');
+};
+
+Ventas.bindCierreTurnoEvents = function (montoEsperado) {
+  const calcularTotal = function () {
+    let total = 0;
+    $('.conteo-cantidad').each(function () {
+      const cantidad = parseInt($(this).val()) || 0;
+      const valor = parseFloat($(this).data('valor'));
+      total += cantidad * valor;
+    });
+    $('#totalContado').text(Utils.formatMoney(total));
+    return total;
+  };
+
+  const calcularDiferencia = function () {
+    const total = calcularTotal();
+    const diferencia = total - montoEsperado;
+    const $dif = $('#diferenciaCierre');
+
+    if (diferencia === 0) {
+      $dif.text('¡Cuadre perfecto! - $0.00').removeClass('text-danger text-success').addClass('text-success');
+    } else if (diferencia > 0) {
+      $dif.text(`Sobrante: +${Utils.formatMoney(diferencia)}`).removeClass('text-success').addClass('text-success');
+    } else {
+      $dif.text(`Faltante: ${Utils.formatMoney(diferencia)}`).removeClass('text-success').addClass('text-danger');
+    }
+  };
+
+  $('.conteo-cantidad').on('input', calcularDiferencia);
+  calcularDiferencia();
+
+  $('#btnConfirmarCierre').on('click', async function () {
+    const total = calcularTotal();
+
+    const confirmado = await Utils.confirm(
+      `¿Confirmar cierre con $${total.toFixed(2)} en caja?`,
+      'Confirmar Cierre'
+    );
+    if (!confirmado) return;
+
+    try {
+      Utils.showLoading('Cerrando turno...');
+      await API.ventas.cerrarTurno({ monto_real: total });
+      Utils.hideLoading();
+      Toast.success('Turno cerrado correctamente');
+      ViewManager.navegar('ventas');
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
+  });
+
+  Ventas.bindCommonEvents();
+};
+
+// ============================================
+// PANTALLA DE VENTA (POS)
+// ============================================
+Ventas.pos = async function () {
+  console.log('🛒 Cargando pantalla de venta');
+
+  try {
+    Utils.showLoading('Cargando...');
+
+    const turno = await API.ventas.turnoActual();
+    if (!turno.abierto) {
+      Utils.hideLoading();
+      Toast.warning('Debe abrir un turno primero');
+      ViewManager.volver();
+      return;
+    }
+
+    const productos = await API.productos.listar();
+    // Filtrar productos que pueden venderse
+    const productosEnVenta = productos.filter(p => {
+      // 1. Producto activo
+      if (!p.activo) return false;
+
+      // 2. Tiene ficha de costo con precio > 0
+      if (!p.precio_venta || p.precio_venta <= 0) return false;
+
+      // 3. Tiene stock (según tipo)
+      if (p.tipo === 'simple') {
+        // Simples: stock_actual > 0
+        if (p.stock_actual <= 0) return false;
+      } else if (p.tipo === 'compuesto') {
+        if (p.requiere_preparacion) {
+          // Compuestos preparables: deben tener stock del producto preparado > 0
+          if (p.stock_actual <= 0) return false;
+        } else {
+          // Compuestos no preparables: necesitan stock de todos los componentes
+          // Esto ya lo calcula el backend en stock_efectivo
+          if (!p.stock_efectivo || p.stock_efectivo <= 0) return false;
+        }
+      }
+
+      return true;
+    });
+
+    Ventas._carrito = [];
+    Ventas._impuestoPorcentaje = State.getConfig().impuesto_ventas / 100;
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          ${Ventas.renderNavbar(State.getUser())}
+          
+          <div class="container-fluid p-0">
+            <div class="row g-0" style="height: calc(100vh - 56px);">
+              <!-- Grid de productos -->
+              <div class="col-lg-8 p-3" style="overflow-y: auto;">
+                <div class="mb-3">
+                  <a href="#ventas" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-arrow-left"></i>
+                  </a>
+                  <div class="input-group d-inline-flex" style="width: 300px;">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="buscarProducto" placeholder="Buscar...">
+                  </div>
+                </div>
+                
+                <div class="row g-2" id="productosGrid">
+                  ${productosEnVenta.map(p => `
+                    <div class="col-6 col-md-4 col-lg-3">
+                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}">
+                        <div class="card-body text-center p-2">
+                          ${p.foto
+        ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
+        : `<img src="${Utils.getProductPlaceholder(p, p.id, 80)}" class="producto-img mb-2">`
+      }
+                          <h6 class="mb-0 small">${p.nombre}</h6>
+                          <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
+                          <div class="mt-1">
+                            <span class="badge bg-secondary small">Stock: ${Utils.formatNumber(p.stock_actual, 0)} ${p.unidad_venta_abrev || 'uds'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+              
+              <!-- Carrito -->
+              <div class="col-lg-4 bg-light p-3 d-flex flex-column" style="border-left: 1px solid #dee2e6;">
+                <h5 class="mb-3"><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
+                
+                <div id="carritoItems" style="flex: 1; overflow-y: auto;">
+                  <p class="text-muted text-center py-4">No hay productos en el carrito</p>
+                </div>
+                
+                <div class="border-top pt-3">
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Subtotal:</span>
+                    <span id="subtotalCarrito">$0.00</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Impuesto:</span>
+                    <span id="impuestoCarrito">$0.00</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-3">
+                    <span class="fw-bold fs-5">TOTAL:</span>
+                    <span class="fw-bold fs-5 text-primary" id="totalCarrito">$0.00</span>
+                  </div>
+                  
+                  <div class="d-grid gap-2">
+                    <button class="btn btn-success btn-lg" id="btnCobrarEfectivo" disabled>
+                      <i class="fas fa-money-bill me-2"></i>Cobrar Efectivo
+                    </button>
+                    <button class="btn btn-info btn-lg" id="btnCobrarTarjeta" disabled>
+                      <i class="fas fa-credit-card me-2"></i>Cobrar Tarjeta
+                    </button>
+                    <button class="btn btn-outline-danger" id="btnVaciarCarrito" disabled>
+                      <i class="fas fa-trash me-2"></i>Vaciar Carrito
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindPosEvents();
+
+    Utils.hideLoading();
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error:', error);
+  }
+};
+
+Ventas.bindPosEvents = function () {
+  // Agregar producto al carrito
+  $('#productosGrid').on('click', '.producto-card', function () {
+    const id = $(this).data('id');
+    const nombre = $(this).data('nombre');
+    const precio = parseFloat($(this).data('precio'));
+
+    Ventas.agregarAlCarrito(id, nombre, precio);
+  });
+
+  // Búsqueda
+  $('#buscarProducto').on('input', function () {
+    const search = $(this).val().toLowerCase();
+    $('.producto-card').each(function () {
+      const nombre = $(this).data('nombre').toLowerCase();
+      $(this).toggle(nombre.includes(search));
+    });
+  });
+
+  // Cobrar efectivo
+  $('#btnCobrarEfectivo').on('click', () => Ventas.procesarVenta('efectivo'));
+
+  // Cobrar tarjeta
+  $('#btnCobrarTarjeta').on('click', () => Ventas.procesarVenta('tarjeta'));
+
+  // Vaciar carrito
+  $('#btnVaciarCarrito').on('click', () => {
+    Ventas._carrito = [];
+    Ventas.actualizarCarritoUI();
+  });
+
+  Ventas.bindCommonEvents();
+};
+
+Ventas.agregarAlCarrito = function (id, nombre, precio) {
+  const existente = Ventas._carrito.find(item => item.id === id);
+
+  if (existente) {
+    existente.cantidad++;
+    existente.total = existente.cantidad * existente.precio;
+  } else {
+    Ventas._carrito.push({
+      id: id,
+      nombre: nombre,
+      precio: precio,
+      cantidad: 1,
+      total: precio
+    });
+  }
+
+  Ventas.actualizarCarritoUI();
+};
+
+Ventas.actualizarCarritoUI = function () {
+  const $carrito = $('#carritoItems');
+  const carrito = Ventas._carrito;
+
+  if (carrito.length === 0) {
+    $carrito.html('<p class="text-muted text-center py-4">No hay productos en el carrito</p>');
+    $('#btnCobrarEfectivo, #btnCobrarTarjeta, #btnVaciarCarrito').prop('disabled', true);
+    $('#subtotalCarrito, #impuestoCarrito, #totalCarrito').text('$0.00');
+    return;
+  }
+
+  let html = '';
+  let subtotalSinImpuesto = 0;
+
+  carrito.forEach((item, i) => {
+    // El precio de venta ya incluye impuesto, extraer la base
+    const precioSinImpuesto = item.precio / (1 + Ventas._impuestoPorcentaje);
+    const totalSinImpuesto = precioSinImpuesto * item.cantidad;
+    subtotalSinImpuesto += totalSinImpuesto;
+
+    html += `
+    <div class="d-flex justify-content-between align-items-center mb-2 bg-white p-2 rounded">
+      <div>
+        <small class="fw-bold">${item.nombre}</small>
+        <div class="input-group input-group-sm mt-1" style="width: 100px;">
+          <button class="btn btn-outline-secondary btn-sm carrito-menos" data-index="${i}">-</button>
+          <input type="text" class="form-control text-center carrito-cantidad" value="${item.cantidad}" readonly>
+          <button class="btn btn-outline-secondary btn-sm carrito-mas" data-index="${i}">+</button>
+        </div>
+      </div>
+      <div class="text-end">
+        <span class="text-success fw-bold">${Utils.formatMoney(item.total)}</span>
+        <br>
+        <button class="btn btn-sm btn-outline-danger carrito-eliminar" data-index="${i}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  });
+
+  const impuesto = subtotalSinImpuesto * Ventas._impuestoPorcentaje;
+  const total = subtotalSinImpuesto + impuesto;
+
+  $carrito.html(html);
+  $('#subtotalCarrito').text(Utils.formatMoney(subtotalSinImpuesto));
+  $('#impuestoCarrito').text(Utils.formatMoney(impuesto));
+  $('#totalCarrito').text(Utils.formatMoney(total));
+  $('#btnCobrarEfectivo, #btnCobrarTarjeta, #btnVaciarCarrito').prop('disabled', false);
+
+  // Eventos del carrito
+  $('.carrito-mas').on('click', function () {
+    const i = $(this).data('index');
+    Ventas._carrito[i].cantidad++;
+    Ventas._carrito[i].total = Ventas._carrito[i].cantidad * Ventas._carrito[i].precio;
+    Ventas.actualizarCarritoUI();
+  });
+
+  $('.carrito-menos').on('click', function () {
+    const i = $(this).data('index');
+    Ventas._carrito[i].cantidad--;
+    if (Ventas._carrito[i].cantidad <= 0) {
+      Ventas._carrito.splice(i, 1);
+    } else {
+      Ventas._carrito[i].total = Ventas._carrito[i].cantidad * Ventas._carrito[i].precio;
+    }
+    Ventas.actualizarCarritoUI();
+  });
+
+  $('.carrito-eliminar').on('click', function () {
+    const i = $(this).data('index');
+    Ventas._carrito.splice(i, 1);
+    Ventas.actualizarCarritoUI();
+  });
+};
+
+Ventas.procesarVenta = async function (metodoPago) {
+  if (Ventas._carrito.length === 0) return;
+
+  const detalles = Ventas._carrito.map(item => ({
+    producto_id: item.id,
+    cantidad: item.cantidad
+  }));
+
+  try {
+    Utils.showLoading('Procesando venta...');
+
+    const result = await API.ventas.crear({ detalles, metodo_pago: metodoPago });
+
+    Ventas._carrito = [];
+    Ventas.actualizarCarritoUI();
+
+    Utils.hideLoading();
+    Toast.success(`Venta registrada - Total: ${Utils.formatMoney(result.total)}`);
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error en venta:', error);
+    Toast.warning(error.message);
+  }
+};
+
+// ============================================
+// LISTADO DE VENTAS
+// ============================================
+Ventas.listado = async function () {
+  console.log('📋 Cargando historial de ventas');
+
+  try {
+    Utils.showLoading('Cargando...');
+    const ventas = await API.ventas.listar();
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          ${Ventas.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+                <li class="breadcrumb-item active">Historial</li>
+              </ol>
+            </nav>
+            
+            <div class="d-flex align-items-center mb-4">
+              <a href="#ventas" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+              </a>
+              <h2 class="mb-0"><i class="fas fa-history me-2"></i>Historial de Ventas</h2>
+            </div>
+            
+            <div class="table-responsive">
+              <table class="table table-hover" id="ventasTable">
+                <thead class="table-light">
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Vendedor</th>
+                    <th>Método</th>
+                    <th class="text-end">Total</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${ventas.map(v => `
+                    <tr class="clickable" data-route="ventas/ver/${v.id}">
+                      <td>${Utils.formatDate(v.created_at, 'datetime')}</td>
+                      <td>${v.vendedor_nombre || '-'}</td>
+                      <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
+                      <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
+                      <td>${v.estado === 'completada' ? '<span class="badge bg-success">Completada</span>' : '<span class="badge bg-danger">Anulada</span>'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindCommonEvents();
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error:', error);
+  }
+};
+
+// ============================================
+// MÉTODOS AUXILIARES
+// ============================================
+Ventas.renderNavbar = function (user) {
+  return `
+    <nav class="navbar navbar-light bg-white border-bottom px-3">
+      <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+      <div class="d-flex align-items-center ms-auto">
+        <span class="me-3"><i class="fas fa-user me-1"></i>${user?.nombre_completo || 'Admin'}</span>
+      </div>
+    </nav>
+  `;
+};
+
+Ventas.bindCommonEvents = function () {
+  $('#toggleSidebar').on('click', () => $('#sidebar').toggleClass('show'));
+  $('#sidebar .nav-link').on('click', function (e) {
+    e.preventDefault();
+    const href = $(this).attr('href');
+    if (href && href !== '#') {
+      ViewManager.navegar(href.substring(1), {}, { reset: true });
+    }
+    if ($(window).width() < 768) $('#sidebar').removeClass('show');
+  });
+  $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
+
+  $('.clickable[data-route]').on('click', function () {
+    const route = $(this).data('route');
+    if (route) ViewManager.navegar(route);
+  });
+};
+
+window.Ventas = Ventas;

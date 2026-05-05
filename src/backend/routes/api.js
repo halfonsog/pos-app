@@ -8,6 +8,7 @@ const authRoutes = require('./auth');
 const comprasRoutes = require('./compras');
 const inventarioRoutes = require('./inventario');
 const configuracionRoutes = require('./configuracion');
+const ventasRoutes = require('./ventas');
 
 // Health check (público)
 router.get('/health', (req, res) => {
@@ -29,5 +30,6 @@ router.use('/productos', productosRoutes);
 router.use('/compras', comprasRoutes);
 router.use('/inventario', inventarioRoutes);
 router.use('/configuracion', configuracionRoutes);
+router.use('/ventas', ventasRoutes);
 
 module.exports = router;

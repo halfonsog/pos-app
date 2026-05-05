@@ -23,8 +23,10 @@ CREATE TABLE IF NOT EXISTS configuracion_gastos (
 
 -- Gastos de ejemplo
 INSERT OR IGNORE INTO configuracion_gastos (concepto, valor_mensual) VALUES 
-  ('Alquiler', 500),
-  ('Salarios', 800),
-  ('Electricidad', 150),
-  ('Agua', 50),
-  ('Internet', 60);
+  ('Alquiler', 0),
+  ('Salarios', 1000),
+  ('Electricidad', 700),
+  ('Agua', 500),
+  ('Software de gestion', 5000),
+  ('Inversiones', 90000),
+  ('Internet', 2000);

@@ -128,7 +128,7 @@ const API = {
     actualizar: (id, formData) => API.putFormData(`/productos/${id}`, formData), // ✅ Usar putFormData
     actualizarSimple: (id, data) => API.put(`/productos/${id}`, data),           // ✅ Para datos simples. No usar putFormData
     eliminar: (id) => API.delete(`/productos/${id}`),
-    actualizarCosto: (id, data) => API.put(`/productos/${id}/costo`, data),  // ← AÑADIR
+    actualizarCosto: (id, data) => API.put(`/productos/${id}/costo`, data),
     obtenerReceta: (id) => API.get(`/productos/${id}/receta`),
     agregarComponente: (id, data) => API.post(`/productos/${id}/receta`, data),
     eliminarComponente: (id, componenteId) => API.delete(`/productos/${id}/receta/${componenteId}`)
@@ -172,6 +172,15 @@ const API = {
     crearGasto: (data) => API.post('/configuracion/gastos', data),
     actualizarGasto: (id, data) => API.put(`/configuracion/gastos/${id}`, data),
     eliminarGasto: (id) => API.delete(`/configuracion/gastos/${id}`)
+  },
+
+  ventas: {
+    turnoActual: () => API.get('/ventas/turno-actual'),
+    abrirTurno: (data) => API.post('/ventas/abrir-turno', data),
+    cerrarTurno: (data) => API.post('/ventas/cerrar-turno', data),
+    crear: (data) => API.post('/ventas', data),
+    listar: () => API.get('/ventas'),
+    obtener: (id) => API.get(`/ventas/${id}`)
   }
 };
 

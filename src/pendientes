@@ -8,5 +8,160 @@ Compras
 Producto
 - No se muestra la descripcion de preparacion
 
+Ventas
+- ventaController: Obtener id id del usario a partir del token. Esto quiza haya q hacerlo en otros modulos tambien
+
 
 - hay numeros a-doc en el codigo q deben tirar del modulo de configuracion. Tales como margen, impuestos sobre ventas, etc
+
+
+
+No me gusta lo q veo en el codigo de crearVenta, asi q lo analizare aqui:
+Inicio
+- carga detalle y metodo_pago de los parametros
+- toma el id de usuario del token: esto no esta hecho. tiene id=1 fijo!
+- comprueba q haya un turno abierto
+- obtiene el impuesto establecido en configuracion
+- Inicia la transaccion de BD
+- abre un ciclo por cada producto (d) del detalle
+- comprueba si el producto existe y esta activo
+- comprueba si el stock de este producto es menor o igual a la cantidad a vender. Esta comprobacion tiene q incluir a los productos compuestos no preparables!
+- calcula el valor de la compra: total += d.cantidad * d.precio_venta, ya q el precio de venta incluye el impuesto!
+- cierra el ciclo
+- calcula el valor del impuesto: impuesto = total * impuestoPorcentaje
+- calcula el valor libre de impuestos: subtotal = total - impuesto
+- se inserta la venta (en la tabla ventas) y se recibe su id para referenciar los productos adjuntos
+- abre un ciclo por cada producto (d) del detalle
+- carga los datos del producto
+- inserta el producto (en la tabla venta_detalles) como parte del detalle de la venta
+- Disminuye el stock del producto en venta: 
+  si el producto es compuesto/no-preparable:
+    * abrir un ciclo por cada producto de su receta. 
+    * actualizar stock. La formula para el calculo en estos productos se explica en detalle mas abajo.
+    * registrar movimiento
+    * cerrar ciclo
+  si no: 
+    * actualizar stock. Se disminuye la cantidad del producto. 
+    * registrar movimiento
+- cierra el ciclo  
+- si no ha habido fallos: confirma la transaccion, si no: rollback, escribir detalles del error en el log e informar al usuario q ha ocurrido un error
+Fin
+
+Para q esto funcione bien hay q actualizar los productos y la unidades! Aqui intento definir todo cuanto veo. si tu ves q se me queda algo avisame por favor. Tu opinion es importante y tambien tu ayuda en la definicion de estas funciones
+
+Redefinición de productos:
+-------------------------
+
+Ya no tendrán el coeficiente de conversión entre unidades. La gestión de conversión se hará en las unidades.
+El stock actual y el stock mínimo referirán a la unidad de venta del producto
+Las unidades del producto tendrán estas rectricciones:
+- simple a-granel
+    * unidad de compra: obligatoria
+    * unidad de venta: solamente en undidades o en una unidad del mismo tipo de la unidad de compra
+    * receta: no tiene
+- simple reventa
+    * unidad de compra: solamente en unidades
+    * unidad de venta: obligatoria. solamente en unidades
+    * receta: no tiene
+- compuestos no preparables 
+    * unidad de compra: no tiene
+    * unidad de venta: obligatoria.
+    * receta: Obligatoria
+- compuestos preparables
+    * unidad de compra: no tiene
+    * unidad de venta: obligatoria.
+    * receta: Obligatoria
+
+Funcionalidades a tener en cuenta:
+- un producto es editable/borrable mientras no tenga dependencias (compras o stock)
+- el tipo de producto no es editable
+- en el formulario de "nuevo producto" hay q tener en cuenta las restricciones q aplican si el usuario marca o desmarca la casilla de "Necesita elaboración"
+- Cuando no tiene unidad de compra mejor no mostrarla en el formulario
+- la ficha de costo es obligatoria para poder llevar el producto a la venta
+- la ficha de costo tiene q ser creada y confirmada (estableciendo el precio de venta) por el administrador. no puede ser generada automaticamente.
+- no se permite la preparación ni la creación de la ficha de costo de un producto compuesto q no tenga receta
+- la venta. Al selecciona un producto de la lista/vista de productos, este pasa al carrito, y:
+    * si el producto se vende en unidades del tipo unidad: el vendedor puede editar la cantidad de unidades a vender, q por defecto es 1. la cantidad es un numero entero.
+    * si no, el vendedor debe editar la cantidad de las unidades a vender, q por defecto es 0. la cantidad es un numero decimal. De alguna manera hay q hacerle ver al vendedor q debe entrar este dato para q la app calcule el precio
+
+Ejemplos de productos:
+1. pulpa de mango, simple/a-granel, compra: litros, venta: litros
+2. pulpa de guayaba, simple/a-granel, compra: kilogramos, venta: libras
+3. agua tratada, simple/a-granel, compra: litros, venta: litros
+4. azucar, simple/a-granel, compra: kilogramos, venta: libras
+5. bolsa, simple/a-granel, compra: cajas, venta: unidades
+6. vaso12oz, simple/a-granel, compra: cajas, venta: unidades
+7. nylon de retractilar, simple/a-granel, compra: rollos, venta: metros
+8. Etiqueta de precio, simple/a-granel, compra: rollos, venta: unidad
+9. guayabas, simple-a-granel, compra: cajas, venta: libras
+10. mangos, simple-a-granel, compra: cajas, venta: libras
+11. jugo de mango, compuesto/preparable, venta: litros, receta para 1 litro:{pulpa:0.3l, azucar:0.022lb, agua tratada:0.6l}
+11. jugo de guayaba, compuesto/preparable, venta: litros, receta para 1 litro:{pulpa:0.6lb, azucar:0.022lb, agua tratada:0.6l}
+12. vaso de jugo de mango, compuesto/no-preparable, venta: unidades, receta para 1 unidad:{jugo de mango:0.3l, vaso12oz:1ud}
+13. bolsa de guayabas, compuesto/no-preparable, venta: libras, receta para 1 libra:{guayabas:1lb, nylon:0.5m, etiqueta:1ud}
+14. bolsa de frutas, compuesto/no-preparable, venta: kilogramos, receta para 1 kilogramo:{guayabas:0.8lb, mango:1.4lb, bolsa:1ud, etiqueta:1ud}
+15. Cesta de frutas, compuesto/no-preparable, venta: unidades, receta para 1 unidad:{guayabas:1lb, mango:2lb, cesta:1ud, nylon:0.5m, etiqueta:1ud}
+16. bolsa de pulpa de guayaba, compuesto/no-preparable, venta: libras, receta para 1 libra:{pulpa de guayabas:1lb, bolsa:1ud}
+17. Bolsa de fijoles, simple/reventa, compra: unidades, venta: unidades
+
+Creacion de la receta:
+- solo productos del tipo a-granel y compuesto/preparados
+- se usará la misma unidad de venta para indicar la cantida de este producto en la receta
+- la receta se prepara la unidad del producto en venta (padre)
+- si el producto padre se vende en unidades del tipo unidad no se validan cantidades excepto q sean mayor q 0
+- si el producto padre se vende en unidades de otro tipo. entonces:
+    * debe haber en la lista al menos un producto con unidad de venta del mismo tipo q la unidad de la receta
+    * las cantidades se convertiran a la unidad especifica de la receta, y la suma total se mostrar'a al final de la lista. Para guardar la receta esta cantidad debe ser igual a 1. Ver productos de ejemplo 13 y 14.
+
+Ajuste de stock de los productos de la receta:
+El ajuste (a la baja) de stock de los productos contenidos en la receta se hará de la siguiente manera:
+  compuestos preparables: 
+    * cuando?: durante el proceso de Preparación
+    * Formula: cantidad en la receta * cantidad de productos elaborados
+  compuestos no preparables: 
+    * cuando?: durante el proceso de venta
+    * Formula: 
+      si el producto tine su unidad de venta del mismo tipo q la receta (producto padre), rebajar cantidad en la receta * cantidad del producto padre, convertido a la unidad de venta del producto.
+      si el producto tiene su unidad de venta de cualquier otro tipo, rebajar cantidad del producto padre convertido a la unidad base * por el % q representa el producto en la unidad base y el resultado convertido a la unidad de venta del producto.
+      Por ejemplo para venta de un producto de ejemplo 14 con 2.3kg de peso se rebajar'ian del stock:
+      - 1.84lb de guayaba
+      - 3.22lb de mango
+      - una bolsa
+      - una etiqueta
+
+
+Redefinicion de unidades:
+-------------------------
+La unidades deben tener un tipo, restringido a los valores {unidad, volumen, peso, longitud}.
+
+Los campos de la BD serian: {id, tipo, unidad, abreviatura, coeficiente}.
+
+Las unidades introducidas por el usuario solo puedes tener uno de estos tipos. El valor del coeficiente debe ser la relacion con la unidad base del tipo seleccionado. Por ejeplo: 
+1. Vaso de 12oz, volumen, coeficiente= 0.33 (litros)
+2. Bidon, volumen, coeficiente= 5 (litros)
+3. caja de frutas, peso, coeficiente= 45 (libras)
+4. caja de ajo porro, unidad, coeficiente= 20 (unidades)
+
+Implementado en el codigo habran siempre 4 unidades que se usaran junto a las q el administrador intrroduzca en la BD:
+const unidades_base= [
+  {id= 0, tipo="unidad", unidad= "unidad", abreviatura= "ud", coeficiente= 1},
+  {id= 1, tipo="volumen", unidad= "litros", abreviatura= "l", coeficiente= 1},
+  {id= 2, tipo="peso", unidad= "libras", abreviatura= "lb", coeficiente= 1},
+  {id= 3, tipo="longitud", unidad= "metro", abreviatura= "m", coeficiente= 1}
+]
+
+Unidades propuestas para insertar en la BD (seeds)
+  { tipo="peso", unidad= "kilogramos", abreviatura= "kg", coeficiente= 2.2}
+  { tipo="peso", unidad= "arroba", abreviatura= "@", coeficiente= 25}
+  { tipo="peso", unidad= "quintal", abreviatura= "q", coeficiente= 100}
+  { tipo="peso", unidad= "onza", abreviatura= "oz", coeficiente= 0.06}
+  { tipo="volumen", unidad= "onza fluida", abreviatura= "fl-oz", coeficiente= 0.03}
+  { tipo="volumen", unidad= "galón", abreviatura= "gal", coeficiente= 0.03}
+  { tipo="longitud", unidad= "pulgada", abreviatura= "in", coeficiente= 0.025}
+  { tipo="longitud", unidad= "centímetro", abreviatura= "cm", coeficiente= 0.01}
+  { tipo="longitud", unidad= "braza", abreviatura= "braza", coeficiente= 1.83}
+  { tipo="unidad", unidad= "mazo", abreviatura= "mazo", coeficiente= 1}
+
+  
+
+

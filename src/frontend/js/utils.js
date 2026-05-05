@@ -15,15 +15,32 @@ const Utils = {
       number = 0;
     }
 
-    // Convertir a número y redondear
     const num = parseFloat(number);
 
-    // Separar parte entera y decimal
-    const parts = num.toFixed(decimals).split('.');
-    const integerPart = parts[0];
-    const decimalPart = parts[1];
+    // ✅ Usar toFixed con el número de decimales
+    const formatted = num.toFixed(decimals);
 
-    // Añadir apóstrofes como separadores de miles
+    // ✅ Si decimals es 0, devolver solo la parte entera
+    if (decimals === 0) {
+      const integerPart = formatted.split('.')[0];
+      let formattedInteger = '';
+      let count = 0;
+
+      for (let i = integerPart.length - 1; i >= 0; i--) {
+        formattedInteger = integerPart[i] + formattedInteger;
+        count++;
+        if (count % 3 === 0 && i > 0) {
+          formattedInteger = "'" + formattedInteger;
+        }
+      }
+      return formattedInteger;
+    }
+
+    // Para decimales > 0
+    const parts = formatted.split('.');
+    const integerPart = parts[0];
+    const decimalPart = parts[1] || '00';
+
     let formattedInteger = '';
     let count = 0;
 
@@ -39,11 +56,11 @@ const Utils = {
   },
 
   /**
-   * Formatea un monto de dinero con formato: 14'500.00
-   * @param {number} amount - El monto a formatear
-   * @param {string} currency - Símbolo de moneda (no se usa, solo para compatibilidad)
-   * @returns {string} Monto formateado
-   */
+  * Formatea un monto de dinero con formato: 14'500.00
+  * @param {number} amount - El monto a formatear
+  * @param {string} currency - Símbolo de moneda (no se usa, solo para compatibilidad)
+  * @returns {string} Monto formateado
+  */
   formatMoney: function (amount, currency = '') {
     if (amount === null || amount === undefined || isNaN(amount)) {
       amount = 0;
@@ -255,6 +272,51 @@ Utils.renderProductImage = function (producto, size = 200) {
   return `<img src="${placeholderUrl}" 
                alt="${producto.nombre}" 
                style="width: 100%; height: ${size}px; object-fit: cover; border-radius: 8px;">`;
+};
+
+/**
+ * Convierte una cantidad entre dos unidades del mismo tipo
+ * @param {number} cantidad - Cantidad a convertir
+ * @param {Object} unidadOrigen - Objeto unidad {id, tipo, coeficiente}
+ * @param {Object} unidadDestino - Objeto unidad {id, tipo, coeficiente}
+ * @returns {number} Cantidad convertida
+ */
+Utils.convertir = function (cantidad, unidadOrigen, unidadDestino) {
+  if (!unidadOrigen || !unidadDestino) return cantidad;
+  if (unidadOrigen.id === unidadDestino.id) return cantidad;
+  if (unidadOrigen.tipo !== unidadDestino.tipo) {
+    console.error('No se pueden convertir unidades de diferente tipo');
+    return cantidad;
+  }
+
+  // Convertir a unidad base y luego a destino
+  const enBase = cantidad * unidadOrigen.coeficiente;
+  const convertido = enBase / unidadDestino.coeficiente;
+
+  return convertido;
+};
+
+/**
+ * Obtiene una unidad por su ID desde el caché
+ * @param {number} id - ID de la unidad
+ * @returns {Object|null} Unidad encontrada
+ */
+Utils.getUnidad = function (id) {
+  const unidades = State.getCache('unidades');
+  if (!unidades) return null;
+  return unidades.find(u => u.id == id) || null;
+};
+
+/**
+ * Verifica si dos unidades son del mismo tipo
+ * @param {number} id1 - ID de la primera unidad
+ * @param {number} id2 - ID de la segunda unidad
+ * @returns {boolean}
+ */
+Utils.mismoTipo = function (id1, id2) {
+  const u1 = Utils.getUnidad(id1);
+  const u2 = Utils.getUnidad(id2);
+  return u1 && u2 && u1.tipo === u2.tipo;
 };
 
 window.Utils = Utils;
