@@ -45,27 +45,8 @@ const State = {
     return localStorage.getItem('token');
   },
 
-  clear: function () {
-    this.user = null;
-    this.cache = {
-      proveedores: null,
-      productos: null,
-      categorias: null,
-      unidades: null,
-      configuracion: null
-    };
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-  },
-
-  getConfig: function () {  // ✅ Corregido: dos puntos
-    return this.getCache('configuracion') || {
-      impuesto_ventas: 15,
-      margen_recomendado: 20,
-      porcentaje_gastos: 0,
-      total_gastos_fijos: 0,
-      ventas_proyectadas: 10000
-    };
+  getConfig: function () {
+    return this.getCache('configuracion');
   },
 
   // Gestión de caché de módulos
@@ -78,10 +59,25 @@ const State = {
 
   getCache: function (key) {
     const cached = this.cache[key];
-    if (cached && (Date.now() - cached.timestamp) < 60000) { // 1 minuto
+    //if (cached && (Date.now() - cached.timestamp) < 180000) { // 3 minutos
+    if (cached) {
       return cached.data;
     }
     return null;
+  },
+
+  clear: function () {
+    console.log('🗑️ limpiando todo el caché y el usuario!');
+    this.user = null;
+    this.cache = {
+      proveedores: null,
+      productos: null,
+      categorias: null,
+      unidades: null,
+      configuracion: null
+    };
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
   },
 
   invalidateCache: function (key) {

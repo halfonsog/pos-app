@@ -810,23 +810,18 @@ Productos.renderCostoLayout = function (producto) {
   const margenMaxRate = (config.margen_recomendado || 20) / 100;
   const impuestoDefRate = (config.impuesto_ventas || 15) / 100;
   const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
-  //console.log('config: ', config);
   const costoBase = producto.costo_base || 0;
 
   // Cálculos para Precio Recomendado (con margen maximo recomendado)
-  let precioBase = costoBase / (1 - gastosDefRate);
-  let gastosFijosMonto = precioBase * gastosDefRate;
-  //console.log(`gastosFijosMonto (${gastosDefRate * 100}%): ${gastosFijosMonto}`);
-  //console.log(`precioBase: ${precioBase}`);
-  let precioNeto = precioBase / (1 - margenMaxRate);
-  let margen, margenMonto = precioNeto * margenMaxRate;
-  //console.log(`margenMonto (${margenMaxRate * 100}%): ${margenMonto}`);
-  //console.log(`precioNeto: ${precioNeto}`);
+  let margenRate = margenMaxRate, gastosFijosRate = gastosDefRate;
+
+  let precioBase = costoBase / (1 - gastosFijosRate);
+  let gastosFijosMonto = precioBase * gastosFijosRate;
+  let precioNeto = precioBase / (1 - margenRate);
+  let margen, margenMonto = precioNeto * margenRate;
   const precioRecomendado = precioNeto / (1 - impuestoDefRate);
   let impuestoMonto = precioRecomendado * impuestoDefRate;
-  //console.log(`impuestoMonto (${impuestoDefRate * 100}%): ${impuestoMonto}`);
-  //console.log(`precioRecomendado: ${precioRecomendado}`);
-  let margenRate = margenMaxRate, gastosFijosRate = gastosDefRate;
+  console.log('Cálculos iniciales:', { costoBase, precioBase, gastosFijosRate, gastosFijosMonto, precioNeto, margenRate, margenMonto, precioRecomendado, impuestoMonto });
 
   // Cálculo del precio actual
   if (producto.precio_venta) {
@@ -839,6 +834,8 @@ Productos.renderCostoLayout = function (producto) {
     precioBase = (diffMonto > 0) ? precioBase + diffMonto : precioBase;
     gastosFijosMonto = precioBase - costoBase;
     gastosFijosRate = gastosFijosMonto / precioBase;
+
+    console.log('Cálculos ajustados al precio actual:', { precioNeto, impuestoMonto, diffRate, margenMonto, margenRate, diffMonto, precioBase, gastosFijosMonto, gastosFijosRate });
   }
 
   return `
@@ -863,95 +860,105 @@ Productos.renderCostoLayout = function (producto) {
             <h2 class="mb-0"><i class="fas fa-calculator me-2"></i>Ficha de Costo - ${producto.nombre}</h2>
           </div>
           
-          <div class="row">
-            <div class="col-lg-8">
-              <!-- Componentes de la receta (solo compuestos) -->
-              ${producto.tipo === 'compuesto' && producto.receta && producto.receta.length > 0 ? `
-                <div class="card mb-4">
-                  <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Componentes de la Receta</h5>
-                  </div>
-                  <div class="card-body p-0">
-                    <table class="table table-sm mb-0">
-                      <thead class="table-light">
-                        <tr>
-                          <th>Componente</th>
-                          <th class="text-end">Cantidad</th>
-                          <th class="text-end">Costo Unit.</th>
-                          <th class="text-end">Costo Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${producto.receta.map(c => {
+          <!-- Componentes de la receta (solo compuestos) -->
+          ${producto.tipo === 'compuesto' && producto.receta && producto.receta.length > 0 ? `
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Componentes de la Receta</h5>
+              </div>
+              <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Componente</th>
+                      <th class="text-end">Cantidad</th>
+                      <th class="text-end">Costo Unit.</th>
+                      <th class="text-end">Costo Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${producto.receta.map(c => {
     const costoUnit = c.costo_unitario || (c.precio_venta ? c.precio_venta / 1.15 : 0);
     const costoTotal = costoUnit * c.cantidad;
     return `
-                            <tr>
-                              <td>${c.producto_nombre}</td>
-                              <td class="text-end">${Utils.formatNumber(c.cantidad, 3)} ${c.unidad_abrev}</td>
-                              <td class="text-end">${Utils.formatMoney(costoUnit)}</td>
-                              <td class="text-end">${Utils.formatMoney(costoTotal)}</td>
-                            </tr>
-                          `;
-  }).join('')}
-                      </tbody>
-                      <tfoot class="table-light">
                         <tr>
-                          <th colspan="3" class="text-end">Costo Base Total:</th>
-                          <th class="text-end">${Utils.formatMoney(costoBase)}</th>
+                          <td>${c.producto_nombre}</td>
+                          <td class="text-end">${Utils.formatNumber(c.cantidad, 3)} ${c.unidad_abrev}</td>
+                          <td class="text-end">${Utils.formatMoney(costoUnit)}</td>
+                          <td class="text-end">${Utils.formatMoney(costoTotal)}</td>
                         </tr>
-                      </tfoot>
-                    </table>
+                      `;
+  }).join('')}
+                  </tbody>
+                  <tfoot class="table-light">
+                    <tr>
+                      <th colspan="3" class="text-end">Costo Base Total:</th>
+                      <th class="text-end">${Utils.formatMoney(costoBase)}</th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          ` : ''}
+          
+          <form id="costoForm">
+            <div class="row">
+              <!-- Columna Izquierda: Parámetros -->
+              <div class="col-lg-6">
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-sliders-h me-2"></i>Parámetros</h5></div>
+                  <div class="card-body">
+
+                      <div class="mb-2">
+                        <div class="d-flex justify-content-between lh-1">
+                          <span>Costo Base:</span>
+                          <strong>$ ${Utils.formatMoney(costoBase)}</strong>
+                        </div>
+                        <small class="text-muted d-block">${producto.tipo === 'compuesto' ? 'Calculado a partir de la receta' : 'Basado en última compra'}</small>
+                      </div>
+                      <div class="mb-2">
+                        <div class="d-flex justify-content-between lh-1">
+                          <span>Impuestos sobre ventas:</span>
+                          <strong>${Utils.formatNumber(impuestoDefRate * 100)} %</strong>
+                        </div>
+                        <small class="text-muted d-block">De configuracion general</small>
+                      </div>
+                      <div class="d-flex justify-content-between mb-2">
+                        <span>Gastos fijos:</span>
+                        <strong>${Utils.formatNumber(gastosFijosRate * 100)} %</strong>
+                      </div>
+                      <div class="d-flex justify-content-between mb-2">
+                        <span>Margen máximo:</span>
+                        <strong>${Utils.formatNumber(margenRate * 100)} %</strong>
+                      </div>
+                    <hr>
+                    <div class="mb-3">
+                      <label class="form-label fw-bold"><i class="fas fa-tag me-1"></i>Precio de Venta</label>
+                      <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control form-control-lg" id="precioVenta" value="${producto.precio_venta || 0}" step="0.01" min="0" placeholder="0.00">
+                      </div>
+                      <small class="text-muted">Con impuestos incluidos</small>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-lg w-100 py-3">
+                  <i class="fas fa-check me-1"></i>Guardar Precio
+                </button>
                   </div>
                 </div>
-              ` : ''}
+              </div>
               
-              <!-- Formulario de cálculo -->
-              <div class="card">
-                <div class="card-header"><h5 class="mb-0">Cálculo de Precio</h5></div>
-                <div class="card-body">
-                  <form id="costoForm">
-                    <div class="mb-3">
-                      <label class="form-label">Costo Base</label>
-                      <input type="text" class="form-control bg-light" value="${Utils.formatMoney(costoBase)}" readonly disabled>
-                      <small class="text-muted">
-                        ${producto.tipo === 'compuesto' ? 'Calculado a partir de la receta' : 'Basado en última compra'}
-                      </small>
-                    </div>
-                    
-                    <div class="row">
-                      <div class="col-md-6 mb-3">
-                        <label class="form-label">Gastos Fijos (%)</label>
-                        <input type="text" class="form-control bg-light" value="${Utils.formatNumber(gastosFijosRate * 100)}" readonly disabled>
-                        <small class="text-muted">Definido en configuración</small>
-                      </div>
-                      <div class="col-md-6 mb-3">
-                        <label class="form-label">Margen (%)</label>
-                        <input type="text" class="form-control" id="margen" value="${Utils.formatNumber(margenRate * 100)}"  readonly disabled">
-                      </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                      <label class="form-label">Impuesto sobre Venta (%)</label>
-                      <input type="text" class="form-control bg-light" value="${impuestoDefRate * 100}" readonly disabled>
-                      <small class="text-muted">Definido en configuración</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                      <label class="form-label">Precio de Venta (con impuesto)</label>
-                      <input type="number" class="form-control form-control-lg" id="precioVenta" value="${producto.precio_venta || 0}" step="0.01" min="0">
-                    </div>
-                    
-                    <hr>
-                    
-                    <!-- Desglose -->
-                    <div class="bg-light p-3 rounded mb-3">
+              <!-- Columna Derecha: Desglose -->
+              <div class="col-lg-6">
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Desglose del Precio</h5></div>
+                  <div class="card-body">
+                    <div class="bg-light p-3 rounded">
                       <div class="d-flex justify-content-between mb-2">
                         <span>Costo Base:</span>
-                        <span id="costoBaseDisplay">${Utils.formatMoney(costoBase)}</span>
+                        <strong id="costoBaseDisplay">${Utils.formatMoney(costoBase)}</strong>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Gastos Fijos (<span id="margenValor">${Utils.formatNumber(gastosFijosRate * 100)}</span>%):</span>
+                        <span>+ Gastos Fijos (<span id="gastosPctDisplay">${Utils.formatNumber(gastosFijosRate * 100)}</span>%):</span>
                         <span id="gastosDisplay">${Utils.formatMoney(gastosFijosMonto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
@@ -959,7 +966,7 @@ Productos.renderCostoLayout = function (producto) {
                         <span id="precioBaseDisplay">${Utils.formatMoney(precioBase)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Margen (<span id="margenValor">${Utils.formatNumber(margenMaxRate * 100)}</span>%):</span>
+                        <span>+ Margen (<span id="margenValor">${Utils.formatNumber(margenRate * 100)}</span>%):</span>
                         <span id="margenDisplay">${Utils.formatMoney(margenMonto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
@@ -967,29 +974,29 @@ Productos.renderCostoLayout = function (producto) {
                         <span id="precioNetoDisplay">${Utils.formatMoney(precioNeto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Impuesto (<span id="impuestoValor">${impuestoDefRate * 100}</span>%):</span>
+                        <span>+ Impuesto (${impuestoDefRate * 100}%):</span>
                         <span id="impuestoDisplay">${Utils.formatMoney(impuestoMonto)}</span>
                       </div>
-                      <div class="d-flex justify-content-between mb-2">
-                        <span><i class="fas fa-lightbulb text-warning me-1"></i>Precio Recomendado:</span>
-                        <span class="text-warning fw-bold">${Utils.formatMoney(precioRecomendado)}</span>
-                      </div>
                       <hr>
-                      <div class="d-flex justify-content-between">
-                        <span class="fw-bold">Precio Final:</span>
-                        <span class="fs-5 fw-bold text-primary" id="precioFinalDisplay">${Utils.formatMoney(producto.precio_venta || 0)}</span>
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fw-bold fs-5">Precio Final:</span>
+                        <span class="fs-4 fw-bold text-primary" id="precioFinalDisplay">${Utils.formatMoney(producto.precio_venta || 0)}</span>
                       </div>
-                    </div>                     
-                    <div class="d-grid">
-                      <button type="submit" class="btn btn-success">
-                        <i class="fas fa-check me-1"></i>Guardar Precio
-                      </button>
+                      
+                      <!-- Precio Recomendado -->
+                      <div class="alert alert-warning p-2 mb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <span><i class="fas fa-lightbulb me-1"></i>Recomendado:</span>
+                          <span class="fw-bold">${Utils.formatMoney(precioRecomendado)}</span>
+                        </div>
+                        <small class="text-muted">Margen máx. ${Utils.formatNumber(margenMaxRate * 100)}% · Gastos fijos ${Utils.formatNumber(gastosDefRate * 100)}%</small>
+                      </div>
                     </div>
-                  </form>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+           </form>
         </div>
       </main>
     </div>

@@ -390,7 +390,8 @@ Ventas.pos = async function () {
     });
 
     Ventas._carrito = [];
-    Ventas._impuestoPorcentaje = State.getConfig().impuesto_ventas / 100;
+    const config = State.getConfig();
+    Ventas._impuestoPorcentaje = config.impuesto_ventas / 100;
 
     const layout = `
       <div class="app-wrapper">

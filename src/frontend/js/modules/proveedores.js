@@ -465,7 +465,7 @@ Proveedores.formulario = async function (params) {
     Utils.showLoading('Cargando datos...');
 
     // Cargar términos de pago
-    const terminosPago = await API.get('/terminos-pago');
+    const terminosPago = await API.get('/configuracion/terminos-pago');
 
     let proveedor = null;
     if (isEdit) {

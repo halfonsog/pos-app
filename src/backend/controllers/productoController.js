@@ -66,21 +66,40 @@ const productoController = {
       // Obtener receta si es compuesto (ANTES de calcular costo)
       if (producto.tipo === 'compuesto') {
         producto.receta = await db.all(`
-        SELECT 
-          r.*,
-          p.nombre as producto_nombre,
-          p.codigo as producto_codigo,
-          p.precio_venta,
-          u.nombre as unidad_nombre,
-          u.abreviatura as unidad_abrev,
-          u.tipo as unidad_tipo,
-          pc.costo_base as costo_unitario
-        FROM recetas r
-        JOIN productos p ON r.producto_hijo_id = p.id
-        JOIN unidades u ON p.unidad_venta_id = u.id
-        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
-        WHERE r.producto_padre_id = ?
-      `, [id]);
+          SELECT 
+            r.*,
+            p.nombre as producto_nombre,
+            p.codigo as producto_codigo,
+            p.precio_venta,
+            p.tipo,
+            u.nombre as unidad_nombre,
+            u.abreviatura as unidad_abrev,
+            u.tipo as unidad_tipo,
+            pc.costo_base as costo_ficha
+          FROM recetas r
+          JOIN productos p ON r.producto_hijo_id = p.id
+          JOIN unidades u ON p.unidad_venta_id = u.id
+          LEFT JOIN producto_costos pc ON p.id = pc.producto_id
+          WHERE r.producto_padre_id = ?
+        `, [id]);
+
+        // Para cada componente, obtener costo de última compra si no tiene ficha
+        for (const c of producto.receta) {
+          if (!c.costo_ficha || c.costo_ficha === 0) {
+            const ultimaCompra = await db.get(`
+              SELECT cd.precio_unitario
+              FROM compra_detalles cd
+              JOIN compras co ON cd.compra_id = co.id
+              WHERE cd.producto_id = ? AND co.estado_inventario = 'completado'
+              ORDER BY co.fecha_compra DESC LIMIT 1
+            `, [c.producto_hijo_id]);
+
+            c.costo_unitario = ultimaCompra?.precio_unitario || 0;
+          } else {
+            c.costo_unitario = c.costo_ficha;
+          }
+        }
+
 
         // Calcular costo base desde la receta si no tiene costo configurado
         if (!producto.costo_base || producto.costo_base === 0) {
