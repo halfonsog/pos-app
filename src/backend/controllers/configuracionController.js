@@ -13,14 +13,14 @@ const configuracionController = {
       const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
 
       if (!config) {
-        await db.run('INSERT INTO configuracion_general (id, ventas_proyectadas, margen_recomendado, impuesto_ventas) VALUES (1, 10000, 20, 15)');
+        await db.run('INSERT INTO configuracion_general (id, ventas_proyectadas, margen_recomendado, impuesto_ventas) VALUES (1, 250000, 20, 15)');
         const nuevo = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
         return res.json(nuevo);
       }
 
       const s = await db.get('SELECT SUM(valor_mensual) as total FROM configuracion_gastos WHERE activo = 1');
       const gastosFijos = s?.total || 0;
-      const ventas = config.ventas_proyectadas || 10000;
+      const ventas = config.ventas_proyectadas || 250000;
       const margenRec = (config.margen_recomendado || 20) / 100;
       const impuesto = (config.impuesto_ventas || 15) / 100;
 

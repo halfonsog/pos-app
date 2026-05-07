@@ -361,7 +361,9 @@ Compras.initDataTable = function (compras) {
                   <li><a class="dropdown-item text-warning" href="#compras/pagar/${id}"><i class="fas fa-money-bill me-2"></i>Registrar Pago</a></li>
                 ` : ''}
                 ${estadoStock === 'pendiente' ? `
-                  <li><a class="dropdown-item text-info" href="#compras/inventariar/${id}"><i class="fas fa-warehouse me-2"></i>Llevar a Stock</a></li>
+                  <li><a class="dropdown-item text-info inventariar-compra" href="#" data-id="${id}">
+                    <i class="fas fa-warehouse me-2"></i>Llevar a Stock
+                  </a></li>
                 ` : ''}
               </ul>
             </div>
@@ -441,6 +443,27 @@ Compras.bindListadoEvents = function (params) {
     const row = self.dataTable.row(this);
     const id = row.data()[8];
     ViewManager.navegar('compras/ver/' + id);
+  });
+
+  $('#comprasTable').on('click', '.inventariar-compra', async function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+
+    const confirmado = await Utils.confirm('¿Llevar esta compra a stock?', 'Confirmar');
+    if (!confirmado) return;
+
+    try {
+      Utils.showLoading('Procesando...');
+      await API.compras.inventariar(id);
+      State.invalidateCache('compras');
+      State.invalidateCache('productos');
+      Utils.hideLoading();
+      Toast.success('Compra llevada a stock');
+      ViewManager.refresh();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
   });
 
   Compras.bindCommonEvents();
@@ -882,12 +905,8 @@ Compras.bindFormularioEvents = function (id, productos) {
 
       State.invalidateCache('compras');
 
-      Utils.hideLoading();
-      Toast.success(result.message || 'Compra guardada correctamente');
-
       const nuevoId = id || result.id;
 
-      // Si se marcó llevar a stock, hacer la petición
       if ($('#llevarAStock').is(':checked') && !id) {
         try {
           await API.compras.inventariar(nuevoId);
@@ -898,10 +917,13 @@ Compras.bindFormularioEvents = function (id, productos) {
         }
       }
 
-      ViewManager.navegar('compras/ver/' + nuevoId, {}, { replace: true });
+      Utils.hideLoading();
+      Toast.success(result.message || 'Compra guardada correctamente');
+      ViewManager.volver();
 
     } catch (error) {
       Utils.hideLoading();
+      Toast.error('Error al guardar: ' + error.message);
       console.error(error);
     }
   });
@@ -1554,10 +1576,10 @@ Compras.bindPagarEvents = function (compra) {
       State.invalidateCache('compras');
       Utils.hideLoading();
       Toast.success('Pago registrado correctamente');
-      ViewManager.navegar('compras/ver/' + compra.id, {}, { replace: true });
+      ViewManager.volver();
     } catch (error) {
       Utils.hideLoading();
-      console.log(error);
+      Toast.error(error.message);
     }
   });
 

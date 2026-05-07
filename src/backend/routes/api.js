@@ -15,9 +15,6 @@ router.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// GET /api/terminos-pago
-//router.get('/terminos-pago', catalogoController.listarTerminosPago);
-
 // Rutas públicas
 router.use('/auth', authRoutes);
 

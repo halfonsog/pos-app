@@ -23,7 +23,6 @@ router.post('/unidades', configuracionController.crearUnidad);
 router.put('/unidades/:id', configuracionController.actualizarUnidad);
 
 // Términos de pago
-// Términos de pago
 router.get('/terminos-pago', configuracionController.listarTerminosPago);
 router.post('/terminos-pago', configuracionController.crearTerminoPago);
 router.put('/terminos-pago/:id', configuracionController.actualizarTerminoPago);

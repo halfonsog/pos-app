@@ -642,7 +642,6 @@ Proveedores.bindFormularioEvents = function (id, params) {
       if (params.retorno) {
         ViewManager.navegar(params.retorno, { proveedor_id: nuevoId });
       } else {
-        //ViewManager.navegar('proveedores/ver/' + nuevoId, {}, { replace: true });
         ViewManager.volver();
       }
 

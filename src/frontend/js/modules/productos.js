@@ -438,7 +438,7 @@ Productos.bindFormularioEvents = function (id, params) {
       Utils.hideLoading(); Toast.success('Producto guardado');
       const nId = id || result.id;
       if (retorno) ViewManager.navegar(retorno, { producto_id: nId, ...retornoParams });
-      else ViewManager.navegar('productos/ver/' + nId, {}, { replace: true });
+      else ViewManager.volver();
     } catch (error) { Utils.hideLoading(); console.error(error); }
   });
 
@@ -547,7 +547,7 @@ Productos.renderFichaLayout = function (producto) {
               <button class="btn btn-outline-secondary me-3" id="btnVolver">
                 <i class="fas fa-arrow-left me-1"></i>Volver
               </button>
-              <h2 class="mb-0">${producto.nombre}</h2>
+              <h2 class="mb-0">${producto.nombre}</h2>&nbsp;
               ${Productos.getTipoBadge(producto)}
             </div>
             <div class="btn-group">
@@ -600,11 +600,11 @@ Productos.renderFichaLayout = function (producto) {
                   </div>
                   <div class="d-flex justify-content-between mb-2">
                     <span>Margen:</span>
-                    <strong>${producto.margen || config.margen_recomendado}%</strong>
+                    <strong>${Utils.formatNumber(producto.margen || config.margen_recomendado)}%</strong>
                   </div>
                   <div class="d-flex justify-content-between mb-2">
                     <span>Gastos Fijos:</span>
-                    <strong>${producto.gastos_fijos || config.porcentaje_gastos}%</strong>
+                    <strong>${Utils.formatNumber(producto.gastos_fijos || config.porcentaje_gastos)}%</strong>
                   </div>
                   <hr>
                   <div class="d-flex justify-content-between">
@@ -807,25 +807,39 @@ Productos.costo = async function (params) {
 Productos.renderCostoLayout = function (producto) {
   const user = State.getUser();
   const config = State.getConfig();
-  const margenMinimo = config.margen_recomendado || 20;
-  const impuestoDefault = config.impuesto_ventas || 15;
-  const gastosDefault = config.porcentaje_gastos || 0;
-
+  const margenMaxRate = (config.margen_recomendado || 20) / 100;
+  const impuestoDefRate = (config.impuesto_ventas || 15) / 100;
+  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
+  //console.log('config: ', config);
   const costoBase = producto.costo_base || 0;
-  const gastosFijos = producto.gastos_fijos || gastosDefault;
 
-  // Cálculos para Precio Recomendado (con margen mínimo)
-  const gastosMontoRec = costoBase * (gastosFijos / 100);
-  const margenRecMonto = (costoBase + gastosMontoRec) * (margenMinimo / 100);
-  const precioNetoRec = costoBase + gastosMontoRec + margenRecMonto;
-  const precioRecomendado = precioNetoRec + (precioNetoRec * (impuestoDefault / 100));
+  // Cálculos para Precio Recomendado (con margen maximo recomendado)
+  let precioBase = costoBase / (1 - gastosDefRate);
+  let gastosFijosMonto = precioBase * gastosDefRate;
+  //console.log(`gastosFijosMonto (${gastosDefRate * 100}%): ${gastosFijosMonto}`);
+  //console.log(`precioBase: ${precioBase}`);
+  let precioNeto = precioBase / (1 - margenMaxRate);
+  let margen, margenMonto = precioNeto * margenMaxRate;
+  //console.log(`margenMonto (${margenMaxRate * 100}%): ${margenMonto}`);
+  //console.log(`precioNeto: ${precioNeto}`);
+  const precioRecomendado = precioNeto / (1 - impuestoDefRate);
+  let impuestoMonto = precioRecomendado * impuestoDefRate;
+  //console.log(`impuestoMonto (${impuestoDefRate * 100}%): ${impuestoMonto}`);
+  //console.log(`precioRecomendado: ${precioRecomendado}`);
+  let margenRate = margenMaxRate, gastosFijosRate = gastosDefRate;
 
   // Cálculo del precio actual
-  const gastosMontoAct = costoBase * (gastosFijos / 100);
-  const margenAct = producto.margen || margenMinimo;
-  const margenMontoAct = (costoBase + gastosMontoAct) * (margenAct / 100);
-  const precioNetoAct = costoBase + gastosMontoAct + margenMontoAct;
-  const impuestoMontoAct = precioNetoAct * (impuestoDefault / 100);
+  if (producto.precio_venta) {
+    impuestoMonto = producto.precio_venta * impuestoDefRate;
+    precioNeto = producto.precio_venta - impuestoMonto;
+    const diffRate = (precioNeto - precioBase) / precioNeto;
+    margenMonto = (diffRate < margenMaxRate) ? precioNeto * diffRate : precioNeto * margenMaxRate;
+    margenRate = margenMonto / precioNeto;
+    const diffMonto = (precioNeto - precioBase) - (precioNeto * margenMaxRate);
+    precioBase = (diffMonto > 0) ? precioBase + diffMonto : precioBase;
+    gastosFijosMonto = precioBase - costoBase;
+    gastosFijosRate = gastosFijosMonto / precioBase;
+  }
 
   return `
     <div class="app-wrapper">
@@ -908,26 +922,24 @@ Productos.renderCostoLayout = function (producto) {
                     <div class="row">
                       <div class="col-md-6 mb-3">
                         <label class="form-label">Gastos Fijos (%)</label>
-                        <input type="text" class="form-control bg-light" value="${gastosFijos}" readonly disabled>
+                        <input type="text" class="form-control bg-light" value="${Utils.formatNumber(gastosFijosRate * 100)}" readonly disabled>
                         <small class="text-muted">Definido en configuración</small>
                       </div>
                       <div class="col-md-6 mb-3">
                         <label class="form-label">Margen (%)</label>
-                        <input type="number" class="form-control" id="margen" 
-                               value="${Utils.formatNumber(margenAct)}" step="0.01" min="0" max="100">
+                        <input type="text" class="form-control" id="margen" value="${Utils.formatNumber(margenRate * 100)}"  readonly disabled">
                       </div>
                     </div>
                     
                     <div class="mb-3">
                       <label class="form-label">Impuesto sobre Venta (%)</label>
-                      <input type="text" class="form-control bg-light" value="${impuestoDefault}" readonly disabled>
+                      <input type="text" class="form-control bg-light" value="${impuestoDefRate * 100}" readonly disabled>
                       <small class="text-muted">Definido en configuración</small>
                     </div>
                     
                     <div class="mb-3">
                       <label class="form-label">Precio de Venta (con impuesto)</label>
-                      <input type="number" class="form-control form-control-lg" id="precioVenta" 
-                             value="${producto.precio_venta || 0}" step="0.01" min="0">
+                      <input type="number" class="form-control form-control-lg" id="precioVenta" value="${producto.precio_venta || 0}" step="0.01" min="0">
                     </div>
                     
                     <hr>
@@ -939,23 +951,27 @@ Productos.renderCostoLayout = function (producto) {
                         <span id="costoBaseDisplay">${Utils.formatMoney(costoBase)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Gastos Fijos (<span id="gastosValor">${gastosFijos}</span>%):</span>
-                        <span id="gastosDisplay">${Utils.formatMoney(gastosMontoAct)}</span>
+                        <span>+ Gastos Fijos (<span id="margenValor">${Utils.formatNumber(gastosFijosRate * 100)}</span>%):</span>
+                        <span id="gastosDisplay">${Utils.formatMoney(gastosFijosMonto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Margen (<span id="margenValor">${margenAct}</span>%):</span>
-                        <span id="margenDisplay">${Utils.formatMoney(margenMontoAct)}</span>
+                        <span>= Precio Base:</span>
+                        <span id="precioBaseDisplay">${Utils.formatMoney(precioBase)}</span>
+                      </div>
+                      <div class="d-flex justify-content-between mb-2">
+                        <span>+ Margen (<span id="margenValor">${Utils.formatNumber(margenMaxRate * 100)}</span>%):</span>
+                        <span id="margenDisplay">${Utils.formatMoney(margenMonto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
                         <span>= Precio Neto:</span>
-                        <span id="precioNetoDisplay">${Utils.formatMoney(precioNetoAct)}</span>
+                        <span id="precioNetoDisplay">${Utils.formatMoney(precioNeto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span>+ Impuesto (<span id="impuestoValor">${impuestoDefault}</span>%):</span>
-                        <span id="impuestoDisplay">${Utils.formatMoney(impuestoMontoAct)}</span>
+                        <span>+ Impuesto (<span id="impuestoValor">${impuestoDefRate * 100}</span>%):</span>
+                        <span id="impuestoDisplay">${Utils.formatMoney(impuestoMonto)}</span>
                       </div>
                       <div class="d-flex justify-content-between mb-2">
-                        <span><i class="fas fa-lightbulb text-warning me-1"></i>Precio Recomendado (margen ${margenMinimo}%):</span>
+                        <span><i class="fas fa-lightbulb text-warning me-1"></i>Precio Recomendado:</span>
                         <span class="text-warning fw-bold">${Utils.formatMoney(precioRecomendado)}</span>
                       </div>
                       <hr>
@@ -963,8 +979,7 @@ Productos.renderCostoLayout = function (producto) {
                         <span class="fw-bold">Precio Final:</span>
                         <span class="fs-5 fw-bold text-primary" id="precioFinalDisplay">${Utils.formatMoney(producto.precio_venta || 0)}</span>
                       </div>
-                    </div>
-                    
+                    </div>                    
                     <div class="d-grid">
                       <button type="submit" class="btn btn-success">
                         <i class="fas fa-check me-1"></i>Guardar Precio
@@ -983,96 +998,62 @@ Productos.renderCostoLayout = function (producto) {
 
 Productos.bindCostoEvents = function (producto) {
   const config = State.getConfig();
+  const margenMaxRate = (config.margen_recomendado || 20) / 100; //margenMaximo
+  const impuestoDefRate = (config.impuesto_ventas || 15) / 100; //  impuestoPct
   const costoBase = producto.costo_base || 0;
-  const gastosFijos = producto.gastos_fijos || config.porcentaje_gastos || 0;
-  const impuesto = config.impuesto_ventas || 15;
+  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
+  const precioBaseDef = costoBase / (1 - gastosDefRate);
 
   // Actualizar desglose visual
-  const actualizarDesglose = function (margen, precio) {
-    // gastos fijos = costo base * % gastos fijos
-    const gastosMonto = costoBase * (gastosFijos / 100);
+  const actualizarDesglose = function (precioVenta) {
+    const impuestoMonto = precioVenta * impuestoDefRate;
+    const precioNeto = precioVenta - impuestoMonto;
 
-    // margen = (costo base + gastos fijos) * % margen
-    const margenMonto = (costoBase + gastosMonto) * (margen / 100);
+    const diffRate = (precioNeto - precioBaseDef) / precioNeto;
+    const margenMonto = (diffRate < margenMaxRate) ? precioNeto * diffRate : precioNeto * margenMaxRate;
+    const margenRate = margenMonto / precioNeto;
+    const diffMonto = (precioNeto - precioBaseDef) - (precioNeto * margenMaxRate);
+    const precioBase = (diffMonto > 0) ? precioBaseDef + diffMonto : precioBaseDef;
 
-    // precio neto = costo base + gastos fijos + margen
-    const precioNeto = costoBase + gastosMonto + margenMonto;
+    const gastosFijosMonto = precioBase - costoBase;
+    const gastosFijosRate = gastosFijosMonto / precioBase;
 
-    // precio de venta = precio neto + precio neto * % impuesto
-    const precioVenta = precioNeto + (precioNeto * (impuesto / 100));
-
-    // impuesto monto = precio de venta - precio neto
-    const impuestoMonto = precioVenta - precioNeto;
-
-    $('#gastosDisplay').text(Utils.formatMoney(gastosMonto));
-    $('#margenValor').text(margen);
-    $('#margenDisplay').text(Utils.formatMoney(margenMonto));
+    // Actualizar UI
+    $('#costoBaseDisplay').text(Utils.formatMoney(costoBase));
+    $('#precioBaseDisplay').text(Utils.formatMoney(precioBase));
+    $('#gastosDisplay').text(Utils.formatMoney(gastosFijosMonto));
     $('#precioNetoDisplay').text(Utils.formatMoney(precioNeto));
+    $('#margenValor').text(Utils.formatNumber(margenRate * 100));
+    $('#margenDisplay').text(Utils.formatMoney(margenMonto));
     $('#impuestoDisplay').text(Utils.formatMoney(impuestoMonto));
     $('#precioFinalDisplay').text(Utils.formatMoney(precioVenta));
 
-    return precioVenta;
+    return { gastosFijosRate, margenRate };
   };
 
-  // Calcular precio desde margen
-  const calcularPrecioDesdeMargen = function () {
-    const margen = parseFloat($('#margen').val()) || 0;
-    const precio = actualizarDesglose(margen);
-    return precio;
-  };
+  $('#btnVolver').on('click', () => ViewManager.volver());
+  $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
 
-  // Calcular margen desde precio
-  const calcularMargenDesdePrecio = function () {
-    const precio = parseFloat($('#precioVenta').val()) || 0;
-    if (precio <= 0 || costoBase <= 0) return 0;
-
-    // precio neto = precio de venta / (1 + % impuesto)
-    const precioNeto = precio / (1 + (impuesto / 100));
-
-    // gastos fijos monto
-    const gastosMonto = costoBase * (gastosFijos / 100);
-
-    // margen monto = precio neto - costo base - gastos fijos
-    const margenMonto = precioNeto - costoBase - gastosMonto;
-
-    // % margen = margen monto / (costo base + gastos fijos) * 100
-    // ✅ Sin redondear, mostrar todos los decimales que salgan
-    const margen = (margenMonto / (costoBase + gastosMonto)) * 100;
-
-    // Mostrar con 4 decimales en el input (solo visual)
-    $('#margen').val(margen.toFixed(2));
-
-    // Actualizar desglose con el valor exacto
-    actualizarDesglose(margen, precio);
-
-    return margen;
-  };
-
-  // Inicializar desglose
-  actualizarDesglose(producto.margen || config.margen_recomendado || 20, producto.precio_venta || 0);
-
-  // Eventos
-  $('#margen').on('input', function () {
-    const precio = calcularPrecioDesdeMargen();
-    $('#precioVenta').val(precio.toFixed(2));
-  });
-
+  // Evento: cambiar precio de venta
   $('#precioVenta').on('input', function () {
-    calcularMargenDesdePrecio();
+    const precio = parseFloat($(this).val()) || 0;
+    if (precio > 0) {
+      const result = actualizarDesglose(precio);
+      $('#margen').val(Utils.formatNumber(result.margenRate * 100));
+    }
   });
 
   // Guardar
   $('#costoForm').on('submit', async function (e) {
     e.preventDefault();
-
     const precio = parseFloat($('#precioVenta').val()) || 0;
-    const margen = parseFloat($('#margen').val()) || 0;  // ← Ya viene con todos los decimales
+    const result = actualizarDesglose(precio);
 
     const data = {
       costo_base: costoBase,
-      margen: margen,  // ← Margen exacto, sin redondear
-      gastos_fijos: gastosFijos,
-      impuesto: impuesto,
+      gastos_fijos: result.gastosFijosRate * 100,
+      margen: result.margenRate * 100,
+      impuesto: impuestoDefRate * 100,
       precio_venta: precio
     };
 
@@ -1082,19 +1063,24 @@ Productos.bindCostoEvents = function (producto) {
       State.invalidateCache('productos');
       Utils.hideLoading();
       Toast.success('Ficha de costo actualizada');
-      ViewManager.navegar(`productos/ver/${producto.id}`, {}, { replace: true });
+      ViewManager.volver();
     } catch (error) {
       Utils.hideLoading();
       console.error(error);
     }
   });
 
-
-  $('#btnVolver').on('click', () => ViewManager.volver());
-  $('.breadcrumb-back').on('click', (e) => {
-    e.preventDefault();
-    ViewManager.volver();
-  });
+  /*
+  // Inicializar
+  if (producto.precio_venta > 0) {
+    actualizarDesglose(producto.precio_venta);
+    const diffPct = (producto.precio_venta * (1 - impuestoPct / 100) - costoBase / (1 - gastosFijosPct / 100)) / (producto.precio_venta * (1 - impuestoPct / 100));
+    const margenInicial = diffPct <= margenMaximo / 100 ? diffPct * 100 : margenMaximo;
+    $('#margen').val(margenInicial.toFixed(2));
+  } else {
+    $('#margen').val(margenMaximo);
+  }
+*/
 
   Productos._bindCommon();
 };
