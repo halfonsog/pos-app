@@ -979,7 +979,7 @@ Productos.renderCostoLayout = function (producto) {
                         <span class="fw-bold">Precio Final:</span>
                         <span class="fs-5 fw-bold text-primary" id="precioFinalDisplay">${Utils.formatMoney(producto.precio_venta || 0)}</span>
                       </div>
-                    </div>                    
+                    </div>                     
                     <div class="d-grid">
                       <button type="submit" class="btn btn-success">
                         <i class="fas fa-check me-1"></i>Guardar Precio
