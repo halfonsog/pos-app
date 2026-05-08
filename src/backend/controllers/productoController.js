@@ -63,7 +63,7 @@ const productoController = {
         return res.status(404).json({ error: 'Producto no encontrado' });
       }
 
-      // Obtener receta si es compuesto (ANTES de calcular costo)
+      // Obtener receta si es compuesto
       if (producto.tipo === 'compuesto') {
         producto.receta = await db.all(`
           SELECT 
@@ -94,12 +94,27 @@ const productoController = {
               ORDER BY co.fecha_compra DESC LIMIT 1
             `, [c.producto_hijo_id]);
 
-            c.costo_unitario = ultimaCompra?.precio_unitario || 0;
+            if (ultimaCompra?.precio_unitario) {
+              // ✅ Obtener factor de conversión del componente
+              const componente = await db.get(
+                'SELECT factor_conversion, unidad_compra_id, unidad_venta_id FROM productos WHERE id = ?',
+                [c.producto_hijo_id]
+              );
+
+              if (componente && componente.unidad_compra_id && componente.unidad_venta_id &&
+                componente.unidad_compra_id !== componente.unidad_venta_id) {
+                const factor = componente.factor_conversion || 1;
+                c.costo_unitario = ultimaCompra.precio_unitario / factor;
+              } else {
+                c.costo_unitario = ultimaCompra.precio_unitario;
+              }
+            } else {
+              c.costo_unitario = 0;
+            }
           } else {
             c.costo_unitario = c.costo_ficha;
           }
         }
-
 
         // Calcular costo base desde la receta si no tiene costo configurado
         if (!producto.costo_base || producto.costo_base === 0) {
@@ -115,15 +130,21 @@ const productoController = {
       // Costo base para simples (última compra)
       if (producto.tipo === 'simple') {
         const ultimaCompra = await db.get(`
-        SELECT cd.precio_unitario, c.fecha_compra
-        FROM compra_detalles cd
-        JOIN compras c ON cd.compra_id = c.id
-        WHERE cd.producto_id = ?
-        ORDER BY c.fecha_compra DESC LIMIT 1
-      `, [id]);
-
+          SELECT cd.precio_unitario, c.fecha_compra
+          FROM compra_detalles cd
+          JOIN compras c ON cd.compra_id = c.id
+          WHERE cd.producto_id = ? AND c.estado_inventario = 'completado'
+          ORDER BY c.fecha_compra DESC LIMIT 1
+        `, [id]);
         if (ultimaCompra && (!producto.costo_base || producto.costo_base === 0)) {
-          producto.costo_base = ultimaCompra.precio_unitario;
+          // ✅ Convertir a unidad de venta si es diferente
+          if (producto.unidad_compra_id && producto.unidad_venta_id &&
+            producto.unidad_compra_id !== producto.unidad_venta_id) {
+            const factor = producto.factor_conversion || 1;
+            producto.costo_base = ultimaCompra.precio_unitario / factor;
+          } else {
+            producto.costo_base = ultimaCompra.precio_unitario;
+          }
         }
       }
 
