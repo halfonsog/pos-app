@@ -68,11 +68,10 @@ const inventarioController = {
       SELECT 
         p.id, p.codigo, p.nombre, p.tipo, p.sub_tipo,
         CASE 
-          WHEN p.tipo = 'compuesto' THEN 
-            COALESCE(sc.stock_efectivo, 0)
-          ELSE 
-            p.stock_actual
-        END as stock_actual,  -- ✅ REEMPLAZAMOS el valor
+          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 THEN p.stock_actual
+          WHEN p.tipo = 'compuesto' THEN COALESCE(sc.stock_efectivo, 0)
+          ELSE p.stock_actual
+        END as stock_actual,
         p.stock_minimo, p.precio_venta,
         p.requiere_preparacion, p.activo,
         c.nombre as categoria_nombre,
@@ -93,10 +92,27 @@ const inventarioController = {
 
       // Procesar resultados
       for (const p of productos) {
-        p.puede_prepararse = p.es_preparable === 1 && p.stock_actual > 0;
+        // ¿Se puede vender?
         p.puede_venderse = p.tiene_ficha_costo === 1 && p.stock_actual > 0;
-        p.tiene_ficha_costo = p.tiene_ficha_costo === 1;
-        p.es_preparable = p.es_preparable === 1;
+
+        // ¿Es preparable? (tiene receta y requiere preparación)
+        p.es_preparable = p.tipo === 'compuesto' && p.requiere_preparacion === 1;
+
+        // ¿Se puede preparar AHORA? (componentes con stock suficiente)
+        if (p.es_preparable) {
+          // Verificar stock de componentes
+          const componentes = await db.all(`
+            SELECT pr.stock_actual, r.cantidad
+            FROM recetas r
+            JOIN productos pr ON r.producto_hijo_id = pr.id
+            WHERE r.producto_padre_id = ?
+          `, [p.id]);
+
+          p.puede_prepararse = componentes.length > 0 &&
+            componentes.every(c => c.stock_actual >= c.cantidad);
+        } else {
+          p.puede_prepararse = false;
+        }
       }
 
       res.json(productos);
