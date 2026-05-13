@@ -163,5 +163,8 @@ Unidades propuestas para insertar en la BD (seeds)
   { tipo="unidad", unidad= "mazo", abreviatura= "mazo", coeficiente= 1}
 
   
+Las notas de moneda (ahora de 1000 a 5) deberian editarse desde configuracion!
+
+
 
 

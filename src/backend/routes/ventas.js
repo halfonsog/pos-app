@@ -6,6 +6,7 @@ const ventaController = require('../controllers/ventaController');
 router.get('/turno-actual', ventaController.turnoActual);
 router.post('/abrir-turno', ventaController.abrirTurno);
 router.post('/cerrar-turno', ventaController.cerrarTurno);
+router.get('/resumen-turno/:id', ventaController.resumenTurno);
 
 // Ventas
 router.get('/', ventaController.listarVentas);

@@ -132,6 +132,15 @@ Configuracion.general = async function () {
                         <input type="number" class="form-control" id="impuestoVentas" 
                                value="${config.impuesto_ventas}" step="0.5" min="0" max="100">
                       </div>
+                      <div class="mb-3">
+                        <label class="form-label">Redondeo de Venta ($)</label>
+                        <input type="number" class="form-control" id="redondeoVenta" 
+                              value="${config.redondeo_venta || 5}" step="1" min="0">
+                        <small class="text-muted">
+                          Las ventas se redondean al múltiplo de este valor.<br>
+                          Ej: 5 = redondea a 5, 10, 15... | 0 = sin redondeo
+                        </small>
+                      </div>
                       <hr>
                       <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
@@ -172,7 +181,8 @@ Configuracion._bindGeneralSubmit = function () {
     const data = {
       ventas_proyectadas: parseFloat($('#ventasProyectadas').val()),
       margen_recomendado: parseFloat($('#margenRecomendado').val()),
-      impuesto_ventas: parseFloat($('#impuestoVentas').val())
+      impuesto_ventas: parseFloat($('#impuestoVentas').val()),
+      redondeo_venta: parseFloat($('#redondeoVenta').val())
     };
     try {
       Utils.showLoading('Guardando...');

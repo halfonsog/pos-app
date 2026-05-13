@@ -128,8 +128,7 @@ Ventas.abrirTurno = function () {
             <form id="abrirTurnoForm">
               <div class="mb-3">
                 <label class="form-label">Monto de Apertura ($)</label>
-                <input type="number" class="form-control form-control-lg" id="montoApertura" 
-                       value="100" step="1" min="0" required autofocus>
+                <input type="number" class="form-control form-control-lg" id="montoApertura" value="100" step="1" min="0" required autofocus>
                 <small class="text-muted">Dinero inicial en caja para dar cambio</small>
               </div>
             </form>
@@ -177,13 +176,20 @@ Ventas.cerrarTurno = async function () {
   try {
     Utils.showLoading('Calculando cierre...');
     const turno = await API.ventas.turnoActual();
+
+    if (!turno.abierto) {
+      Utils.hideLoading();
+      Toast.warning('No hay turno abierto');
+      return;
+    }
+
+    const resumen = await API.ventas.resumenTurno(turno.id);
     Utils.hideLoading();
 
-    if (!turno.abierto) { Toast.warning('No hay turno abierto'); return; }
-
     const montoApertura = turno.monto_apertura || 0;
-    const ventasEfectivo = turno.ventas?.total_efectivo || 0;
+    const ventasEfectivo = resumen.ventasPorMetodo.find(v => v.metodo_pago === 'efectivo')?.total || 0;
     const montoEsperado = montoApertura + ventasEfectivo;
+    const f = resumen.financiero;
 
     const layout = `
       <div class="app-wrapper">
@@ -202,44 +208,115 @@ Ventas.cerrarTurno = async function () {
             <h2 class="mb-4"><i class="fas fa-lock me-2"></i>Cierre de Turno</h2>
             
             <div class="row">
-              <div class="col-lg-5">
+              <div class="col-lg-6">
+                <!-- Ventas -->
                 <div class="card mb-4">
-                  <div class="card-header"><h5 class="mb-0">Resumen del Turno</h5></div>
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Ventas del Turno</h5></div>
+                  <div class="card-body">
+                    ${resumen.ventasPorMetodo.map(v => `
+                      <div class="d-flex justify-content-between mb-2">
+                        <span>${v.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}:</span>
+                        <span><strong>${v.cantidad}</strong> ventas - ${Utils.formatMoney(v.total)}</span>
+                      </div>
+                    `).join('')}
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold">
+                      <span>TOTAL:</span>
+                      <span class="text-primary">${resumen.totales.total_ventas} ventas - ${Utils.formatMoney(resumen.totales.total_cobrado)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Rentabilidad -->
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Rentabilidad</h5></div>
                   <div class="card-body">
                     <div class="d-flex justify-content-between mb-2">
-                      <span>Monto de Apertura:</span>
-                      <strong>${Utils.formatMoney(montoApertura)}</strong>
+                      <span>(+) Venta total:</span>
+                      <span>${Utils.formatMoney(f.ventaTotal)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                      <span>Ventas en Efectivo:</span>
-                      <strong>${Utils.formatMoney(ventasEfectivo)}</strong>
+                      <span>(-) Impuestos:</span>
+                      <span>${Utils.formatMoney(f.impuestos)}</span>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>Ventas con Tarjeta:</span>
-                      <strong>${Utils.formatMoney(turno.ventas?.total_tarjeta || 0)}</strong>
+                    <div class="d-flex justify-content-between mb-2 fw-bold">
+                      <span>(=) Venta neta:</span>
+                      <span>${Utils.formatMoney(f.ventaNeta)}</span>
                     </div>
                     <hr>
-                    <div class="d-flex justify-content-between">
-                      <span class="fw-bold">Monto Esperado en Caja:</span>
-                      <span class="fs-5 fw-bold text-primary">${Utils.formatMoney(montoEsperado)}</span>
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                      <span>(-) Costo base:</span>
+                      <span>${Utils.formatMoney(f.costoBase)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                      <span>(-) Gastos fijos:</span>
+                      <span>${Utils.formatMoney(f.gastosFijos)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 fw-bold">
+                      <span>(=) Margen:</span>
+                      <span class="text-success">${Utils.formatMoney(f.margen)}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>(+) Ajuste redondeo:</span>
+                      <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between fw-bold">
+                      <span>(=) Ganancia neta:</span>
+                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaNeta)}</span>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <div class="col-lg-7">
-                <div class="card">
-                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Conteo de Efectivo</h5></div>
+              <div class="col-lg-6">
+                <!-- Productos vendidos -->
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-box me-2"></i>Productos Vendidos</h5></div>
+                  <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                      <thead><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Total</th></tr></thead>
+                      <tbody>
+                        ${resumen.productosVendidos.map(p => `
+                          <tr>
+                            <td>${p.nombre}</td>
+                            <td class="text-end">${Utils.formatNumber(p.cantidad_total, 2)} ${p.abreviatura}</td>
+                            <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <!-- Arqueo de caja -->
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-cash-register me-2"></i>Arqueo de Caja</h5></div>
                   <div class="card-body">
-                    <div class="row g-3" id="conteoEfectivo">
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Monto de apertura:</span>
+                      <strong>${Utils.formatMoney(montoApertura)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Ventas en efectivo:</span>
+                      <strong>${Utils.formatMoney(ventasEfectivo)}</strong>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                      <span class="fw-bold">Monto esperado en caja:</span>
+                      <span class="fs-5 fw-bold text-primary">${Utils.formatMoney(montoEsperado)}</span>
+                    </div>
+                    
+                    <h6>Conteo de Efectivo</h6>
+                    <div class="row g-2 mb-3" id="conteoEfectivo">
                       ${Ventas.renderConteoEfectivo()}
                     </div>
                     <hr>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between mb-2">
                       <span class="fw-bold">Total Contado:</span>
-                      <span class="fs-4 fw-bold text-success" id="totalContado">$0.00</span>
+                      <span class="fs-5 fw-bold text-success" id="totalContado">$0.00</span>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="d-flex justify-content-between">
                       <span class="fw-bold">Diferencia:</span>
                       <span class="fs-5 fw-bold" id="diferenciaCierre">-</span>
                     </div>
@@ -416,7 +493,7 @@ Ventas.pos = async function () {
                 <div class="row g-2" id="productosGrid">
                   ${productosEnVenta.map(p => `
                     <div class="col-6 col-md-4 col-lg-3">
-                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}">
+                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}" data-unidad="${p.unidad_venta_abrev}">
                         <div class="card-body text-center p-2">
                           ${p.foto
         ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
@@ -492,8 +569,9 @@ Ventas.bindPosEvents = function () {
     const id = $(this).data('id');
     const nombre = $(this).data('nombre');
     const precio = parseFloat($(this).data('precio'));
+    const unidadAbrev = $(this).data('unidad');
 
-    Ventas.agregarAlCarrito(id, nombre, precio);
+    Ventas.mostrarPopupCantidad(id, nombre, precio, unidadAbrev);
   });
 
   // Búsqueda
@@ -520,22 +598,28 @@ Ventas.bindPosEvents = function () {
   Ventas.bindCommonEvents();
 };
 
-Ventas.agregarAlCarrito = function (id, nombre, precio) {
+Ventas.agregarAlCarrito = function (id, nombre, precio, unidadAbrev, cantidad) {
   const existente = Ventas._carrito.find(item => item.id === id);
-
   if (existente) {
-    existente.cantidad++;
+
+    cantidadExistente = existente.cantidad;
+
+    console.log('item existe:', { cantidadExistente, cantidad });
+    existente.cantidad += cantidad;
     existente.total = existente.cantidad * existente.precio;
   } else {
+    const unidad = Utils.getNombreUnidad(unidadAbrev);
+    console.log('agregarAlCarrito', { id, nombre, precio, unidadAbrev, cantidad, unidad });
     Ventas._carrito.push({
       id: id,
       nombre: nombre,
       precio: precio,
-      cantidad: 1,
-      total: precio
+      cantidad: cantidad,
+      total: cantidad * precio,
+      unidadAbrev: unidadAbrev,
+      unidad: unidad || ''
     });
   }
-
   Ventas.actualizarCarritoUI();
 };
 
@@ -554,20 +638,15 @@ Ventas.actualizarCarritoUI = function () {
   let subtotalSinImpuesto = 0;
 
   carrito.forEach((item, i) => {
-    // El precio de venta ya incluye impuesto, extraer la base
-    const precioSinImpuesto = item.precio / (1 + Ventas._impuestoPorcentaje);
-    const totalSinImpuesto = precioSinImpuesto * item.cantidad;
-    subtotalSinImpuesto += totalSinImpuesto;
+    //    subtotalSinImpuesto += item.total / (1 + Ventas._impuestoPorcentaje);
+    const precioNeto = item.total * (1 - Ventas._impuestoPorcentaje);
 
     html += `
     <div class="d-flex justify-content-between align-items-center mb-2 bg-white p-2 rounded">
       <div>
         <small class="fw-bold">${item.nombre}</small>
-        <div class="input-group input-group-sm mt-1" style="width: 100px;">
-          <button class="btn btn-outline-secondary btn-sm carrito-menos" data-index="${i}">-</button>
-          <input type="text" class="form-control text-center carrito-cantidad" value="${item.cantidad}" readonly>
-          <button class="btn btn-outline-secondary btn-sm carrito-mas" data-index="${i}">+</button>
-        </div>
+        <br>
+        <small class="text-muted">${Utils.formatNumber(item.cantidad, item.unidadAbrev === 'ud' ? 0 : 2)} ${item.unidadAbrev} × ${Utils.formatMoney(item.precio)}</small>
       </div>
       <div class="text-end">
         <span class="text-success fw-bold">${Utils.formatMoney(item.total)}</span>
@@ -578,10 +657,12 @@ Ventas.actualizarCarritoUI = function () {
       </div>
     </div>
   `;
+    subtotalSinImpuesto += precioNeto;
+
   });
 
-  const impuesto = subtotalSinImpuesto * Ventas._impuestoPorcentaje;
-  const total = subtotalSinImpuesto + impuesto;
+  const total = subtotalSinImpuesto / (1 - Ventas._impuestoPorcentaje);
+  const impuesto = total * Ventas._impuestoPorcentaje;
 
   $carrito.html(html);
   $('#subtotalCarrito').text(Utils.formatMoney(subtotalSinImpuesto));
@@ -589,29 +670,170 @@ Ventas.actualizarCarritoUI = function () {
   $('#totalCarrito').text(Utils.formatMoney(total));
   $('#btnCobrarEfectivo, #btnCobrarTarjeta, #btnVaciarCarrito').prop('disabled', false);
 
-  // Eventos del carrito
-  $('.carrito-mas').on('click', function () {
-    const i = $(this).data('index');
-    Ventas._carrito[i].cantidad++;
-    Ventas._carrito[i].total = Ventas._carrito[i].cantidad * Ventas._carrito[i].precio;
-    Ventas.actualizarCarritoUI();
-  });
-
-  $('.carrito-menos').on('click', function () {
-    const i = $(this).data('index');
-    Ventas._carrito[i].cantidad--;
-    if (Ventas._carrito[i].cantidad <= 0) {
-      Ventas._carrito.splice(i, 1);
-    } else {
-      Ventas._carrito[i].total = Ventas._carrito[i].cantidad * Ventas._carrito[i].precio;
-    }
-    Ventas.actualizarCarritoUI();
-  });
-
   $('.carrito-eliminar').on('click', function () {
     const i = $(this).data('index');
     Ventas._carrito.splice(i, 1);
     Ventas.actualizarCarritoUI();
+  });
+};
+
+Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev) {
+  const esUnidad = unidadAbrev === 'ud' || unidadAbrev === 'Unidad';
+  const unidad = Utils.getNombreUnidad(unidadAbrev);
+  const cantidadDefault = esUnidad ? 1 : 1;
+  const stepValue = esUnidad ? '1' : '0.01';
+
+  const modalHtml = `
+  <div class="modal fade" id="cantidadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">${nombre}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <p class="text-muted mb-2">${Utils.formatMoney(precio)} / ${unidadAbrev}</p>
+          
+          <!-- Toggle: Cantidad / Precio -->
+          <div class="btn-group btn-group-sm mb-3" role="group">
+            <button type="button" class="btn btn-outline-primary active" id="modoCantidad">Cantidad</button>
+            <button type="button" class="btn btn-outline-primary" id="modoPrecio">Precio</button>
+          </div>
+          
+          <!-- Input Cantidad -->
+          <div class="mb-3" id="divCantidad">
+            <div class="input-group input-group-lg">
+              <input type="text" class="form-control text-center fw-bold" id="cantidadInput" value="${cantidadDefault}" inputmode="decimal" data-precio="${precio}">
+              <span class="input-group-text">${unidadAbrev}</span>
+            </div>
+          </div>
+          
+          <!-- Input Precio (oculto por defecto) -->
+          <div class="mb-3 d-none" id="divPrecio">
+            <div class="input-group input-group-lg">
+              <span class="input-group-text">$</span>
+              <input type="text" class="form-control text-center fw-bold" id="precioInput" value="" inputmode="decimal" placeholder="0.00">
+            </div>
+            <small class="text-muted">Cantidad calculada automáticamente</small>
+          </div>
+          
+          <!-- Teclado numérico -->
+          <div class="teclado-numerico">
+            ${['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(tecla => `
+              <button class="btn btn-outline-secondary btn-lg tecla-num" data-val="${tecla}" style="width:30%;margin:2px">${tecla}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success btn-lg" id="btnConfirmarCantidad">
+            <i class="fas fa-cart-plus me-1"></i>Agregar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+
+  $('body').append(modalHtml);
+
+  const modal = new bootstrap.Modal('#cantidadModal');
+  modal.show();
+
+  let modoActual = 'cantidad'; // 'cantidad' o 'precio'
+  let inputActual = '#cantidadInput';
+
+  // Toggle cantidad/precio
+  $('#modoCantidad').on('click', function () {
+    $(this).addClass('active');
+    $('#modoPrecio').removeClass('active');
+    $('#divCantidad').removeClass('d-none');
+    $('#divPrecio').addClass('d-none');
+    modoActual = 'cantidad';
+    inputActual = '#cantidadInput';
+    $(inputActual).focus().select();
+  });
+
+  $('#modoPrecio').on('click', function () {
+    $(this).addClass('active');
+    $('#modoCantidad').removeClass('active');
+    $('#divCantidad').addClass('d-none');
+    $('#divPrecio').removeClass('d-none');
+    modoActual = 'precio';
+    inputActual = '#precioInput';
+    $(inputActual).focus().select();
+  });
+
+  // Teclado numérico
+  $('.tecla-num').on('click', function () {
+    const val = $(this).data('val');
+    const currentVal = $(inputActual).val();
+
+    if (val === '⌫') {
+      $(inputActual).val(currentVal.slice(0, -1) || '');
+    } else if (val === '.') {
+      if (!currentVal.includes('.')) {
+        $(inputActual).val(currentVal + '.');
+      }
+    } else {
+      if (currentVal === '0' || currentVal === '1' && document.activeElement === $(inputActual)[0]) {
+        $(inputActual).val(val);
+      } else {
+        $(inputActual).val(currentVal + val);
+      }
+    }
+    $(inputActual).trigger('input');
+  });
+
+  // Actualizar precio/cantidad calculada
+  $('#cantidadInput').on('input', function () {
+    const cantidad = parseFloat($(this).val()) || 0;
+    const precioTotal = cantidad * precio;
+    $('#precioTotalPopup').text(Utils.formatMoney(precioTotal));
+  });
+
+  $('#precioInput').on('input', function () {
+    const precioIngresado = parseFloat($(this).val()) || 0;
+    const cantidad = precioIngresado / precio;
+    $('#cantidadInput').val(cantidad.toFixed(2));
+  });
+
+  // Teclas físicas (Enter)
+  $(document).off('keydown.cantidadModal').on('keydown.cantidadModal', function (e) {
+    if (e.key === 'Enter' && $('#cantidadModal').is(':visible')) {
+      e.preventDefault();
+      e.stopPropagation();
+      productoConfirmado();
+    }
+  });
+
+  // ✅ Confirmar $('#btnConfirmarCantidad').focus(); ...
+  $('#btnConfirmarCantidad').on('click', function () {
+    productoConfirmado();
+  });
+
+  function productoConfirmado() {
+    $('#btnConfirmarCantidad').focus();
+    let cantidad;
+    const precioIngresado = parseFloat($('#precioInput').val()) || 0;
+
+    if (modoActual === 'precio' && precioIngresado > 0) {
+      cantidad = precioIngresado / precio;
+    } else {
+      cantidad = parseFloat($('#cantidadInput').val()) || 0;
+    }
+
+    if (cantidad <= 0) {
+      Toast.warning('Ingrese una cantidad o precio válido');
+      return;
+    }
+    Ventas.agregarAlCarrito(id, nombre, precio, unidadAbrev, cantidad);
+    $('#btnConfirmarCantidad').blur();
+    modal.hide();
+  }
+
+  $('#cantidadModal').on('hidden.bs.modal', function () {
+    $(this).remove();
   });
 };
 
@@ -623,16 +845,45 @@ Ventas.procesarVenta = async function (metodoPago) {
     cantidad: item.cantidad
   }));
 
+  // Obtener configuración de redondeo
+  const config = State.getConfig();
+  const REDONDEO = config.redondeo_venta || 5;
+
+  // Calcular total exacto
+  let subtotalSinImpuesto = 0;
+  Ventas._carrito.forEach(item => {
+    subtotalSinImpuesto += item.total / (1 + Ventas._impuestoPorcentaje);
+  });
+  subtotalSinImpuesto = Number(subtotalSinImpuesto.toFixed(2));
+  const impuesto = Number((subtotalSinImpuesto * Ventas._impuestoPorcentaje).toFixed(2));
+  const totalExacto = subtotalSinImpuesto + impuesto;
+  const totalRedondeado = REDONDEO > 0 ? Math.ceil(totalExacto / REDONDEO) * REDONDEO : totalExacto;
+  const ajusteRedondeo = Number((totalRedondeado - totalExacto).toFixed(2));
+
+  // Mostrar confirmación
+  let mensaje = `Total a cobrar: ${totalRedondeado}`;
+  if (ajusteRedondeo > 0) {
+    mensaje += `\n(incluye ajuste por redondeo: ${ajusteRedondeo})`;
+  }
+
+  const confirmado = await Utils.confirm(mensaje, `Cobrar con ${metodoPago}`);
+  if (!confirmado) return;
+
   try {
     Utils.showLoading('Procesando venta...');
 
-    const result = await API.ventas.crear({ detalles, metodo_pago: metodoPago });
+    const result = await API.ventas.crear({
+      detalles,
+      metodo_pago: metodoPago,
+      total_redondeado: totalRedondeado,
+      ajuste_redondeo: ajusteRedondeo
+    });
 
     Ventas._carrito = [];
     Ventas.actualizarCarritoUI();
 
     Utils.hideLoading();
-    Toast.success(`Venta registrada - Total: ${Utils.formatMoney(result.total)}`);
+    Toast.success(`Venta registrada - Total: ${totalRedondeado}`);
 
   } catch (error) {
     Utils.hideLoading();
@@ -681,16 +932,32 @@ Ventas.listado = async function () {
                     <th>Método</th>
                     <th class="text-end">Total</th>
                     <th>Estado</th>
+                    <th class="text-center" style="width: 60px;"></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${ventas.map(v => `
-                    <tr class="clickable" data-route="ventas/ver/${v.id}">
+                    <tr class="clickable" data-id="${v.id}">
                       <td>${Utils.formatDate(v.created_at, 'datetime')}</td>
                       <td>${v.vendedor_nombre || '-'}</td>
                       <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
                       <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
                       <td>${v.estado === 'completada' ? '<span class="badge bg-success">Completada</span>' : '<span class="badge bg-danger">Anulada</span>'}</td>
+                      <td class="text-center">
+                        <div class="dropdown">
+                          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                          </button>
+                          <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item ver-venta" href="#" data-id="${v.id}">
+                              <i class="fas fa-receipt me-2"></i>Ver Venta
+                            </a></li>
+                            <li><a class="dropdown-item ver-turno" href="#" data-turno="${v.turno_id}">
+                              <i class="fas fa-clock me-2"></i>Ver Turno
+                            </a></li>
+                          </ul>
+                        </div>
+                      </td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -710,6 +977,321 @@ Ventas.listado = async function () {
     console.error('Error:', error);
   }
 };
+
+// ============================================
+// Fichas de venta y turno
+// ============================================
+
+Ventas.ficha = async function (params) {
+  const id = params.id;
+
+  try {
+    Utils.showLoading('Cargando venta...');
+    const venta = await API.ventas.obtener(id);
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          ${Ventas.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+                <li class="breadcrumb-item"><a href="#ventas/listado">Historial</a></li>
+                <li class="breadcrumb-item active">Venta #${venta.id}</li>
+              </ol>
+            </nav>
+            
+            <div class="d-flex align-items-center mb-4">
+              <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+              </button>
+              <h2 class="mb-0">
+                Venta #${venta.id}
+                <span class="badge bg-${venta.estado === 'completada' ? 'success' : 'danger'} ms-2">
+                  ${venta.estado === 'completada' ? 'Completada' : 'Anulada'}
+                </span>
+              </h2>
+            </div>
+            
+            <div class="row">
+              <div class="col-lg-5">
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0">Información</h5></div>
+                  <div class="card-body">
+                    <div class="mb-3">
+                      <label class="text-muted small">Fecha</label>
+                      <p>${Utils.formatDate(venta.created_at, 'datetime')}</p>
+                    </div>
+                    <div class="mb-3">
+                      <label class="text-muted small">Vendedor</label>
+                      <p>${venta.vendedor_nombre || '-'}</p>
+                    </div>
+                    <div class="mb-3">
+                      <label class="text-muted small">Método de pago</label>
+                      <p>${venta.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="card">
+                  <div class="card-header"><h5 class="mb-0">Totales</h5></div>
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Subtotal:</span>
+                      <strong>${Utils.formatMoney(venta.subtotal)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Impuesto:</span>
+                      <span>${Utils.formatMoney(venta.impuesto)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Ajuste redondeo:</span>
+                      <span>${Utils.formatMoney(venta.ajuste_redondeo || 0)}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                      <span class="fw-bold">Total cobrado:</span>
+                      <span class="fs-5 fw-bold text-primary">${Utils.formatMoney(venta.total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-lg-7">
+                <div class="card">
+                  <div class="card-header"><h5 class="mb-0">Productos</h5></div>
+                  <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Producto</th>
+                          <th class="text-end">Cantidad</th>
+                          <th class="text-end">Precio</th>
+                          <th class="text-end">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${venta.detalles.map(d => `
+                          <tr>
+                            <td>${d.producto_nombre}</td>
+                            <td class="text-end">${Utils.formatNumber(d.cantidad, 2)}</td>
+                            <td class="text-end">${Utils.formatMoney(d.precio_unitario)}</td>
+                            <td class="text-end">${Utils.formatMoney(d.total)}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+
+    $('#btnVolver').on('click', () => ViewManager.volver());
+    $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
+
+    Ventas.bindCommonEvents();
+    Utils.hideLoading();
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error:', error);
+  }
+};
+
+Ventas.verTurno = function (resumen) {
+  const t = resumen.turno;
+  const f = resumen.financiero;
+  const ventasEfectivo = resumen.ventasPorMetodo.find(v => v.metodo_pago === 'efectivo')?.total || 0;
+  const montoEsperado = (t.monto_apertura || 0) + ventasEfectivo;
+  const duracion = t.horas ? `${Math.floor(t.horas)}h ${Math.round((t.horas % 1) * 60)}m` : 'N/A';
+
+  return `
+    <div class="app-wrapper">
+      ${Sidebar.render('ventas')}
+      <main class="main-content">
+        ${Ventas.renderNavbar(State.getUser())}
+        <div class="container-fluid p-4">
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+              <li class="breadcrumb-item active">Turno #${t.id}</li>
+            </ol>
+          </nav>
+          
+          <div class="d-flex align-items-center mb-4">
+            <button class="btn btn-outline-secondary me-3" id="btnVolver">
+              <i class="fas fa-arrow-left me-1"></i>Volver
+            </button>
+            <h2 class="mb-0">
+              Turno #${t.id}
+              <span class="badge bg-${t.estado === 'abierto' ? 'success' : 'secondary'} ms-2">
+                ${t.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
+              </span>
+            </h2>
+          </div>
+          
+          <!-- Info del turno -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="card"><div class="card-body text-center">
+                <small class="text-muted">Vendedor</small>
+                <h6>${t.vendedor_nombre}</h6>
+              </div></div>
+            </div>
+            <div class="col-md-3">
+              <div class="card"><div class="card-body text-center">
+                <small class="text-muted">Apertura</small>
+                <h6>${Utils.formatDate(t.abierto_at, 'datetime')}</h6>
+              </div></div>
+            </div>
+            ${t.cerrado_at ? `
+              <div class="col-md-3">
+                <div class="card"><div class="card-body text-center">
+                  <small class="text-muted">Cierre</small>
+                  <h6>${Utils.formatDate(t.cerrado_at, 'datetime')}</h6>
+                </div></div>
+              </div>
+            ` : ''}
+            <div class="col-md-3">
+              <div class="card"><div class="card-body text-center">
+                <small class="text-muted">${t.cerrado_at ? 'Duración' : 'Transcurrido'}</small>
+                <h6>${duracion}</h6>
+              </div></div>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-lg-6">
+              <!-- Ventas -->
+              <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Ventas</h5></div>
+                <div class="card-body">
+                  ${resumen.ventasPorMetodo.map(v => `
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>${v.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}:</span>
+                      <span><strong>${v.cantidad}</strong> ventas - ${Utils.formatMoney(v.total)}</span>
+                    </div>
+                  `).join('')}
+                  <hr>
+                  <div class="d-flex justify-content-between fw-bold">
+                    <span>TOTAL:</span>
+                    <span>${resumen.totales.total_ventas} ventas - ${Utils.formatMoney(resumen.totales.total_cobrado)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Rentabilidad -->
+              <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Rentabilidad</h5></div>
+                <div class="card-body">
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>(+) Venta total:</span>
+                    <span>${Utils.formatMoney(f.ventaTotal)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>(-) Impuestos:</span>
+                    <span>${Utils.formatMoney(f.impuestos)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2 fw-bold">
+                    <span>(=) Venta neta:</span>
+                    <span>${Utils.formatMoney(f.ventaNeta)}</span>
+                  </div>
+                  <hr>
+                  <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span>(-) Costo base:</span>
+                    <span>${Utils.formatMoney(f.costoBase)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span>(-) Gastos fijos:</span>
+                    <span>${Utils.formatMoney(f.gastosFijos)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2 fw-bold">
+                    <span>(=) Margen:</span>
+                    <span class="text-success">${Utils.formatMoney(f.margen)}</span>
+                  </div>
+                  <hr>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>(+) Ajuste redondeo:</span>
+                    <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between fw-bold">
+                    <span>(=) Ganancia neta:</span>
+                    <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaNeta)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-lg-6">
+              <!-- Productos vendidos -->
+              <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-box me-2"></i>Productos Vendidos</h5></div>
+                <div class="card-body p-0">
+                  <table class="table table-sm mb-0">
+                    <thead><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Total</th></tr></thead>
+                    <tbody>
+                      ${resumen.productosVendidos.length > 0 ? resumen.productosVendidos.map(p => `
+                        <tr>
+                          <td>${p.nombre}</td>
+                          <td class="text-end">${Utils.formatNumber(p.cantidad_total, 2)} ${p.abreviatura}</td>
+                          <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
+                        </tr>
+                      `).join('') : '<tr><td colspan="3" class="text-center text-muted py-3">Sin ventas</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <!-- Arqueo de Caja -->
+              <div class="card">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-cash-register me-2"></i>Arqueo de Caja</h5></div>
+                <div class="card-body">
+                  ${t.estado === 'cerrado' ? `
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Monto esperado:</span>
+                      <strong>${Utils.formatMoney(t.monto_cierre_esperado)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Monto contado:</span>
+                      <strong>${Utils.formatMoney(t.monto_cierre_real)}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                      <span>Diferencia:</span>
+                      <strong class="${t.diferencia === 0 ? 'text-success' : t.diferencia > 0 ? 'text-success' : 'text-danger'}">
+                        ${t.diferencia > 0 ? '+' : ''}${Utils.formatMoney(t.diferencia)}
+                      </strong>
+                    </div>
+                  ` : `
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>Monto esperado en caja:</span>
+                      <strong>${Utils.formatMoney(montoEsperado)}</strong>
+                    </div>
+                    <small class="text-muted">Apertura ${Utils.formatMoney(t.monto_apertura)} + Ventas efectivo ${Utils.formatMoney(ventasEfectivo)}</small>
+                    <div class="mt-3">
+                      <span class="badge bg-success">🟢 Turno abierto</span>
+                      <small class="text-muted ms-2">${duracion} transcurridos</small>
+                    </div>
+                  `}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+};
+
 
 // ============================================
 // MÉTODOS AUXILIARES
@@ -737,10 +1319,36 @@ Ventas.bindCommonEvents = function () {
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
 
-  $('.clickable[data-route]').on('click', function () {
-    const route = $(this).data('route');
-    if (route) ViewManager.navegar(route);
+  $('#ventasTable tbody').on('dblclick', 'tr', function () {
+    const id = $(this).data('id');
+    ViewManager.navegar('ventas/ver/' + id);
   });
+
+  $('#ventasTable').on('click', '.ver-venta', function (e) {
+    e.preventDefault();
+    ViewManager.navegar('ventas/ver/' + $(this).data('id'));
+  });
+
+  $('#ventasTable').on('click', '.ver-turno', async function (e) {
+    e.preventDefault();
+    const turnoId = $(this).data('turno');
+
+    try {
+      Utils.showLoading('Cargando turno...');
+      const resumen = await API.ventas.resumenTurno(turnoId);
+      Utils.hideLoading();
+
+      const layout = Ventas.verTurno(resumen);
+      $('#app').html(layout);
+      $('#btnVolver').on('click', () => ViewManager.volver());
+      Ventas.bindCommonEvents();
+
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
+  });
+
 };
 
 window.Ventas = Ventas;

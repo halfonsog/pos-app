@@ -512,14 +512,12 @@ Proveedores.renderFormularioLayout = function (proveedor, terminosPago) {
               <li class="breadcrumb-item active">${title}</li>
             </ol>
           </nav>
-          
           <div class="d-flex align-items-center mb-4">
             <button class="btn btn-outline-secondary me-3" id="btnVolver">
               <i class="fas fa-arrow-left me-1"></i>Volver
             </button>
-            <h2 class="mb-0"><i class="fas fa-truck me-2"></i>${title}</h2>
+            <h2 class="mb-0">${title}</h2>
           </div>
-          
           <div class="row">
             <div class="col-lg-8">
               <div class="card">
@@ -719,12 +717,11 @@ Proveedores.renderFichaLayout = function (proveedor) {
             </ol>
           </nav>
           <div class="d-flex justify-content-between align-items-center mb-4">
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center mb-4">
               <button class="btn btn-outline-secondary me-3" id="btnVolver">
                 <i class="fas fa-arrow-left me-1"></i>Volver
               </button>
               <h2 class="mb-0">${proveedor.nombre}</h2>
-              ${proveedor.activo ? '<span class="badge bg-success ms-2">Activo</span>' : '<span class="badge bg-secondary ms-2">Inactivo</span>'}
             </div>
             <div class="btn-group">
               <button class="btn btn-primary" id="btnEditar">
@@ -1078,7 +1075,6 @@ Proveedores.renderContactosLayout = function (proveedor) {
             </button>
             <h2 class="mb-0"><i class="fas fa-users me-2"></i>Contactos de ${proveedor.nombre}</h2>
           </div>
-          
           <div class="row">
             <div class="col-lg-5">
               <div class="card">

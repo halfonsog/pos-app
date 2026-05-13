@@ -43,13 +43,14 @@ const configuracionController = {
   actualizarGeneral: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { ventas_proyectadas, margen_recomendado, impuesto_ventas } = req.body;
+      const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta } = req.body;
 
       await db.run(`
-        UPDATE configuracion_general 
-        SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = 1
-      `, [ventas_proyectadas, margen_recomendado, impuesto_ventas]);
+      UPDATE configuracion_general 
+      SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, 
+          redondeo_venta = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `, [ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta || 5]);
 
       res.json({ message: 'Configuración actualizada correctamente' });
     } catch (error) {

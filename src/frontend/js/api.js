@@ -180,7 +180,12 @@ const API = {
     cerrarTurno: (data) => API.post('/ventas/cerrar-turno', data),
     crear: (data) => API.post('/ventas', data),
     listar: () => API.get('/ventas'),
-    obtener: (id) => API.get(`/ventas/${id}`)
+    obtener: (id) => API.get(`/ventas/${id}`),
+    resumenTurno: (id) => API.get(`/ventas/resumen-turno/${id}`)
+  },
+
+  dashboard: {
+    obtener: () => API.get('/dashboard')
   }
 };
 

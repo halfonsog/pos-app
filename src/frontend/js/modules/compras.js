@@ -638,14 +638,12 @@ Compras.renderFormularioLayout = function (compra, proveedores, productos) {
               <li class="breadcrumb-item active">${title}</li>
             </ol>
           </nav>
-          
           <div class="d-flex align-items-center mb-4">
             <button class="btn btn-outline-secondary me-3" id="btnVolver">
               <i class="fas fa-arrow-left me-1"></i>Volver
             </button>
             <h2 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>${title}</h2>
           </div>
-          
           <form id="compraForm">
             <input type="hidden" id="compraId" value="${isEdit ? compra.id : ''}">
             
@@ -1104,7 +1102,6 @@ Compras.renderSeleccionProductosLayout = function (productos, retorno) {
               <li class="breadcrumb-item active">Seleccionar Productos</li>
             </ol>
           </nav>
-          
           <div class="d-flex align-items-center mb-4">
             <button class="btn btn-outline-secondary me-3" id="btnVolver">
               <i class="fas fa-arrow-left me-1"></i>Volver
@@ -1114,7 +1111,6 @@ Compras.renderSeleccionProductosLayout = function (productos, retorno) {
               <i class="fas fa-plus me-1"></i>Nuevo Producto
             </button>
           </div>
-          
           <div class="row mb-3">
             <div class="col-md-6">
               <div class="input-group">
@@ -1253,9 +1249,8 @@ Compras.renderFichaLayout = function (compra) {
               <li class="breadcrumb-item active">Compra #${compra.id}</li>
             </ol>
           </nav>
-          
           <div class="d-flex justify-content-between align-items-center mb-4">
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center mb-4">
               <button class="btn btn-outline-secondary me-3" id="btnVolver">
                 <i class="fas fa-arrow-left me-1"></i>Volver
               </button>
@@ -1465,14 +1460,12 @@ Compras.renderPagarLayout = function (compra) {
               <li class="breadcrumb-item active">Registrar Pago</li>
             </ol>
           </nav>
-          
           <div class="d-flex align-items-center mb-4">
             <button class="btn btn-outline-secondary me-3" id="btnVolver">
               <i class="fas fa-arrow-left me-1"></i>Volver
             </button>
             <h2 class="mb-0"><i class="fas fa-money-bill me-2"></i>Registrar Pago</h2>
           </div>
-          
           <div class="row">
             <div class="col-lg-6">
               <div class="card">

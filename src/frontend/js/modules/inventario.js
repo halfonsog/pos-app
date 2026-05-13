@@ -203,9 +203,7 @@ Inventario.renderStockLayout = function (productos, params) {
           
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="fas fa-boxes me-2"></i>Stock Actual</h2>
-            <a href="#inventario" class="btn btn-outline-secondary">
-              <i class="fas fa-arrow-left me-1"></i>Volver
-            </a>
+              <a href="#inventario" class="btn btn-outline-secondary me-2"><i class="fas fa-th-large me-1"></i>Vista Cards</a>
           </div>
           
           <!-- Filtros -->
@@ -505,9 +503,7 @@ Inventario.renderMovimientosLayout = function (movimientos, params) {
           
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="fas fa-history me-2"></i>Movimientos de Inventario</h2>
-            <a href="#inventario" class="btn btn-outline-secondary">
-              <i class="fas fa-arrow-left me-1"></i>Volver
-            </a>
+            <a href="#inventario" class="btn btn-outline-secondary me-2"><i class="fas fa-th-large me-1"></i>Vista Cards</a>
           </div>
           
           <!-- Filtros -->

@@ -253,6 +253,38 @@ Productos.bindListadoEvents = function (params) {
 // ============================================
 // FORMULARIO (NUEVO/EDITAR)
 // ============================================
+/**
+ * Deshabilita campos críticos para productos con dependencias
+ * Solo permite editar: código, nombre, categoría, stock mínimo, foto
+ */
+Productos._aplicarRestriccionesDependencias = function () {
+  // Deshabilitar campos críticos
+  $('#tipo').prop('disabled', true);
+  $('#subTipo').prop('disabled', true);
+  $('#unidadVentaId').prop('disabled', true);
+  $('#unidadCompraId').prop('disabled', true);
+
+  // Si hay checkbox de requiere_preparacion, deshabilitarlo
+  if ($('#requierePreparacion').length) {
+    $('#requierePreparacion').prop('disabled', true);
+  }
+
+  // Deshabilitar pestaña de receta
+  $('#receta-tab').addClass('disabled').css('pointer-events', 'none');
+
+  // Mostrar aviso visual
+  const aviso = `
+    <div class="alert alert-warning alert-sm mb-3">
+      <i class="fas fa-info-circle me-1"></i>
+      <strong>Edición restringida:</strong> Solo puedes modificar código, nombre, categoría, stock mínimo y foto.
+      Los demás campos están bloqueados porque el producto tiene movimientos asociados.
+    </div>
+  `;
+
+  // Insertar aviso al inicio del formulario
+  $('#productoForm').prepend(aviso);
+};
+
 Productos.formulario = async function (params) {
   const id = params.id, isEdit = !!id, tipoInicial = params.tipo || 'simple';
   Productos._origenActual = params.origen || null;
@@ -264,6 +296,11 @@ Productos.formulario = async function (params) {
     let producto = null;
     if (isEdit) {
       producto = await API.productos.obtener(id);
+
+      // ✅ Si tiene dependencias, redirigir con mensaje (ya no bloqueamos)
+      if (producto && producto.tiene_dependencias) {
+        console.log('⚠️ Producto con dependencias - Edición restringida');
+      }
 
       // Si es edición y es a-granel, filtrar unidad de compra por el tipo guardado
       if (producto && producto.tipo === 'simple' && producto.sub_tipo === 'granel' && producto.unidad_compra_id) {
@@ -279,12 +316,17 @@ Productos.formulario = async function (params) {
           $venta.val(producto.unidad_venta_id);
         }
       }
-
     }
 
     $('#app').html(Productos.renderFormularioLayout(producto, tipoInicial, { catHtml, uniVentaHtml, uniCompraHtml }));
     if (producto) Productos.llenarFormulario(producto);
     else { $('#placeholderFoto').hide(); $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder('Nuevo', 1, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`); }
+
+    // ✅ Aplicar restricciones si tiene dependencias
+    if (producto && producto.tiene_dependencias) {
+      Productos._aplicarRestriccionesDependencias();
+    }
+
     Productos._initTabs(); Productos.configurarVisibilidadCampos(); Productos.bindFormularioEvents(id, params);
     Utils.hideLoading();
   } catch (error) { Utils.hideLoading(); console.error(error); }
@@ -391,14 +433,41 @@ Productos.configurarVisibilidadCampos = function () {
 };
 
 Productos.llenarFormulario = function (p) {
-  $('#codigo').val(p.codigo); $('#nombre').val(p.nombre); $('#tipo').val(p.tipo);
-  if (p.tipo === 'simple') $('#subTipo').val(p.sub_tipo || 'reventa');
-  $('#categoriaId').val(p.categoria_id || ''); $('#unidadVentaId').val(p.unidad_venta_id); $('#unidadCompraId').val(p.unidad_compra_id || '');
-  $('#precioVenta').val(Utils.formatMoney(p.precio_venta)); $('#stockMinimo').val(p.stock_minimo || 0);
+  $('#codigo').val(p.codigo);
+  $('#nombre').val(p.nombre);
+
+  // Solo cambiar tipo si no está deshabilitado
+  if (!$('#tipo').prop('disabled')) {
+    $('#tipo').val(p.tipo);
+    if (p.tipo === 'simple') $('#subTipo').val(p.sub_tipo || 'reventa');
+  }
+
+  $('#categoriaId').val(p.categoria_id || '');
+
+  // Solo cambiar unidades si no están deshabilitadas
+  if (!$('#unidadVentaId').prop('disabled')) {
+    $('#unidadVentaId').val(p.unidad_venta_id);
+  }
+  if (!$('#unidadCompraId').prop('disabled')) {
+    $('#unidadCompraId').val(p.unidad_compra_id || '');
+  }
+
+  $('#precioVenta').val(Utils.formatMoney(p.precio_venta));
+  $('#stockMinimo').val(p.stock_minimo || 0);
   $('#stockActual').val(`${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_venta_abrev || ''}`);
   $('#productoActivo').prop('checked', p.activo === 1);
-  if (p.foto) { $('#previewFoto').attr('src', `/uploads/productos/${p.foto}`).show(); $('#placeholderFoto').hide(); $('#btnEliminarFoto').show(); }
-  else { $('#previewFoto').hide(); $('#btnEliminarFoto').hide(); $('#placeholderFoto').hide(); $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder(p, p.id, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`); }
+
+  // Foto
+  if (p.foto) {
+    $('#previewFoto').attr('src', `/uploads/productos/${p.foto}`).show();
+    $('#placeholderFoto').hide();
+    $('#btnEliminarFoto').show();
+  } else {
+    $('#previewFoto').hide();
+    $('#btnEliminarFoto').hide();
+    $('#placeholderFoto').hide();
+    $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder(p, p.id, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`);
+  }
 };
 
 Productos.bindFormularioEvents = function (id, params) {
@@ -551,15 +620,9 @@ Productos.renderFichaLayout = function (producto) {
               ${Productos.getTipoBadge(producto)}
             </div>
             <div class="btn-group">
-            ${!producto.tiene_dependencias ? `
               <button class="btn btn-primary" id="btnEditar">
                 <i class="fas fa-edit me-1"></i>Editar
               </button>
-            ` : `
-              <button class="btn btn-secondary" disabled title="No se puede editar: tiene movimientos asociados">
-                <i class="fas fa-edit me-1"></i>Editar
-              </button>
-            `}
               ${producto.tipo === 'compuesto' ? `
                 <button class="btn btn-outline-primary" id="btnReceta">
                   <i class="fas fa-list-ul me-1"></i>Receta

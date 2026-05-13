@@ -128,173 +128,160 @@ const ventaController = {
         return res.status(400).json({ error: 'No hay turno abierto. Abra un turno primero.' });
       }
 
-      // Obtener impuesto de configuración
-      const config = await db.get('SELECT impuesto_ventas FROM configuracion_general WHERE id = 1');
-      const impuestoPorcentaje = (config.impuesto_ventas) / 100;
+      // Obtener impuesto y redondeo de configuración
+      const config = await db.get('SELECT redondeo_venta, impuesto_ventas FROM configuracion_general WHERE id = 1');
+      const impuestoRate = (config.impuesto_ventas) / 100;
+      const REDONDEO = config.redondeo_venta;
 
+      // Variables para la respuesta
+      let ventaId, totalExacto, impuesto, totalRedondeado, ajusteRedondeo;
+
+      // Validar stock y calcular totalExacto (fuera de transacción)
+      totalExacto = 0;
+      for (const d of detalles) {
+        const producto = await db.get(
+          'SELECT id, nombre, precio_venta, stock_actual, tipo, requiere_preparacion FROM productos WHERE id = ? AND activo = 1',
+          [d.producto_id]
+        );
+        if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
+        if (producto.stock_actual < d.cantidad) throw new Error(`Stock insuficiente para: ${producto.nombre}`);
+        totalExacto += d.cantidad * producto.precio_venta;
+      }
+
+      impuesto = totalExacto * impuestoRate;
+      const subtotalExacto = totalExacto - impuesto;
+      totalRedondeado = REDONDEO > 0 ? Math.ceil(totalExacto / REDONDEO) * REDONDEO : totalExacto;
+      ajusteRedondeo = totalRedondeado - totalExacto;
+
+      // TRANSACCIÓN
       await db.run('BEGIN TRANSACTION');
 
       try {
-        let subtotal = 0;
-
-        // Validar stock y calcular subtotal
-        for (const d of detalles) {
-          const producto = await db.get(
-            'SELECT id, nombre, precio_venta, stock_actual, tipo FROM productos WHERE id = ? AND activo = 1',
-            [d.producto_id]
-          );
-
-          if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
-          if (producto.stock_actual < d.cantidad) throw new Error(`Stock insuficiente para: ${producto.nombre}`);
-
-          subtotal += d.cantidad * producto.precio_venta;
-        }
-
-        const impuesto = subtotal * impuestoPorcentaje;
-        const total = subtotal + impuesto;
-
         // Insertar venta
         const result = await db.run(`
-          INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, metodo_pago)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, [turno.id, usuario_id, subtotal, impuesto, total, metodo_pago]);
+        INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, ajuste_redondeo, metodo_pago)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [turno.id, usuario_id, subtotalExacto, impuesto, totalRedondeado, ajusteRedondeo, metodo_pago]);
 
-        const ventaId = result.lastID;
+        ventaId = result.lastID;
 
-        // Insertar detalles y descontar stock
+        // UN SOLO BUCLE para insertar detalles y descontar stock
         for (const d of detalles) {
-          const producto = await db.get('SELECT precio_venta FROM productos WHERE id = ?', [d.producto_id]);
+          const producto = await db.get(`
+          SELECT p.id, p.nombre, p.tipo, p.requiere_preparacion, p.precio_venta, uv.abreviatura as unidad_abrev
+          FROM productos p
+          JOIN unidades uv ON p.unidad_venta_id = uv.id
+          WHERE p.id = ?
+        `, [d.producto_id]);
 
+          if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
+
+          // 1. Insertar detalle de venta
           await db.run(`
-            INSERT INTO venta_detalles (venta_id, producto_id, cantidad, precio_unitario, total)
-            VALUES (?, ?, ?, ?, ?)
-          `, [ventaId, d.producto_id, d.cantidad, producto.precio_venta, d.cantidad * producto.precio_venta]);
+          INSERT INTO venta_detalles (venta_id, producto_id, cantidad, precio_unitario, total)
+          VALUES (?, ?, ?, ?, ?)
+        `, [ventaId, d.producto_id, d.cantidad, producto.precio_venta, d.cantidad * producto.precio_venta]);
 
-          // ***************************************************
-          // Descontar stock según tipo de producto
-          // ***************************************************
-          for (const d of detalles) {
-            const producto = await db.get(`
-              SELECT p.id, p.nombre, p.tipo, p.requiere_preparacion, p.precio_venta, uv.abreviatura as unidad_abrev
-              FROM productos p
-              JOIN unidades uv ON p.unidad_venta_id = uv.id
-              WHERE p.id = ?
-            `, [d.producto_id]);
+          // 2. Descontar stock según tipo
+          if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+            // ============================================
+            // COMPUESTO NO PREPARABLE
+            // Descontar componentes según la receta
+            // ============================================
+            const receta = await db.all(`
+            SELECT r.producto_hijo_id, r.cantidad, uv.abreviatura as unidad_abrev
+            FROM recetas r
+            JOIN productos pr ON r.producto_hijo_id = pr.id
+            JOIN unidades uv ON pr.unidad_venta_id = uv.id
+            WHERE r.producto_padre_id = ?
+          `, [d.producto_id]);
 
-            if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
+            if (receta.length === 0) {
+              throw new Error(`"${producto.nombre}" no tiene receta definida`);
+            }
 
-            if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
-              // ============================================
-              // COMPUESTO NO PREPARABLE
-              // Descontar componentes según la receta
-              // ============================================
+            const esUnidad = producto.unidad_abrev === 'ud' || producto.unidad_abrev === 'Unidad';
 
-              const receta = await db.all(`
-                SELECT r.producto_hijo_id, r.cantidad, uv.abreviatura as unidad_abrev
-                FROM recetas r
-                JOIN productos pr ON r.producto_hijo_id = pr.id
-                JOIN unidades uv ON pr.unidad_venta_id = uv.id
-                WHERE r.producto_padre_id = ?
-              `, [d.producto_id]);
+            for (const componente of receta) {
+              let cantidadADescontar;
 
-              if (receta.length === 0) {
-                throw new Error(`"${producto.nombre}" no tiene receta definida`);
+              if (!esUnidad && componente.unidad_abrev === producto.unidad_abrev) {
+                cantidadADescontar = componente.cantidad * d.cantidad;
+              } else if (!esUnidad) {
+                cantidadADescontar = componente.cantidad;
+              } else {
+                cantidadADescontar = componente.cantidad * d.cantidad;
               }
 
-              const esUnidad = producto.unidad_abrev === 'ud' || producto.unidad_abrev === 'Unidad';
-
-              for (const componente of receta) {
-                let cantidadADescontar;
-
-                if (!esUnidad && componente.unidad_abrev === producto.unidad_abrev) {
-                  // Misma unidad que el producto → multiplicar por cantidad vendida (peso/volumen)
-                  cantidadADescontar = componente.cantidad * d.cantidad;
-                } else if (!esUnidad) {
-                  // Diferente unidad → solo un paquete/envoltura
-                  cantidadADescontar = componente.cantidad;
-                } else {
-                  // Producto se vende por Unidad → multiplicar por unidades vendidas
-                  cantidadADescontar = componente.cantidad * d.cantidad;
-                }
-
-                // Verificar stock del componente
-                const stockComponente = await db.get(
-                  'SELECT stock_actual, nombre FROM productos WHERE id = ?',
-                  [componente.producto_hijo_id]
-                );
-
-                if (!stockComponente || stockComponente.stock_actual < cantidadADescontar) {
-                  throw new Error(
-                    `Stock insuficiente de "${stockComponente?.nombre || 'componente'}" ` +
-                    `para vender ${d.cantidad} ${producto.unidad_abrev} de "${producto.nombre}". ` +
-                    `Necesita: ${cantidadADescontar} ${componente.unidad_abrev}, Hay: ${stockComponente?.stock_actual || 0} ${componente.unidad_abrev}`
-                  );
-                }
-
-                // Descontar componente
-                await db.run(
-                  'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
-                  [cantidadADescontar, componente.producto_hijo_id]
-                );
-
-                // Registrar movimiento
-                await db.run(`
-                  INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
-                  VALUES (?, 'venta', ?, ?, ?, ?)
-                `, [componente.producto_hijo_id, -cantidadADescontar, ventaId, usuario_id,
-                `Venta de ${d.cantidad} ${producto.unidad_abrev} de "${producto.nombre}"`]);
-              }
-
-            } else {
-              // ============================================
-              // SIMPLE O COMPUESTO PREPARABLE
-              // Descontar el producto mismo
-              // ============================================
-
-              const stockActual = await db.get(
-                'SELECT stock_actual FROM productos WHERE id = ?',
-                [d.producto_id]
+              const stockComponente = await db.get(
+                'SELECT stock_actual, nombre FROM productos WHERE id = ?',
+                [componente.producto_hijo_id]
               );
 
-              if (!stockActual || stockActual.stock_actual < d.cantidad) {
+              if (!stockComponente || stockComponente.stock_actual < cantidadADescontar) {
                 throw new Error(
-                  `Stock insuficiente de "${producto.nombre}". ` +
-                  `Necesita: ${d.cantidad} ${producto.unidad_abrev}, Hay: ${stockActual?.stock_actual || 0} ${producto.unidad_abrev}`
+                  `Stock insuficiente de "${stockComponente?.nombre || 'componente'}" ` +
+                  `para vender ${d.cantidad} ${producto.unidad_abrev} de "${producto.nombre}". ` +
+                  `Necesita: ${cantidadADescontar} ${componente.unidad_abrev}, Hay: ${stockComponente?.stock_actual || 0} ${componente.unidad_abrev}`
                 );
               }
 
               await db.run(
                 'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
-                [d.cantidad, d.producto_id]
+                [cantidadADescontar, componente.producto_hijo_id]
               );
 
-              // Registrar movimiento
               await db.run(`
-                INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
-                VALUES (?, 'venta', ?, ?, ?)
-              `, [d.producto_id, -d.cantidad, ventaId, usuario_id]);
+              INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
+              VALUES (?, 'venta', ?, ?, ?, ?)
+            `, [componente.producto_hijo_id, -cantidadADescontar, ventaId, usuario_id,
+              `Venta de ${d.cantidad} ${producto.unidad_abrev} de "${producto.nombre}"`]);
             }
-          }
-          await db.run(`
+
+          } else {
+            // ============================================
+            // SIMPLE O COMPUESTO PREPARABLE
+            // ============================================
+            const stockActual = await db.get(
+              'SELECT stock_actual FROM productos WHERE id = ?',
+              [d.producto_id]
+            );
+
+            if (!stockActual || stockActual.stock_actual < d.cantidad) {
+              throw new Error(
+                `Stock insuficiente de "${producto.nombre}". ` +
+                `Necesita: ${d.cantidad} ${producto.unidad_abrev}, Hay: ${stockActual?.stock_actual || 0} ${producto.unidad_abrev}`
+              );
+            }
+
+            await db.run(
+              'UPDATE productos SET stock_actual = stock_actual - ? WHERE id = ?',
+              [d.cantidad, d.producto_id]
+            );
+
+            await db.run(`
             INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
             VALUES (?, 'venta', ?, ?, ?)
           `, [d.producto_id, -d.cantidad, ventaId, usuario_id]);
+          }
         }
 
         await db.run('COMMIT');
 
-        res.status(201).json({
-          id: ventaId,
-          subtotal,
-          impuesto,
-          total,
-          message: 'Venta registrada correctamente'
-        });
-
-      } catch (error) {
-        await db.run('ROLLBACK');
-        throw error;
+      } catch (innerError) {
+        try { await db.run('ROLLBACK'); } catch (e) { /* ignorar */ }
+        throw innerError;
       }
+
+      // Respuesta FUERA de la transacción
+      res.status(201).json({
+        id: ventaId,
+        subtotal: subtotalExacto,
+        impuesto,
+        total: totalRedondeado,
+        ajuste_redondeo: ajusteRedondeo,
+        message: 'Venta registrada correctamente'
+      });
 
     } catch (error) {
       console.error('Error en crear venta:', error);
@@ -346,6 +333,94 @@ const ventaController = {
       `, [id]);
 
       res.json(venta);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // GET /api/ventas/resumen-turno/:id
+  resumenTurno: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+
+      const turno = await db.get(`
+        SELECT t.*, u.nombre_completo as vendedor_nombre, (julianday(COALESCE(t.cerrado_at, datetime('now'))) - julianday(t.abierto_at)) * 24 as horas
+        FROM turnos t
+        JOIN usuarios u ON t.vendedor_id = u.id
+        WHERE t.id = ?
+      `, [id]);
+
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+      // Ventas por método de pago
+      const ventasPorMetodo = await db.all(`
+        SELECT metodo_pago, COUNT(*) as cantidad, SUM(total) as total
+        FROM ventas WHERE turno_id = ? AND estado = 'completada'
+        GROUP BY metodo_pago
+      `, [id]);
+
+      // Productos vendidos
+      const productosVendidos = await db.all(`
+        SELECT p.nombre, SUM(vd.cantidad) as cantidad_total, uv.abreviatura, SUM(vd.total) as total_vendido, pc.costo_base,pc.gastos_fijos
+        FROM venta_detalles vd
+        JOIN ventas v ON vd.venta_id = v.id
+        JOIN productos p ON vd.producto_id = p.id
+        JOIN unidades uv ON p.unidad_venta_id = uv.id
+        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
+        WHERE v.turno_id = ? AND v.estado = 'completada'
+        GROUP BY p.id ORDER BY total_vendido DESC
+      `, [id]);
+
+      // Totales de ventas
+      const totales = await db.get(`
+        SELECT 
+          COUNT(*) as total_ventas,
+          SUM(subtotal) as venta_neta,
+          SUM(impuesto) as impuesto,
+          SUM(COALESCE(ajuste_redondeo, 0)) as ajuste_redondeo,
+          SUM(total) as total_cobrado
+        FROM ventas WHERE turno_id = ? AND estado = 'completada'
+      `, [id]);
+
+      // Costo de ventas
+      const costoVentas = {
+        gastos_base: 0,
+        gastos_fijos: 0
+      };
+      productosVendidos.forEach(p => {
+        const cb = p.costo_base * p.cantidad_total;
+        costoVentas.gastos_base += cb;
+        costoVentas.gastos_fijos += (cb / (1 - p.gastos_fijos / 100)) - cb;
+      });
+
+      // Configuración
+      const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+
+      // Cálculos financieros
+      const f = {
+        ventaTotal: totales.venta_neta + totales.impuesto,
+        impuestos: totales.impuesto,
+        ventaNeta: totales.venta_neta,
+        ajusteRedondeo: totales.ajuste_redondeo,
+        totalCobrado: totales.total_cobrado,
+        costoBase: costoVentas.gastos_base,
+        gastosFijos: costoVentas.gastos_fijos,
+        margen: 0,
+        gananciaNeta: 0
+      };
+
+      f.margen = f.ventaNeta - f.costoBase - f.gastosFijos;
+      f.gananciaNeta = f.margen + f.ajusteRedondeo;
+
+      res.json({
+        turno,
+        ventasPorMetodo,
+        totales,
+        productosVendidos,
+        financiero: f
+      });
+
     } catch (error) {
       next(error);
     }

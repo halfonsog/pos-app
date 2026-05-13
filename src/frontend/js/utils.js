@@ -269,9 +269,7 @@ Utils.renderProductImage = function (producto, size = 200) {
   }
 
   const placeholderUrl = Utils.getProductPlaceholder(producto, producto.id, size);
-  return `<img src="${placeholderUrl}" 
-               alt="${producto.nombre}" 
-               style="width: 100%; height: ${size}px; object-fit: cover; border-radius: 8px;">`;
+  return `<img src="${placeholderUrl}" alt="${producto.nombre}" style="width: 100%; height: ${size}px; object-fit: cover; border-radius: 8px;">`;
 };
 
 /**
@@ -305,6 +303,18 @@ Utils.getUnidad = function (id) {
   const unidades = State.getCache('unidades');
   if (!unidades) return null;
   return unidades.find(u => u.id == id) || null;
+};
+
+/**
+ * Obtiene el nombre una unidad por su abreviatura desde el caché
+ * @param {number} abrev - abreviatura de la unidad
+ * @returns {string|''} Unidad encontrada
+ */
+Utils.getNombreUnidad = function (abrev) {
+  const unidades = State.getCache('unidades');
+  if (!unidades) return '';
+  const unidad = unidades.find(u => u.abreviatura == abrev) || {};
+  return unidad.nombre || '';
 };
 
 /**
