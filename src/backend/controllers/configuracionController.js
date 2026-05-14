@@ -138,6 +138,45 @@ const configuracionController = {
   },
 
   // ============================================
+  // DENOMINACIONES
+  // ============================================
+
+  // GET /api/configuracion/denominaciones
+  listarDenominaciones: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const denom = await db.all('SELECT * FROM denominaciones WHERE activo = 1 ORDER BY valor DESC');
+      res.json(denom);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // GET /api/configuracion/denominaciones/todas
+  listarDenominacionesTodas: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const denom = await db.all('SELECT * FROM denominaciones ORDER BY valor DESC');
+      res.json(denom);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // PUT /api/configuracion/denominaciones/:id
+  actualizarDenominacion: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+      const { activo } = req.body;
+      await db.run('UPDATE denominaciones SET activo = ? WHERE id = ?', [activo ? 1 : 0, id]);
+      res.json({ message: 'Denominación actualizada' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // ============================================
   // CATEGORÍAS
   // ============================================
 

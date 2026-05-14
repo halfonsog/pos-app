@@ -10,11 +10,14 @@ const inventarioRoutes = require('./inventario');
 const configuracionRoutes = require('./configuracion');
 const ventasRoutes = require('./ventas');
 const dashboardController = require('../controllers/dashboardController');
+const reportesRoutes = require('./reportes');
 
 // Health check (público)
 router.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+
+router.get('/dashboard', dashboardController.obtener);
 
 // Rutas públicas
 router.use('/auth', authRoutes);
@@ -29,6 +32,6 @@ router.use('/compras', comprasRoutes);
 router.use('/inventario', inventarioRoutes);
 router.use('/configuracion', configuracionRoutes);
 router.use('/ventas', ventasRoutes);
-router.get('/dashboard', dashboardController.obtener);
+router.use('/reportes', reportesRoutes);
 
 module.exports = router;

@@ -60,6 +60,15 @@ Configuracion.index = async function () {
               </div>
             </div>
             <div class="col-md-6 col-lg-4">
+              <div class="card clickable h-100" data-route="configuracion/denominaciones" style="cursor: pointer;">
+                <div class="card-body text-center">
+                  <i class="fas fa-money-bill-wave fa-3x text-success mb-3"></i>
+                  <h5>Denominaciones</h5>
+                  <p class="text-muted">Billetes y monedas para conteo</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
               <div class="card clickable h-100" data-route="configuracion/terminos" style="cursor: pointer;">
                 <div class="card-body text-center">
                   <i class="fas fa-credit-card fa-3x text-danger mb-3"></i>
@@ -719,8 +728,87 @@ Configuracion._bindUnidadesEvents = function () {
 };
 
 // ============================================
-// TÉRMINOS DE PAGO (placeholder)
+// DENOMINACIONES
 // ============================================
+Configuracion.denominaciones = async function () {
+  try {
+    Utils.showLoading('Cargando...');
+    const denom = await API.get('/configuracion/denominaciones/todas');
+
+    const layout = `
+      <div class="app-wrapper">
+        <main class="main-content p-4">
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Configuración</a></li>
+              <li class="breadcrumb-item active">Denominaciones</li>
+            </ol>
+          </nav>
+          
+          <div class="d-flex align-items-center mb-4">
+            <button class="btn btn-outline-secondary me-3" id="btnVolver"><i class="fas fa-arrow-left me-1"></i>Volver</button>
+            <h2 class="mb-0"><i class="fas fa-money-bill-wave me-2"></i>Denominaciones para Conteo</h2>
+          </div>
+          
+          <div class="row">
+            <div class="col-lg-6">
+              <div class="card">
+                <div class="card-body p-0">
+                  <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                      <tr><th>Valor</th><th class="text-center">Activo</th><th class="text-center">Acción</th></tr>
+                    </thead>
+                    <tbody>
+                      ${denom.map(d => `
+                        <tr class="${d.activo ? '' : 'text-muted'}">
+                          <td>${Utils.formatMoney(d.valor)}</td>
+                          <td class="text-center">
+                            <div class="form-check form-switch d-inline-block">
+                              <input class="form-check-input toggle-denom" type="checkbox" 
+                                     data-id="${d.id}" ${d.activo ? 'checked' : ''}>
+                            </div>
+                          </td>
+                          <td class="text-center">
+                            ${d.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+
+    $('.toggle-denom').on('change', async function () {
+      const id = $(this).data('id');
+      const activo = $(this).is(':checked');
+      try {
+        await API.put(`/configuracion/denominaciones/${id}`, { activo });
+        State.invalidateCache('denominaciones');
+        ViewManager.refresh();
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    });
+
+    Configuracion._bindVolver();
+    Configuracion.bindCommonEvents();
+
+    Utils.hideLoading();
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error:', error);
+  }
+};
+
 // ============================================
 // TÉRMINOS DE PAGO
 // ============================================

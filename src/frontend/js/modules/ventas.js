@@ -309,7 +309,7 @@ Ventas.cerrarTurno = async function () {
                     
                     <h6>Conteo de Efectivo</h6>
                     <div class="row g-2 mb-3" id="conteoEfectivo">
-                      ${Ventas.renderConteoEfectivo()}
+                      <p class="text-muted">Cargando denominaciones...</p>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-2">
@@ -337,6 +337,9 @@ Ventas.cerrarTurno = async function () {
     `;
 
     $('#app').html(layout);
+    const denomHtml = await Ventas.renderConteoEfectivo();
+    $('#conteoEfectivo').html(denomHtml);
+
     Ventas.bindCierreTurnoEvents(montoEsperado);
 
   } catch (error) {
@@ -345,44 +348,46 @@ Ventas.cerrarTurno = async function () {
   }
 };
 
-Ventas.renderConteoEfectivo = function () {
-  const denominaciones = [
-    { valor: 1000, label: 'Billetes de $1000' },
-    { valor: 500, label: 'Billetes de $500' },
-    { valor: 200, label: 'Billetes de $200' },
-    { valor: 100, label: 'Billetes de $100' },
-    { valor: 50, label: 'Billetes de $50' },
-    { valor: 20, label: 'Billetes de $20' },
-    { valor: 10, label: 'Billetes de $10' },
-    { valor: 5, label: 'Billetes de $5' }
-  ];
+Ventas.renderConteoEfectivo = async function () {
+  try {
+    const denominaciones = await API.configuracion.denominaciones();
 
-  return denominaciones.map(d => `
-    <div class="col-md-6">
-      <label class="form-label">${d.label}</label>
-      <div class="input-group">
-        <input type="number" class="form-control conteo-cantidad" data-valor="${d.valor}" 
-               value="0" min="0" step="1">
-        <span class="input-group-text">= ${Utils.formatMoney(d.valor)} c/u</span>
+    return denominaciones.map((d, index) => `
+      <div class="col-6">
+        <div class="input-group input-group-sm">
+          <label class="form-label" style="width: 30%; text-align: right">${Utils.formatNumber(d.valor, 0)} x</label>&nbsp;
+          <input type="number" class="form-control conteo-cantidad" data-index="${index}" data-valor="${d.valor}" value="0" min="0" step="1">&nbsp;
+          <label class="input-group note-total" data-index="${index}" style="width: 40%;">= 0</label>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+
+  } catch (error) {
+    console.error('Error cargando denominaciones:', error);
+    return '';
+  }
 };
 
 Ventas.bindCierreTurnoEvents = function (montoEsperado) {
-  const calcularTotal = function () {
+
+  const calcularTotal = function (idx) {
     let total = 0;
     $('.conteo-cantidad').each(function () {
       const cantidad = parseInt($(this).val()) || 0;
       const valor = parseFloat($(this).data('valor'));
+      const index = $(this).data('index');
+      if (idx == index) {
+        const fpath = `.note-total[data-index="${index}"]`;
+        $(fpath).text(`= ${Utils.formatNumber(cantidad * valor, 0)}`);
+      }
       total += cantidad * valor;
     });
     $('#totalContado').text(Utils.formatMoney(total));
     return total;
   };
 
-  const calcularDiferencia = function () {
-    const total = calcularTotal();
+  const calcularDiferencia = function (idx) {
+    const total = calcularTotal(idx);
     const diferencia = total - montoEsperado;
     const $dif = $('#diferenciaCierre');
 
@@ -395,11 +400,14 @@ Ventas.bindCierreTurnoEvents = function (montoEsperado) {
     }
   };
 
-  $('.conteo-cantidad').on('input', calcularDiferencia);
-  calcularDiferencia();
+  $('.conteo-cantidad').on('input', function () {
+    const idx = $(this).data('index');
+    calcularDiferencia(idx);
+  });
+  calcularDiferencia(-1);
 
   $('#btnConfirmarCierre').on('click', async function () {
-    const total = calcularTotal();
+    const total = calcularTotal(-1);
 
     const confirmado = await Utils.confirm(
       `¿Confirmar cierre con $${total.toFixed(2)} en caja?`,
@@ -895,87 +903,242 @@ Ventas.procesarVenta = async function (metodoPago) {
 // ============================================
 // LISTADO DE VENTAS
 // ============================================
-Ventas.listado = async function () {
-  console.log('📋 Cargando historial de ventas');
+Ventas.listado = async function (params) {
+  console.log('📋 Cargando historial de ventas', params);
 
   try {
     Utils.showLoading('Cargando...');
-    const ventas = await API.ventas.listar();
 
-    const layout = `
-      <div class="app-wrapper">
-        ${Sidebar.render('ventas')}
-        <main class="main-content">
-          ${Ventas.renderNavbar(State.getUser())}
-          <div class="container-fluid p-4">
-            <nav aria-label="breadcrumb" class="mb-3">
-              <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
-                <li class="breadcrumb-item active">Historial</li>
-              </ol>
-            </nav>
-            
-            <div class="d-flex align-items-center mb-4">
-              <a href="#ventas" class="btn btn-outline-secondary me-3">
-                <i class="fas fa-arrow-left me-1"></i>Volver
-              </a>
-              <h2 class="mb-0"><i class="fas fa-history me-2"></i>Historial de Ventas</h2>
-            </div>
-            
-            <div class="table-responsive">
-              <table class="table table-hover" id="ventasTable">
-                <thead class="table-light">
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Vendedor</th>
-                    <th>Método</th>
-                    <th class="text-end">Total</th>
-                    <th>Estado</th>
-                    <th class="text-center" style="width: 60px;"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${ventas.map(v => `
-                    <tr class="clickable" data-id="${v.id}">
-                      <td>${Utils.formatDate(v.created_at, 'datetime')}</td>
-                      <td>${v.vendedor_nombre || '-'}</td>
-                      <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
-                      <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
-                      <td>${v.estado === 'completada' ? '<span class="badge bg-success">Completada</span>' : '<span class="badge bg-danger">Anulada</span>'}</td>
-                      <td class="text-center">
-                        <div class="dropdown">
-                          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
-                            <i class="fas fa-ellipsis-v"></i>
-                          </button>
-                          <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item ver-venta" href="#" data-id="${v.id}">
-                              <i class="fas fa-receipt me-2"></i>Ver Venta
-                            </a></li>
-                            <li><a class="dropdown-item ver-turno" href="#" data-turno="${v.turno_id}">
-                              <i class="fas fa-clock me-2"></i>Ver Turno
-                            </a></li>
-                          </ul>
-                        </div>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-      </div>
-    `;
+    // Obtener rango según filtro
+    let inicio, fin;
+    const filtroFecha = params.filtroFecha || 'hoy';
 
+    switch (filtroFecha) {
+      case 'hoy':
+        const r = Utils.rangoHoy();
+        inicio = r.inicio; fin = r.fin;
+        break;
+      case 'ayer':
+        const ayer = new Date();
+        ayer.setDate(ayer.getDate() - 1);
+        const ra = Utils.rangoDia(ayer);
+        inicio = ra.inicio; fin = ra.fin;
+        break;
+      case 'semana':
+        const hoy = new Date();
+        const diaSemana = hoy.getDay();
+        const lunes = new Date(hoy);
+        lunes.setDate(hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+        const domingo = new Date(lunes);
+        domingo.setDate(lunes.getDate() + 6);
+        inicio = Utils.rangoDia(lunes).inicio;
+        fin = Utils.rangoDia(domingo).fin;
+        break;
+      case 'mes':
+        const rm = Utils.mesActual();
+        inicio = rm.inicio; fin = rm.fin;
+        break;
+      case 'personalizado':
+        inicio = params.fechaDesde ? new Date(params.fechaDesde + 'T00:00:00').toISOString() : null;
+        fin = params.fechaHasta ? new Date(params.fechaHasta + 'T23:59:59').toISOString() : null;
+        break;
+    }
+
+    const ventas = await API.ventas.listar({
+      inicio, fin,
+      metodo_pago: params.filtroMetodo || 'todas',
+      busqueda: params.busqueda || ''
+    });
+
+    const layout = Ventas.renderListadoLayout(ventas, params);
     $('#app').html(layout);
-    Ventas.bindCommonEvents();
+    Ventas.bindListadoEvents(params);
 
     Utils.hideLoading();
+
   } catch (error) {
     Utils.hideLoading();
     console.error('Error:', error);
   }
+};
+
+Ventas.bindListadoEvents = function (params) {
+  // Filtro por fecha
+  $('[data-filtro-fecha]').on('click', function () {
+    const filtro = $(this).data('filtro-fecha');
+    ViewManager.navegar('ventas/listado', { ...params, filtroFecha: filtro }, { replace: true });
+  });
+
+  // Filtro por método
+  $('[data-filtro-metodo]').on('click', function () {
+    const metodo = $(this).data('filtro-metodo');
+    ViewManager.navegar('ventas/listado', { ...params, filtroMetodo: metodo }, { replace: true });
+  });
+
+  // Rango personalizado
+  $('#btnAplicarRango').on('click', function () {
+    const desde = $('#fechaDesde').val();
+    const hasta = $('#fechaHasta').val();
+    if (desde && hasta) {
+      ViewManager.navegar('ventas/listado', {
+        ...params,
+        filtroFecha: 'personalizado',
+        fechaDesde: desde,
+        fechaHasta: hasta
+      }, { replace: true });
+    }
+  });
+
+  // Búsqueda
+  $('#buscarVenta').on('keypress', function (e) {
+    if (e.key === 'Enter') {
+      ViewManager.navegar('ventas/listado', {
+        ...params,
+        busqueda: $(this).val()
+      }, { replace: true });
+    }
+  });
+
+  // Ver venta
+  $('#ventasTable').on('click', '.ver-venta', function (e) {
+    e.preventDefault();
+    ViewManager.navegar('ventas/ver/' + $(this).data('id'));
+  });
+
+  // Ver turno
+  $('#ventasTable').on('click', '.ver-turno', async function (e) {
+    e.preventDefault();
+    const turnoId = $(this).data('turno');
+    try {
+      Utils.showLoading('Cargando turno...');
+      const resumen = await API.ventas.resumenTurno(turnoId);
+      Utils.hideLoading();
+      const layout = Ventas.verTurno(resumen);
+      $('#app').html(layout);
+      $('#btnVolver').on('click', () => ViewManager.volver());
+      Ventas.bindCommonEvents();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('Error:', error);
+    }
+  });
+
+  // Doble click = ver venta
+  $('#ventasTable tbody').on('dblclick', 'tr', function () {
+    const id = $(this).data('id');
+    ViewManager.navegar('ventas/ver/' + id);
+  });
+
+  Ventas.bindCommonEvents();
+};
+
+Ventas.renderListadoLayout = function (ventas, params) {
+  const user = State.getUser();
+  const filtroFecha = params.filtroFecha || 'hoy';
+  const filtroMetodo = params.filtroMetodo || 'todas';
+
+  return `
+    <div class="app-wrapper">
+      ${Sidebar.render('ventas')}
+      <main class="main-content">
+        ${Ventas.renderNavbar(user)}
+        <div class="container-fluid p-4">
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+              <li class="breadcrumb-item active">Historial</li>
+            </ol>
+          </nav>
+          
+          <div class="d-flex align-items-center mb-4">
+            <a href="#ventas" class="btn btn-outline-secondary me-3">
+              <i class="fas fa-arrow-left me-1"></i>Volver
+            </a>
+            <h2 class="mb-0"><i class="fas fa-history me-2"></i>Historial de Ventas</h2>
+          </div>
+          
+          <!-- Filtros de fecha -->
+          <div class="mb-2">
+            <div class="btn-group">
+              <button class="btn btn-outline-primary btn-sm ${filtroFecha === 'hoy' ? 'active' : ''}" data-filtro-fecha="hoy">Hoy</button>
+              <button class="btn btn-outline-primary btn-sm ${filtroFecha === 'ayer' ? 'active' : ''}" data-filtro-fecha="ayer">Ayer</button>
+              <button class="btn btn-outline-primary btn-sm ${filtroFecha === 'semana' ? 'active' : ''}" data-filtro-fecha="semana">Esta Semana</button>
+              <button class="btn btn-outline-primary btn-sm ${filtroFecha === 'mes' ? 'active' : ''}" data-filtro-fecha="mes">Este Mes</button>
+              <button class="btn btn-outline-primary btn-sm ${filtroFecha === 'personalizado' ? 'active' : ''}" data-filtro-fecha="personalizado">📅</button>
+            </div>
+            
+            <div class="btn-group ms-2">
+              <button class="btn btn-outline-success btn-sm ${filtroMetodo === 'todas' ? 'active' : ''}" data-filtro-metodo="todas">Todas</button>
+              <button class="btn btn-outline-success btn-sm ${filtroMetodo === 'efectivo' ? 'active' : ''}" data-filtro-metodo="efectivo">💰 Efectivo</button>
+              <button class="btn btn-outline-success btn-sm ${filtroMetodo === 'tarjeta' ? 'active' : ''}" data-filtro-metodo="tarjeta">💳 Tarjeta</button>
+            </div>
+          </div>
+          
+          <!-- Rango personalizado -->
+          <div id="rangoPersonalizado" class="row g-2 mb-3 ${filtroFecha === 'personalizado' ? '' : 'd-none'}">
+            <div class="col-auto">
+              <input type="date" class="form-control form-control-sm" id="fechaDesde" value="${params.fechaDesde || ''}">
+            </div>
+            <div class="col-auto">
+              <input type="date" class="form-control form-control-sm" id="fechaHasta" value="${params.fechaHasta || ''}">
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-primary btn-sm" id="btnAplicarRango">Aplicar</button>
+            </div>
+          </div>
+          
+          <!-- Búsqueda -->
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="buscarVenta" placeholder="Buscar por ID o vendedor..." value="${params.busqueda || ''}">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Tabla -->
+          <div class="table-responsive">
+            <table class="table table-hover" id="ventasTable">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Fecha</th>
+                  <th>Vendedor</th>
+                  <th>Método</th>
+                  <th class="text-end">Total</th>
+                  <th class="text-center" style="width: 60px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${ventas.length > 0 ? ventas.map(v => `
+                  <tr class="clickable" data-id="${v.id}" data-turno="${v.turno_id}">
+                    <td>#${v.id}</td>
+                    <td>${Utils.formatearFecha(v.created_at, 'corto')}</td>
+                    <td>${v.vendedor_nombre || '-'}</td>
+                    <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
+                    <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
+                    <td class="text-center">
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                          <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li><a class="dropdown-item ver-venta" href="#" data-id="${v.id}"><i class="fas fa-receipt me-2"></i>Ver Venta</a></li>
+                          <li><a class="dropdown-item ver-turno" href="#" data-turno="${v.turno_id}"><i class="fas fa-clock me-2"></i>Ver Turno</a></li>
+                        </ul>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">No hay ventas en este período</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
 };
 
 // ============================================
@@ -1318,37 +1481,6 @@ Ventas.bindCommonEvents = function () {
     if ($(window).width() < 768) $('#sidebar').removeClass('show');
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
-
-  $('#ventasTable tbody').on('dblclick', 'tr', function () {
-    const id = $(this).data('id');
-    ViewManager.navegar('ventas/ver/' + id);
-  });
-
-  $('#ventasTable').on('click', '.ver-venta', function (e) {
-    e.preventDefault();
-    ViewManager.navegar('ventas/ver/' + $(this).data('id'));
-  });
-
-  $('#ventasTable').on('click', '.ver-turno', async function (e) {
-    e.preventDefault();
-    const turnoId = $(this).data('turno');
-
-    try {
-      Utils.showLoading('Cargando turno...');
-      const resumen = await API.ventas.resumenTurno(turnoId);
-      Utils.hideLoading();
-
-      const layout = Ventas.verTurno(resumen);
-      $('#app').html(layout);
-      $('#btnVolver').on('click', () => ViewManager.volver());
-      Ventas.bindCommonEvents();
-
-    } catch (error) {
-      Utils.hideLoading();
-      console.error('Error:', error);
-    }
-  });
-
 };
 
 window.Ventas = Ventas;

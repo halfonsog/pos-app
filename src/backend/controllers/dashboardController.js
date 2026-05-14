@@ -7,16 +7,14 @@ const dashboardController = {
     try {
       const db = await getDb();
 
-      // Recibir la fecha del frontend (o usar la actual del sistema)
-      const hoy = req.query.fecha || new Date().toISOString().split('T')[0];
-      const ahora = new Date();
-      console.log('Ahora: ', ahora);
-      console.log('process.env.TZ', process.env.TZ);
+      // Recibir la fecha del frontend 
+      const inicio = req.query.inicio;
+      const fin = req.query.fin;
 
       const ventasHoy = await db.get(`
         SELECT COUNT(*) as total_ventas, COALESCE(SUM(total), 0) as total
-        FROM ventas WHERE date(created_at) = ? AND estado = 'completada'
-      `, [hoy]);
+        FROM ventas WHERE created_at >= ? AND created_at <= ? AND estado = 'completada'
+      `, [inicio, fin]);
 
       const stockBajo = await db.get(`
         SELECT COUNT(*) as count FROM productos WHERE activo = 1 AND stock_actual <= stock_minimo AND stock_minimo > 0
@@ -35,13 +33,14 @@ const dashboardController = {
       `);
 
       const masVendidos = await db.all(`
-        SELECT p.nombre, SUM(vd.cantidad) as cantidad
+        SELECT p.nombre, SUM(vd.cantidad) as cantidad, u.abreviatura as unidad
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
-        WHERE date(v.created_at) = ? AND v.estado = 'completada'
+        JOIN unidades u ON p.unidad_venta_id = u.id
+        WHERE v.created_at >= ? AND v.created_at <= ? AND v.estado = 'completada'
         GROUP BY p.id ORDER BY cantidad DESC LIMIT 5
-      `, [hoy]);
+      `, [inicio, fin]);
 
       const ultimasActividades = await db.all(`
         SELECT * FROM (
@@ -58,9 +57,9 @@ const dashboardController = {
       const ventasPorHora = await db.all(`
         SELECT CAST(strftime('%H', created_at) AS INTEGER) as hora,
                COUNT(*) as ventas, COALESCE(SUM(total), 0) as total
-        FROM ventas WHERE date(created_at) = ? AND estado = 'completada'
+        FROM ventas WHERE created_at >= ? AND created_at <= ? AND estado = 'completada'
         GROUP BY hora ORDER BY hora
-      `, [hoy]);
+      `, [inicio, fin]);
 
       res.json({
         ventasHoy,

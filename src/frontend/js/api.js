@@ -171,7 +171,8 @@ const API = {
     listarGastos: () => API.get('/configuracion/gastos'),
     crearGasto: (data) => API.post('/configuracion/gastos', data),
     actualizarGasto: (id, data) => API.put(`/configuracion/gastos/${id}`, data),
-    eliminarGasto: (id) => API.delete(`/configuracion/gastos/${id}`)
+    eliminarGasto: (id) => API.delete(`/configuracion/gastos/${id}`),
+    denominaciones: () => API.get('/configuracion/denominaciones')
   },
 
   ventas: {
@@ -179,13 +180,27 @@ const API = {
     abrirTurno: (data) => API.post('/ventas/abrir-turno', data),
     cerrarTurno: (data) => API.post('/ventas/cerrar-turno', data),
     crear: (data) => API.post('/ventas', data),
-    listar: () => API.get('/ventas'),
     obtener: (id) => API.get(`/ventas/${id}`),
-    resumenTurno: (id) => API.get(`/ventas/resumen-turno/${id}`)
+    resumenTurno: (id) => API.get(`/ventas/resumen-turno/${id}`),
+    //listar: () => API.get('/ventas'),
+    listar: (params = {}) => {
+      const query = new URLSearchParams();
+      if (params.inicio) query.append('inicio', params.inicio);
+      if (params.fin) query.append('fin', params.fin);
+      if (params.metodo_pago) query.append('metodo_pago', params.metodo_pago);
+      if (params.busqueda) query.append('busqueda', params.busqueda);
+      return API.get('/ventas?' + query.toString());
+    }
+  },
+
+  reportes: {
+    ventasPorProducto: (inicio, fin) => API.get(`/reportes/ventas-por-producto?inicio=${inicio}&fin=${fin}`),
+    tendencia: (inicio, fin, agrupar) => API.get(`/reportes/tendencia?inicio=${inicio}&fin=${fin}&agrupar=${agrupar}`),
+    rentabilidad: (inicio, fin) => API.get(`/reportes/rentabilidad?inicio=${inicio}&fin=${fin}`)
   },
 
   dashboard: {
-    obtener: () => API.get('/dashboard')
+    obtener: (inicio, fin) => API.get(`/dashboard?inicio=${inicio}&fin=${fin}`)
   }
 };
 

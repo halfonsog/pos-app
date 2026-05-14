@@ -76,7 +76,10 @@ const Utils = {
     return formatted;
   },
 
-  // Formateo de fecha
+  // ============================================
+  // FUNCIONES DE FECHA Y HORA
+  // ============================================
+
   formatDate: function (date, format = 'short') {
     const d = new Date(date);
 
@@ -94,6 +97,148 @@ const Utils = {
 
     return d.toISOString().split('T')[0];
   },
+
+  /** 
+  * @param { string } fechaISO - Fecha en formato ISO(UTC)
+  * @param { string } formato - 'fecha', 'hora', 'datetime', 'corto'
+  * @returns { string } Fecha formateada en hora local
+  */
+  formatearFecha: function (fechaISO, formato = 'fecha') {
+    if (!fechaISO) return '-';
+
+    const fecha = new Date(fechaISO);
+
+    switch (formato) {
+      case 'fecha':
+        return fecha.toLocaleDateString('es-ES'); // 12/5/2026
+
+      case 'hora':
+        return fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); // 14:09
+
+      case 'datetime':
+        return fecha.toLocaleString('es-ES'); // 12/5/2026, 14:09:56
+
+      case 'corto':
+        const hoy = new Date();
+        const ayer = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
+
+        if (fecha.toDateString() === hoy.toDateString()) {
+          return `Hoy ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        } else if (fecha.toDateString() === ayer.toDateString()) {
+          return `Ayer ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+          return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+      default:
+        return fecha.toLocaleString('es-ES');
+    }
+  },
+
+  /**
+   * Devuelve una fecha en formato YYYY-MM-DD (para inputs de tipo date)
+   */
+  fechaInput: function (fechaISO) {
+    if (!fechaISO) return '';
+    const fecha = new Date(fechaISO);
+    const año = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${año}-${mes}-${dia}`;
+  },
+
+  /**
+   * Obtiene la fecha local actual
+   * @returns {Date} Fecha local
+   */
+  fechaLocal: function () {
+    const ahora = new Date();
+    return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  },
+
+  /**
+   * Obtiene la fecha ISO con formato para sentencias SQL
+   * @param {Date|string} fecha - Fecha a convertir
+   * @returns {string} con formato YYYY-MM-DD hh:mm:ss
+   */
+  formatDateToSQLISO: function (fecha) {
+    const d = new Date(fecha);
+    const ret = d.toISOString().split('T');
+    return `${ret[0]} ${ret[1].split('.')[0]}`;
+  },
+
+  /**
+   * Obtiene el rango ISO de un día específico
+   * @param {Date|string} fecha - Fecha a consultar
+   * @returns {Object} { inicio, fin }
+   */
+  rangoDia: function (fecha) {
+    const f = new Date(fecha);
+    const inicio = new Date(f.getFullYear(), f.getMonth(), f.getDate(), 0, 0, 0, 0);
+    //const fin = new Date(f.getFullYear(), f.getMonth(), f.getDate(), 23, 59, 59, 999);
+    const fin = new Date();
+    fin.setDate(inicio.getDate() + 1);
+
+    return {
+      inicio: Utils.formatDateToSQLISO(inicio),
+      fin: Utils.formatDateToSQLISO(fin)
+    };
+  },
+
+  /**
+   * Obtiene el rango ISO de "hoy" en hora local
+   * @returns {Object} { inicio, fin }
+   */
+  rangoHoy: function () {
+    return Utils.rangoDia(Utils.fechaLocal());
+  },
+
+  /**
+   * Obtiene el rango ISO de un mes/año específico
+   * @param {number} mes - Mes (1-12)
+   * @param {number} anio - Año (ej: 2026)
+   * @returns {Object} { inicio, fin }
+   */
+  rangoMes: function (mes, anio) {
+    const inicio = new Date(anio, mes - 1, 1, 0, 0, 0, 0);
+    const fin = new Date(anio, mes, 1, 0, 0, 0, 0);
+    return {
+      inicio: Utils.formatDateToSQLISO(inicio),
+      fin: Utils.formatDateToSQLISO(fin)
+    };
+  },
+
+  /**
+   * Obtiene el rango ISO del mes actual
+   * @returns {Object} { inicio, fin }
+   */
+  mesActual: function () {
+    const ahora = new Date();
+    return Utils.rangoMes(ahora.getMonth() + 1, ahora.getFullYear());
+  },
+
+  /**
+   * Obtiene el rango ISO de un año específico
+   * @param {number} anio - Año (ej: 2026)
+   * @returns {Object} { inicio, fin }
+   */
+  rangoAnio: function (anio) {
+    const inicio = new Date(anio, 0, 1, 0, 0, 0, 0);
+    const fin = new Date(anio, 12, 1, 0, 0, 0, 0);
+    return {
+      inicio: Utils.formatDateToSQLISO(inicio),
+      fin: Utils.formatDateToSQLISO(fin)
+    };
+  },
+
+  /**
+   * Obtiene el rango ISO del año actual
+   * @returns {Object} { inicio, fin }
+   */
+  anioActual: function () {
+    return Utils.rangoAnio(new Date().getFullYear());
+  },
+
 
   // Debounce para búsquedas
   debounce: function (func, wait) {
@@ -263,9 +408,7 @@ Utils.getProductPlaceholder = function (producto, id = 1, size = 200) {
  */
 Utils.renderProductImage = function (producto, size = 200) {
   if (producto.foto) {
-    return `<img src="/uploads/productos/${producto.foto}" 
-                 alt="${producto.nombre}" 
-                 style="width: 100%; height: ${size}px; object-fit: cover; border-radius: 8px;">`;
+    return `<img src="/uploads/productos/${producto.foto}" alt="${producto.nombre}" style="width: 100%; height: ${size}px; object-fit: cover; border-radius: 8px;">`;
   }
 
   const placeholderUrl = Utils.getProductPlaceholder(producto, producto.id, size);

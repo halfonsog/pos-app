@@ -12,6 +12,11 @@ router.post('/gastos', configuracionController.crearGasto);
 router.put('/gastos/:id', configuracionController.actualizarGasto);
 router.delete('/gastos/:id', configuracionController.eliminarGasto);
 
+// Denominaciones
+router.get('/denominaciones', configuracionController.listarDenominaciones);
+router.get('/denominaciones/todas', configuracionController.listarDenominacionesTodas);
+router.put('/denominaciones/:id', configuracionController.actualizarDenominacion);
+
 // Categorías
 router.get('/categorias', configuracionController.listarCategorias);
 router.post('/categorias', configuracionController.crearCategoria);

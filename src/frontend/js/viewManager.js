@@ -66,7 +66,11 @@ ViewManager.routes = [
   { pattern: 'configuracion/gastos', module: 'Configuracion', action: 'gastos' },
   { pattern: 'configuracion/categorias', module: 'Configuracion', action: 'categorias' },
   { pattern: 'configuracion/unidades', module: 'Configuracion', action: 'unidades' },
-  { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' }
+  { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' },
+  { pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
+
+  // Reportes
+  { pattern: 'reportes', module: 'Reportes', action: 'index' }
 
 ];
 

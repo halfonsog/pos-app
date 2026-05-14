@@ -9,7 +9,9 @@ Dashboard.index = async function () {
 
   try {
     Utils.showLoading('Cargando...');
-    const datos = await API.dashboard.obtener();
+    const rango = Utils.rangoHoy();
+    const datos = await API.dashboard.obtener(rango.inicio, rango.fin);
+
     Utils.hideLoading();
 
     const layout = Dashboard.renderLayout(datos);
@@ -26,6 +28,7 @@ Dashboard.index = async function () {
 
 Dashboard.renderLayout = function (d) {
   const user = State.getUser();
+  console.log('masVendidos', d.masVendidos);
 
   return `
     <div class="app-wrapper">
@@ -113,7 +116,7 @@ Dashboard.renderLayout = function (d) {
                       <div class="product-info">
                         <span class="product-name">${p.nombre}</span>
                       </div>
-                      <span class="product-sales">${p.cantidad} uds</span>
+                      <span class="product-sales">${p.cantidad} ${p.unidad}</span>
                     </div>
                   `).join('') : '<p class="text-muted text-center py-3">Sin ventas hoy</p>'}
                 </div>

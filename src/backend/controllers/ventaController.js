@@ -293,16 +293,36 @@ const ventaController = {
   listarVentas: async (req, res, next) => {
     try {
       const db = await getDb();
+      const { inicio, fin, metodo_pago, busqueda } = req.query;
 
-      const ventas = await db.all(`
-        SELECT v.*, u.nombre_completo as vendedor_nombre
-        FROM ventas v
-        LEFT JOIN usuarios u ON v.vendedor_id = u.id
-        ORDER BY v.created_at DESC
-        LIMIT 100
-      `);
+      let query = `
+      SELECT v.*, u.nombre_completo as vendedor_nombre
+      FROM ventas v
+      LEFT JOIN usuarios u ON v.vendedor_id = u.id
+      WHERE 1=1
+    `;
+      const params = [];
 
+      if (inicio && fin) {
+        query += ' AND v.created_at >= ? AND v.created_at <= ?';
+        params.push(inicio, fin);
+      }
+
+      if (metodo_pago && metodo_pago !== 'todas') {
+        query += ' AND v.metodo_pago = ?';
+        params.push(metodo_pago);
+      }
+
+      if (busqueda) {
+        query += ' AND (CAST(v.id AS TEXT) LIKE ? OR u.nombre_completo LIKE ?)';
+        params.push(`%${busqueda}%`, `%${busqueda}%`);
+      }
+
+      query += ' ORDER BY v.created_at DESC LIMIT 100';
+
+      const ventas = await db.all(query, params);
       res.json(ventas);
+
     } catch (error) {
       next(error);
     }
