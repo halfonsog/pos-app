@@ -163,8 +163,31 @@ Unidades propuestas para insertar en la BD (seeds)
   { tipo="unidad", unidad= "mazo", abreviatura= "mazo", coeficiente= 1}
 
   
-Las notas de moneda (ahora de 1000 a 5) deberian editarse desde configuracion!
+
+Pendientes
+**********
+Ajustes y mejoras según uso real
+
+Promociones y descuentos
+
+Dashboard del vendedor
+
+Tickets de venta
+
+Respaldos automáticos
+
+Gestion de inversiones
 
 
+Pasos para preparar el release
+******************************
+Cambiar credenciales en development.sql (admin/admin123 → algo seguro)
 
+Configurar .env con JWT_SECRET único
+
+Corregir usuario_id = 1 en ventaController y otros
+
+Instrucciones para el cliente: cómo iniciar, hacer backup, etc.
+
+Versión standalone: ¿usar pkg para empaquetar como .exe?
 

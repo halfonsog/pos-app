@@ -48,7 +48,7 @@ const ventaController = {
     try {
       const db = await getDb();
       const { vendedor_id, monto_apertura } = req.body;
-      const usuario_id = 1; // TODO: Obtener del token
+      const usuario_id = req.usuario?.id || 1;
 
       // Verificar que no haya turno abierto
       const turnoAbierto = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
@@ -120,7 +120,7 @@ const ventaController = {
     try {
       const db = await getDb();
       const { detalles, metodo_pago } = req.body;
-      const usuario_id = 1; // TODO: Obtener del token
+      const usuario_id = req.usuario?.id || 1;
 
       // Verificar turno abierto
       const turno = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");

@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const proveedorController = require('../controllers/proveedorController');
+const authMiddleware = require('../middleware/auth');
+
+// Proteger todas las rutas de ventas
+router.use(authMiddleware);
 
 // GET /api/proveedores
 router.get('/', proveedorController.listar);

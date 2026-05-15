@@ -200,7 +200,7 @@ const inventarioController = {
       const db = await getDb();
       const { id } = req.params;
       const { cantidad } = req.body;
-      const usuario_id = 1; // TODO: Obtener del token
+      const usuario_id = req.usuario?.id || 1;
 
       await db.run('BEGIN TRANSACTION');
 
@@ -268,7 +268,7 @@ const inventarioController = {
     try {
       const db = await getDb();
       const { producto_id, tipo, cantidad, observaciones } = req.body;
-      const usuario_id = 1; // TODO: Obtener del token
+      const usuario_id = req.usuario?.id || 1;
 
       // Validaciones
       if (!producto_id || !tipo || !cantidad) {

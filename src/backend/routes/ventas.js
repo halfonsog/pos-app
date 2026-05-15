@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const ventaController = require('../controllers/ventaController');
+const authMiddleware = require('../middleware/auth');
+
+// Proteger todas las rutas de ventas
+router.use(authMiddleware);
 
 // Turnos
 router.get('/turno-actual', ventaController.turnoActual);

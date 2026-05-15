@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const productoController = require('../controllers/productoController');
-// ✅ Importar CORRECTAMENTE con desestructuración
 const { upload, procesarImagen } = require('../middleware/upload');
+const authMiddleware = require('../middleware/auth');
+
+// Proteger todas las rutas de ventas
+router.use(authMiddleware);
 
 // GET /api/productos
 router.get('/', productoController.listar);

@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const configuracionController = require('../controllers/configuracionController');
+const authMiddleware = require('../middleware/auth');
+
+// Proteger todas las rutas de ventas
+router.use(authMiddleware);
 
 // Parámetros generales
 router.get('/general', configuracionController.obtenerGeneral);
