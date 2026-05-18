@@ -11,6 +11,7 @@ router.get('/turno-actual', ventaController.turnoActual);
 router.post('/abrir-turno', ventaController.abrirTurno);
 router.post('/cerrar-turno', ventaController.cerrarTurno);
 router.get('/resumen-turno/:id', ventaController.resumenTurno);
+router.get('/mi-turno', ventaController.miTurno);
 
 // Ventas
 router.get('/', ventaController.listarVentas);

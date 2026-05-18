@@ -70,7 +70,12 @@ ViewManager.routes = [
   { pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
 
   // Reportes
-  { pattern: 'reportes', module: 'Reportes', action: 'index' }
+  { pattern: 'reportes', module: 'Reportes', action: 'index' },
+
+  // Vendedor
+  { pattern: 'vendedor', module: 'Vendedor', action: 'index' },
+  { pattern: 'vendedor/stock', module: 'Vendedor', action: 'stock' },
+  { pattern: 'vendedor/perfil', module: 'Vendedor', action: 'perfil' }
 
 ];
 
@@ -193,6 +198,15 @@ ViewManager._cargarVista = async function (ruta, params) {
 
   if (!routeMatch) {
     console.error('❌ Ruta no encontrada:', rutaBase);
+    return;
+  }
+
+  // ✅ Bloquear vistas de admin para vendedores
+  const rutasAdmin = ['dashboard', 'compras', 'inventario', 'proveedores', 'configuracion', 'reportes'];
+  const isAdmin = State.isAdmin();
+
+  if (!isAdmin && rutasAdmin.some(r => ruta.startsWith(r))) {
+    Toast.warning('Acceso restringido');
     return;
   }
 

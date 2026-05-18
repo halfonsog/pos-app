@@ -121,7 +121,29 @@ const authController = {
       }
       next(error);
     }
+  },
+
+  cambiarPassword: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const usuario_id = req.usuario?.id;
+      const { actual, nueva } = req.body;
+
+      const user = await db.get('SELECT password_hash FROM usuarios WHERE id = ?', [usuario_id]);
+      if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+      const valida = await bcrypt.compare(actual, user.password_hash);
+      if (!valida) return res.status(400).json({ error: 'Contraseña actual incorrecta' });
+
+      const newHash = await bcrypt.hash(nueva, 10);
+      await db.run('UPDATE usuarios SET password_hash = ? WHERE id = ?', [newHash, usuario_id]);
+
+      res.json({ message: 'Contraseña cambiada correctamente' });
+    } catch (error) {
+      next(error);
+    }
   }
+
 };
 
 module.exports = authController;

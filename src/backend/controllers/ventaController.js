@@ -294,14 +294,22 @@ const ventaController = {
     try {
       const db = await getDb();
       const { inicio, fin, metodo_pago, busqueda } = req.query;
+      const usuario_id = req.usuario?.id;
+      const isAdmin = req.usuario?.rol === 'admin';
 
       let query = `
-      SELECT v.*, u.nombre_completo as vendedor_nombre
-      FROM ventas v
-      LEFT JOIN usuarios u ON v.vendedor_id = u.id
-      WHERE 1=1
-    `;
+        SELECT v.*, u.nombre_completo as vendedor_nombre
+        FROM ventas v
+        LEFT JOIN usuarios u ON v.vendedor_id = u.id
+        WHERE v.estado = 'completada'
+      `;
       const params = [];
+
+      // ✅ Si es vendedor, solo ver sus ventas
+      if (!isAdmin) {
+        query += ' AND v.vendedor_id = ?';
+        params.push(usuario_id);
+      }
 
       if (inicio && fin) {
         query += ' AND v.created_at >= ? AND v.created_at <= ?';
@@ -439,6 +447,55 @@ const ventaController = {
         totales,
         productosVendidos,
         financiero: f
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // GET /api/ventas/mi-turno
+  miTurno: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const usuario_id = req.usuario?.id || 1;
+
+      const turno = await db.get(`
+      SELECT * FROM turnos 
+      WHERE vendedor_id = ? AND estado = 'abierto'
+      ORDER BY abierto_at DESC LIMIT 1
+    `, [usuario_id]);
+
+      if (!turno) {
+        return res.json({ abierto: false });
+      }
+
+      const ventas = await db.get(`
+      SELECT COUNT(*) as total_ventas, COALESCE(SUM(total), 0) as total
+      FROM ventas WHERE turno_id = ? AND estado = 'completada'
+    `, [turno.id]);
+
+      const ultimasVentas = await db.all(`
+      SELECT id, total, metodo_pago, created_at
+      FROM ventas WHERE turno_id = ? AND estado = 'completada'
+      ORDER BY created_at DESC LIMIT 5
+    `, [turno.id]);
+
+      const masVendidos = await db.all(`
+      SELECT p.nombre, SUM(vd.cantidad) as cantidad
+      FROM venta_detalles vd
+      JOIN ventas v ON vd.venta_id = v.id
+      JOIN productos p ON vd.producto_id = p.id
+      WHERE v.turno_id = ? AND v.estado = 'completada'
+      GROUP BY p.id ORDER BY cantidad DESC LIMIT 5
+    `, [turno.id]);
+
+      res.json({
+        abierto: true,
+        turno,
+        ventas,
+        ultimasVentas,
+        masVendidos
       });
 
     } catch (error) {

@@ -24,7 +24,7 @@ const App = {
       if (response.user.rol === 'admin') {
         await ViewManager.navegar('dashboard');
       } else {
-        await ViewManager.navegar('ventas/pos');
+        await ViewManager.navegar('vendedor');
       }
     } catch (error) {
       console.error('Token inválido:', error);

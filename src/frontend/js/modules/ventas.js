@@ -420,7 +420,7 @@ Ventas.bindCierreTurnoEvents = function (montoEsperado) {
       await API.ventas.cerrarTurno({ monto_real: total });
       Utils.hideLoading();
       Toast.success('Turno cerrado correctamente');
-      ViewManager.navegar('ventas');
+      ViewManager.volver();
     } catch (error) {
       Utils.hideLoading();
       console.error('Error:', error);

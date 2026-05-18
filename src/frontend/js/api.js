@@ -101,21 +101,18 @@ const API = {
 
   // Endpoints específicos
   auth: {
-    login: (username, password) => {
-      return API.post('/auth/login', { username, password });
-    },
-    verify: () => {
-      return API.get('/auth/verify');
-    }
+    login: (username, password) => API.post('/auth/login', { username, password }),
+    verify: () => API.get('/auth/verify'),
+    cambiarPassword: (data) => API.post('/auth/cambiar-password', data)
   },
 
   proveedores: {
     listar: () => API.get('/proveedores'),
     obtener: (id) => API.get(`/proveedores/${id}`),
     crear: (data) => API.post('/proveedores', data),
-    actualizar: (id, data) => API.put(`/proveedores/${id}`, data),
-    eliminar: (id) => API.delete(`/proveedores/${id}`),
-    listarContactos: (id) => API.get(`/proveedores/${id}/contactos`),
+    actualizar: (id, data) => API.put(`/ proveedores / ${id} `, data),
+    eliminar: (id) => API.delete(`/ proveedores / ${id} `),
+    listarContactos: (id) => API.get(`/ proveedores / ${id}/contactos`),
     crearContacto: (id, data) => API.post(`/proveedores/${id}/contactos`, data),
     actualizarContacto: (id, contactoId, data) => API.put(`/proveedores/${id}/contactos/${contactoId}`, data),
     eliminarContacto: (id, contactoId) => API.delete(`/proveedores/${id}/contactos/${contactoId}`)
@@ -190,7 +187,8 @@ const API = {
       if (params.metodo_pago) query.append('metodo_pago', params.metodo_pago);
       if (params.busqueda) query.append('busqueda', params.busqueda);
       return API.get('/ventas?' + query.toString());
-    }
+    },
+    miTurno: () => API.get('/ventas/mi-turno')
   },
 
   reportes: {

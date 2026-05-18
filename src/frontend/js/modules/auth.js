@@ -81,7 +81,7 @@ const Auth = {
         if (response.user.rol === 'admin') {
           await ViewManager.navegar('dashboard');
         } else {
-          await ViewManager.navegar('ventas/nueva');
+          await ViewManager.navegar('vendedor');
         }
 
       } catch (error) {
