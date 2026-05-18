@@ -46,7 +46,7 @@ Productos.renderIndexLayout = function (stats) {
   const user = State.getUser();
   return `
     <div class="app-wrapper">
-      ${Sidebar.render('productos')}
+      ${Sidebar.render(State.isAdmin() ? 'productos' : 'vendedor/stock')}
       <main class="main-content">
         ${Productos.renderNavbar(user)}
         <div class="container-fluid p-4">
@@ -130,7 +130,7 @@ Productos.renderListadoLayout = function (productos, params) {
   const filtro = params.filtro || 'todos';
   return `
     <div class="app-wrapper">
-      ${Sidebar.render('productos')}
+      ${Sidebar.render(State.isAdmin() ? 'productos' : 'vendedor/stock')}
       <main class="main-content">
         ${Productos.renderNavbar(user)}
         <div class="container-fluid p-4">

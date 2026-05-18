@@ -480,7 +480,7 @@ Ventas.pos = async function () {
 
     const layout = `
       <div class="app-wrapper">
-        ${Sidebar.render('ventas')}
+        ${Sidebar.render(State.isAdmin() ? 'ventas' : 'ventas/pos')}
         <main class="main-content">
           ${Ventas.renderNavbar(State.getUser())}
           
@@ -1039,7 +1039,7 @@ Ventas.renderListadoLayout = function (ventas, params) {
 
   return `
     <div class="app-wrapper">
-      ${Sidebar.render('ventas')}
+      ${Sidebar.render(State.isAdmin() ? 'ventas' : 'ventas/listado')}
       <main class="main-content">
         ${Ventas.renderNavbar(user)}
         <div class="container-fluid p-4">
@@ -1154,7 +1154,7 @@ Ventas.ficha = async function (params) {
 
     const layout = `
       <div class="app-wrapper">
-        ${Sidebar.render('ventas')}
+        ${Sidebar.render(State.isAdmin() ? 'ventas' : 'ventas/listado')}
         <main class="main-content">
           ${Ventas.renderNavbar(State.getUser())}
           <div class="container-fluid p-4">
@@ -1279,7 +1279,7 @@ Ventas.verTurno = function (resumen) {
 
   return `
     <div class="app-wrapper">
-      ${Sidebar.render('ventas')}
+      ${Sidebar.render(State.isAdmin() ? 'ventas' : 'ventas/listado')}
       <main class="main-content">
         ${Ventas.renderNavbar(State.getUser())}
         <div class="container-fluid p-4">

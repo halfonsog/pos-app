@@ -163,8 +163,8 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
       ruta: this.currentView,
       params: this.currentParams
     });
-    console.log('📝 Historial:', this.history.length);
   }
+  console.log('📝 Historial:', this.history);
 
   // Desactivar popstate temporalmente
   this._ignorePopState = true;
@@ -173,20 +173,6 @@ ViewManager.navegar = async function (ruta, params = {}, options = {}) {
 
   await this._cargarVista(ruta, finalParams);
 };
-
-// Evento popstate
-window.addEventListener('popstate', function (e) {
-  if (ViewManager._ignorePopState) {
-    console.log('⏭️ Ignorando popstate');
-    return;
-  }
-
-  const hash = window.location.hash.substring(1);
-  if (hash) {
-    console.log('⬅️ popstate: navegando a', hash);
-    ViewManager._cargarVista(hash, {});
-  }
-});
 
 /**
  * Carga una vista (usado internamente)
@@ -237,11 +223,17 @@ ViewManager.volver = function () {
   if (this.history.length > 0) {
     const previous = this.history.pop();
     console.log('↩️ Volviendo a:', previous.ruta);
-    // Usar replace: true para no duplicar en historial
-    this.navegar(previous.ruta, previous.params, { replace: true });
+
+    // ✅ NO usar navegar (que dispara popstate)
+    // En su lugar, cargar la vista directamente
+    this._ignorePopState = true;
+    window.location.hash = previous.ruta;
+    setTimeout(() => { this._ignorePopState = false; }, 100);
+
+    this._cargarVista(previous.ruta, previous.params);
   } else {
-    console.log('⚠️ No hay historial, yendo a dashboard');
-    this.navegar('dashboard', {}, { reset: true });
+    console.log('⚠️ No hay historial, yendo a vendedor');
+    this.navegar(State.isAdmin() ? 'dashboard' : 'vendedor', {}, { reset: true });
   }
 };
 
@@ -264,15 +256,10 @@ ViewManager.refresh = async function () {
   }
 };
 
-// ============================================
-// SINCRONIZACIÓN CON EL NAVEGADOR
-// ============================================
-
-// Capturar el botón "atrás" del navegador
+// Evento popstate
 window.addEventListener('popstate', function (e) {
-  // ✅ Ignorar si fue causado por navegación interna
   if (ViewManager._ignorePopState) {
-    console.log('⏭️ Ignorando popstate (navegación interna)');
+    console.log('⏭️ Ignorando popstate');
     return;
   }
 
