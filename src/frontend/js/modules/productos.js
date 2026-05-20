@@ -250,14 +250,15 @@ Productos.bindListadoEvents = function (params) {
     if (filtro === 'todos') {
       self.dataTable.draw();
     } else if (filtro === 'simples') {
-      self.dataTable.column(11).search('simple', true, false).draw();
+      self.dataTable.column(12).search('simple', true, false).draw();
     } else if (filtro === 'compuestos') {
-      self.dataTable.column(11).search('compuesto', true, false).draw();
+      self.dataTable.column(12).search('compuesto', true, false).draw();
     } else if (filtro === 'stock-bajo') {
-      self.dataTable.column(9).search('true', true, false).draw();
-    } else if (filtro === 'sin-costo') {
       self.dataTable.column(10).search('true', true, false).draw();
+    } else if (filtro === 'sin-costo') {
+      self.dataTable.column(11).search('true', true, false).draw();
     }
+
   });
 
   if (filtroInicial !== 'todos') {
