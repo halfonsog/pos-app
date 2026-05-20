@@ -58,30 +58,30 @@ INSERT INTO unidades (tipo, nombre, abreviatura, coeficiente) VALUES
 -- ============================================
 
 -- Insumos líquidos (volumen) - unidad_venta=2 (l), unidad_compra=2 (l)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('INS001', 'Pulpa de Mango', 'simple', 'granel', 3, 2, 2, 1, 0, 10, 0),
-    ('INS002', 'Agua Tratada', 'simple', 'granel', 3, 2, 2, 1, 0, 20, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('INS001', 'Pulpa de Mango', 'simple', 'granel', 3, 2, 2, 0, 10, 0),
+    ('INS002', 'Agua Tratada', 'simple', 'granel', 3, 2, 2, 0, 20, 0);
 
 -- Insumos sólidos (peso) - unidad_venta=3 (lb), unidad_compra=10 (kg)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('INS003', 'Pulpa de Guayaba', 'simple', 'granel', 3, 3, 10, 2.2, 0, 10, 0),
-    ('INS004', 'Azúcar', 'simple', 'granel', 3, 3, 10, 2.2, 0, 25, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('INS003', 'Pulpa de Guayaba', 'simple', 'granel', 3, 3, 10, 0, 10, 0),
+    ('INS004', 'Azúcar', 'simple', 'granel', 3, 3, 10, 0, 25, 0);
 
 -- Frutas frescas (peso) - unidad_venta=3 (lb), unidad_compra=100 (caja)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('FRU001', 'Guayabas', 'simple', 'granel', 2, 3, 100, 20, 0, 15, 0),
-    ('FRU002', 'Mangos', 'simple', 'granel', 2, 3, 100, 20, 0, 15, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('FRU001', 'Guayabas', 'simple', 'granel', 2, 3, 100, 0, 15, 0),
+    ('FRU002', 'Mangos', 'simple', 'granel', 2, 3, 100, 0, 15, 0);
 
 -- Empaques (unidad) - unidad_venta=1 (ud), unidad_compra=112 (caja)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('EMP001', 'Bolsa Plástica', 'simple', 'granel', 4, 1, 101, 20, 0, 50, 0),
-    ('EMP002', 'Vaso 12oz', 'simple', 'granel', 4, 1, 102, 20, 0, 100, 0),
-    ('EMP003', 'Cesta Pequeña', 'simple', 'granel', 4, 1, 1, 20, 0, 10, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('EMP001', 'Bolsa Plástica', 'simple', 'granel', 4, 1, 101, 0, 50, 0),
+    ('EMP002', 'Vaso 12oz', 'simple', 'granel', 4, 1, 102, 0, 100, 0),
+    ('EMP003', 'Cesta Pequeña', 'simple', 'granel', 4, 1, 1, 0, 10, 0);
 
 -- Nylon (longitud) - unidad_venta=4 (m), unidad_compra=113 (rollo)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('EMP004', 'Nylon de Retractilar', 'simple', 'granel', 4, 4, 103, 100, 0, 50, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('EMP004', 'Nylon de Retractilar', 'simple', 'granel', 4, 4, 103, 0, 50, 0);
 
 -- Etiqueta (unidad) - unidad_venta=1 (ud), unidad_compra=113 (rollo)
-INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, precio_venta, stock_minimo, stock_actual) VALUES 
-    ('EMP005', 'Etiqueta de Precio', 'simple', 'granel', 4, 1, 104, 100, 0, 200, 0);
+INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, unidad_compra_id, precio_venta, stock_minimo, stock_actual) VALUES 
+    ('EMP005', 'Etiqueta de Precio', 'simple', 'granel', 4, 1, 104, 0, 200, 0);

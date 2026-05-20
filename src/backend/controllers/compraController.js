@@ -127,54 +127,130 @@ const compraController = {
     }
   },
 
-  // POST /api/compras/:id/inventariar
+  // PUT /api/compras/:id
+  actualizar: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+      const { fecha_compra, codigo_factura, proveedor_id, detalles, pagado } = req.body;
+
+      // Verificar que no tenga dependencias de stock
+      const compra = await db.get('SELECT estado_inventario FROM compras WHERE id = ?', [id]);
+      if (!compra) return res.status(404).json({ error: 'Compra no encontrada' });
+      if (compra.estado_inventario === 'completado') {
+        return res.status(400).json({ error: 'No se puede editar: ya fue llevada a stock' });
+      }
+
+      await db.run('BEGIN TRANSACTION');
+      try {
+        // Recalcular total
+        const total = detalles.reduce((sum, d) => sum + (d.cantidad * d.precio_unitario), 0);
+
+        // Actualizar compra
+        await db.run(`
+        UPDATE compras SET fecha_compra = ?, codigo_factura = ?, proveedor_id = ?, total = ?, pagado = ?
+        WHERE id = ?
+      `, [fecha_compra, codigo_factura, proveedor_id, total, pagado || 0, id]);
+
+        // Eliminar detalles antiguos
+        await db.run('DELETE FROM compra_detalles WHERE compra_id = ?', [id]);
+
+        // Insertar nuevos detalles
+        for (const d of detalles) {
+          await db.run(`
+          INSERT INTO compra_detalles (compra_id, producto_id, cantidad, precio_unitario, total)
+          VALUES (?, ?, ?, ?, ?)
+        `, [id, d.producto_id, d.cantidad, d.precio_unitario, d.cantidad * d.precio_unitario]);
+        }
+
+        await db.run('COMMIT');
+        res.json({ message: 'Compra actualizada' });
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // DELETE /api/compras/:id
+  eliminar: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+
+      const compra = await db.get('SELECT estado_inventario FROM compras WHERE id = ?', [id]);
+      if (!compra) return res.status(404).json({ error: 'Compra no encontrada' });
+      if (compra.estado_inventario === 'completado') {
+        return res.status(400).json({ error: 'No se puede eliminar: ya fue llevada a stock' });
+      }
+
+      await db.run('DELETE FROM compra_detalles WHERE compra_id = ?', [id]);
+      await db.run('DELETE FROM compras WHERE id = ?', [id]);
+
+      res.json({ message: 'Compra eliminada' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   inventariar: async (req, res, next) => {
     try {
       const db = await getDb();
       const { id } = req.params;
 
-      // Obtener detalles de la compra
       const detalles = await db.all(`
-        SELECT producto_id, cantidad 
-        FROM compra_detalles 
-        WHERE compra_id = ?
-      `, [id]);
+      SELECT producto_id, cantidad, precio_unitario
+      FROM compra_detalles 
+      WHERE compra_id = ?
+    `, [id]);
 
       await db.run('BEGIN TRANSACTION');
 
       try {
-        // Actualizar stock de cada producto
         for (const d of detalles) {
-          // Obtener factor de conversión del producto
-          const producto = await db.get(
-            'SELECT factor_conversion FROM productos WHERE id = ?',
-            [d.producto_id]
-          );
+          // ✅ Obtener unidades y coeficientes
+          const producto = await db.get(`
+          SELECT p.unidad_compra_id, p.unidad_venta_id,
+                 uc.coeficiente as coef_compra, uv.coeficiente as coef_venta
+          FROM productos p
+          LEFT JOIN unidades uc ON p.unidad_compra_id = uc.id
+          LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+          WHERE p.id = ?
+        `, [d.producto_id]);
 
-          const cantidadConvertida = d.cantidad * (producto?.factor_conversion || 1);
+          let cantidadConvertida = d.cantidad;
 
-          // Actualizar stock
+          if (producto.unidad_compra_id && producto.unidad_venta_id &&
+            producto.unidad_compra_id !== producto.unidad_venta_id &&
+            producto.coef_compra && producto.coef_venta) {
+            const factor = producto.coef_compra / producto.coef_venta;
+            cantidadConvertida = d.cantidad * factor;
+          }
+
           await db.run(
             'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
             [cantidadConvertida, d.producto_id]
           );
 
-          // Registrar movimiento
           await db.run(`
-            INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
-            VALUES (?, 'compra', ?, ?, 1)
-          `, [d.producto_id, cantidadConvertida, id]);
+          INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
+          VALUES (?, 'compra', ?, ?, 1)
+        `, [d.producto_id, cantidadConvertida, id]);
 
-          //actualizar el costo del producto
-          await db.run(`INSERT INTO producto_costos (producto_id, costo_base) VALUES (?, ?) ON CONFLICT(producto_id) DO UPDATE SET costo_base = excluded.costo_base`, [d.producto_id, d.precio_unitario]);
+          // Actualizar costo del producto
+          const precioUnitarioVenta = producto.unidad_compra_id !== producto.unidad_venta_id && producto.coef_compra && producto.coef_venta
+            ? d.precio_unitario / (producto.coef_compra / producto.coef_venta)
+            : d.precio_unitario;
+
+          await db.run(`
+          INSERT INTO producto_costos (producto_id, costo_base) VALUES (?, ?) 
+          ON CONFLICT(producto_id) DO UPDATE SET costo_base = excluded.costo_base
+        `, [d.producto_id, precioUnitarioVenta]);
         }
 
-        // Actualizar estado de la compra
-        await db.run(
-          'UPDATE compras SET estado_inventario = ? WHERE id = ?',
-          ['completado', id]
-        );
-
+        await db.run('UPDATE compras SET estado_inventario = ? WHERE id = ?', ['completado', id]);
         await db.run('COMMIT');
 
         res.json({ message: 'Compra llevada a stock exitosamente' });

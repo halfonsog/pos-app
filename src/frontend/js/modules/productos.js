@@ -180,11 +180,18 @@ Productos.initDataTable = function (productos) {
     data: tableData,
     columns: [
       { data: 0, orderable: false, className: 'text-center', render: d => `<img src="${d}" class="table-thumb" style="width:40px;height:40px;object-fit:cover;border-radius:6px">` },
-      { data: 1, title: 'Código' }, { data: 2, title: 'Nombre' }, { data: 3, title: 'Categoría' }, { data: 4, title: 'Tipo' },
-      { data: 5, title: 'Precio', className: 'text-end' }, { data: 6, title: 'Stock', className: 'text-end' },
+      { data: 1, title: 'Código' },
+      { data: 2, title: 'Nombre' },
+      { data: 3, title: 'Categoría' },
+      { data: 4, title: 'Tipo' },
+      { data: 5, title: 'Precio', className: 'text-end' },
+      { data: 6, title: 'Stock', className: 'text-end' },
       { data: 7, title: 'Estado', className: 'text-center' },
       {
-        data: null, orderable: false, className: 'text-center', render: function (d, t, row) {
+        data: null,
+        orderable: false,
+        className: 'text-center',
+        render: function (d, t, row) {
           const id = row[8], tipo = row[11], esCompuesto = tipo === 'compuesto', tieneDependencias = row[13] === 'true';
           return `<div class="dropdown"><button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
           <ul class="dropdown-menu dropdown-menu-end">
@@ -199,14 +206,24 @@ Productos.initDataTable = function (productos) {
           </ul></div>`;
         }
       },
-      { data: 8, title: 'ID', visible: false }, { data: 9, title: 'StockBajo', visible: false, searchable: true },
-      { data: 10, title: 'SinCosto', visible: false, searchable: true }, { data: 11, title: 'TipoFiltro', visible: false, searchable: true },
-      { data: 12, title: 'Foto', visible: false }
+      { data: 8, title: 'ID', visible: false },
+      { data: 9, title: 'StockBajo', visible: false, searchable: true },
+      { data: 10, title: 'SinCosto', visible: false, searchable: true },
+      { data: 11, title: 'TipoFiltro', visible: false, searchable: true },
+      { data: 12, title: 'TieneDependencias', visible: false }
     ],
     order: [[2, 'asc']],
     language: { decimal: ",", thousands: ".", processing: "Procesando...", lengthMenu: "Mostrar _MENU_ registros", zeroRecords: "No se encontraron resultados", emptyTable: "Ningún dato disponible", info: "Mostrando _START_ a _END_ de _TOTAL_ registros", search: "Buscar:", searchPlaceholder: "Buscar...", paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" } },
     pageLength: 25, responsive: true,
-    columnDefs: [{ targets: 0, responsivePriority: 3 }, { targets: 8, responsivePriority: 1 }, { targets: [1, 2], responsivePriority: 1 }, { targets: [3, 4, 5], responsivePriority: 4 }, { targets: [6, 7], responsivePriority: 2 }],
+    columnDefs: [
+      { targets: 0, responsivePriority: 3 },
+      { targets: 8, responsivePriority: 1 },
+      { targets: [1, 2], responsivePriority: 1 },
+      { targets: [3, 4, 5], responsivePriority: 4 },
+      { targets: [6, 7], responsivePriority: 2 },
+      // ✅ Excluir columnas de filtro del responsive
+      { targets: [9, 10, 11, 12], responsivePriority: 0 }
+    ],
     drawCallback: function () { $('#productosTable tbody tr').addClass('clickable-row'); }
   });
 };
@@ -217,18 +234,144 @@ Productos.getTipoBadge = function (p) {
 };
 
 Productos.bindListadoEvents = function (params) {
+  const self = this;
+  const filtroInicial = params.filtro || 'todos';
+
+  $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
+
+  $('[data-filtro]').on('click', function () {
+    const filtro = $(this).data('filtro');
+
+    $('[data-filtro]').removeClass('active');
+    $(this).addClass('active');
+
+    self.dataTable.search('').columns().search('');
+
+    if (filtro === 'todos') {
+      self.dataTable.draw();
+    } else if (filtro === 'simples') {
+      self.dataTable.column(11).search('simple', true, false).draw();
+    } else if (filtro === 'compuestos') {
+      self.dataTable.column(11).search('compuesto', true, false).draw();
+    } else if (filtro === 'stock-bajo') {
+      self.dataTable.column(9).search('true', true, false).draw();
+    } else if (filtro === 'sin-costo') {
+      self.dataTable.column(10).search('true', true, false).draw();
+    }
+  });
+
+  if (filtroInicial !== 'todos') {
+    $(`[data-filtro="${filtroInicial}"]`).trigger('click');
+  }
+
+  $('#productosTable tbody').on('dblclick', 'tr', function () {
+    const row = self.dataTable.row(this);
+    const id = row.data()[8];
+    ViewManager.navegar('productos/ver/' + id);
+  });
+
+  // Ver producto
+  $('#productosTable').on('click', '.ver-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/ver/' + id);
+  });
+
+  // Editar producto
+  $('#productosTable').on('click', '.editar-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/editar/' + id);
+  });
+
+  // Ficha de costo
+  $('#productosTable').on('click', '.costo-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/costo/' + id);
+  });
+
+  // Receta (solo compuestos)
+  $('#productosTable').on('click', '.receta-producto', function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+    ViewManager.navegar('productos/receta/' + id);
+  });
+
+  // Eliminar
+  $('#app').on('click', '[data-eliminar]', async function (e) {
+    // Solo si estamos en el módulo de productos
+    if (ViewManager.currentView?.startsWith('productos')) {
+      console.log('🔥🔥🔥 CLICK EN ELIMINAR (delegado) 🔥🔥🔥');
+      e.preventDefault();
+      e.stopPropagation();
+
+      const id = $(this).data('eliminar');
+      console.log('🗑️ ID a eliminar:', id);
+
+      const confirmado = await Utils.confirm('¿Está seguro de eliminar este producto?', 'Confirmar eliminación');
+      console.log('❓ Confirmado:', confirmado);
+
+      if (!confirmado) return;
+
+      try {
+        Utils.showLoading('Eliminando producto...');
+        console.log('📤 Llamando a API.productos.eliminar...');
+
+        const result = await API.productos.eliminar(id);
+        console.log('✅ Resultado API:', result);
+
+        State.invalidateCache('productos');
+        Utils.hideLoading();
+        Toast.success('Producto eliminado');
+        ViewManager.refresh();
+      } catch (error) {
+        Utils.hideLoading();
+        console.error('❌ Error en eliminación:', error);
+        console.log(error);
+      }
+    }
+  });
+
+  $('#toggleSidebar').on('click', () => $('#sidebar').toggleClass('show'));
+  $('#sidebar .nav-link').on('click', function (e) {
+    const href = $(this).attr('href');
+    if (href && href !== '#') {
+      e.preventDefault();
+      ViewManager.navegar(href.substring(1), {}, { replace: true });
+    }
+    if ($(window).width() < 768) $('#sidebar').removeClass('show');
+  });
+  $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
+};
+
+/*
+Productos.bindListadoEvents = function (params) {
   const self = this, filtroInicial = params.filtro || 'todos';
   $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
+
+
   $('[data-filtro]').on('click', function () {
     const f = $(this).data('filtro');
-    $('[data-filtro]').removeClass('active'); $(this).addClass('active');
+
+    console.log('🔥 Filtro clickeado:', f);  // ← Añade esto
+    console.log('🔥 Elemento:', this);        // ← Y esto
+    return;
+    $('[data-filtro]').removeClass('active');
+    $(this).addClass('active');
     self.dataTable.search('').columns().search('');
     if (f === 'todos') self.dataTable.draw();
-    else if (f === 'simples') self.dataTable.column(11).search('simple', true, false).draw();
+    else if (f === 'simples') {
+      console.log('Filtrando por simples!');
+      //console.log('Columnas: ', self.dataTable.columns());
+      self.dataTable.column(11).search('simple', true, false).draw();
+    }
     else if (f === 'compuestos') self.dataTable.column(11).search('compuesto', true, false).draw();
     else if (f === 'stock-bajo') self.dataTable.column(9).search('true', true, false).draw();
     else if (f === 'sin-costo') self.dataTable.column(10).search('true', true, false).draw();
   });
+
+
   if (filtroInicial !== 'todos') $(`[data-filtro="${filtroInicial}"]`).trigger('click');
 
   $('#productosTable').on('click', '.ver-producto', function (e) { e.preventDefault(); ViewManager.navegar('productos/ver/' + $(this).data('id')); });
@@ -241,14 +384,24 @@ Productos.bindListadoEvents = function (params) {
   $(document).on('click', '[data-eliminar]', async function (e) {
     const cv = ViewManager.currentView || '';
     if (!cv.startsWith('productos')) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     const id = $(this).data('eliminar');
     if (!await Utils.confirm('¿Eliminar este producto?', 'Confirmar')) return;
-    try { Utils.showLoading('Eliminando...'); await API.productos.eliminar(id); State.invalidateCache('productos'); Utils.hideLoading(); Toast.success('Producto eliminado'); ViewManager.refresh(); }
-    catch (error) { Utils.hideLoading(); console.error(error); }
+    try {
+      Utils.showLoading('Eliminando...');
+      await API.productos.eliminar(id);
+      State.invalidateCache('productos'); Utils.hideLoading(); Toast.success('Producto eliminado');
+      ViewManager.refresh();
+    }
+    catch (error) {
+      Utils.hideLoading();
+      console.error(error);
+    }
   });
   Productos._bindCommon();
 };
+*/
 
 // ============================================
 // FORMULARIO (NUEVO/EDITAR)
@@ -291,7 +444,7 @@ Productos.formulario = async function (params) {
   try {
     Utils.showLoading('Cargando...');
     const [catHtml, uniVentaHtml, uniCompraHtml] = await Promise.all([
-      Productos._cargarCategorias(), Productos._cargarUnidadesVenta(), Productos._cargarUnidadesCompra()
+      Productos._cargarCategorias(), Productos._cargarUnidadesVenta(isEdit), Productos._cargarUnidadesCompra()
     ]);
     let producto = null;
     if (isEdit) {
@@ -327,9 +480,14 @@ Productos.formulario = async function (params) {
       Productos._aplicarRestriccionesDependencias();
     }
 
-    Productos._initTabs(); Productos.configurarVisibilidadCampos(); Productos.bindFormularioEvents(id, params);
+    Productos._initTabs();
+    Productos.configurarVisibilidadCampos();
+    Productos.bindFormularioEvents(id, params);
     Utils.hideLoading();
-  } catch (error) { Utils.hideLoading(); console.error(error); }
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+  }
 };
 
 Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
@@ -359,14 +517,17 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                   <div class="col-md-6">
                     <label class="form-label">Tipo</label>
                     <select class="form-select" id="tipo" ${tipoDisabled ? 'disabled' : ''}>
-                      <option value="simple" ${tipoForzado === 'simple' ? 'selected' : ''}>Simple</option>
-                      <option value="compuesto" ${tipoForzado === 'compuesto' ? 'selected' : ''} ${origen === 'compra' ? 'disabled' : ''}>Compuesto</option>
+                      <option value="simple" ${(producto ? producto.tipo : tipoForzado) === 'simple' ? 'selected' : ''}>Simple</option>
+                      <option value="compuesto" ${(producto ? producto.tipo : tipoForzado) === 'compuesto' ? 'selected' : ''} ${origen === 'compra' ? 'disabled' : ''}>Compuesto</option>
                     </select>
                     ${origen === 'compra' ? '<small class="text-muted">Desde compras solo productos simples</small>' : ''}
                   </div>
                   <div class="col-md-6" id="rowSubTipo" style="display:none">
                     <label class="form-label">Sub-tipo</label>
-                    <select class="form-select" id="subTipo"><option value="reventa">Reventa</option><option value="granel">A Granel</option></select>
+                    <select class="form-select" id="subTipo">
+                      <option value="reventa" ${producto && producto.sub_tipo === 'reventa' ? 'selected' : ''}>Reventa</option>
+                      <option value="granel" ${producto && producto.sub_tipo === 'granel' ? 'selected' : ''}>A Granel</option>
+                    </select>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Categoría</label>
@@ -410,26 +571,67 @@ Productos._cargarCategorias = async function () {
   catch (e) { return ''; }
 };
 
-Productos._cargarUnidadesVenta = async function () {
-  try { let units = State.getCache('unidades'); if (!units) { units = await API.get('/configuracion/unidades'); State.setCache('unidades', units); } return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join(''); }
+Productos._cargarUnidadesVenta = async function (isEdit) {
+  try {
+    let units = State.getCache('unidades');
+    if (!units) {
+      units = await API.get('/configuracion/unidades');
+      State.setCache('unidades', units);
+    }
+
+    if (isEdit) {
+      return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
+    }
+    else {
+      // ✅ Reventa: solo unidades tipo "unidad"
+      return units.filter(u => u.tipo === 'unidad' && u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
+    }
+  }
   catch (e) { return ''; }
 };
 
 Productos._cargarUnidadesCompra = async function () {
-  try { let units = State.getCache('unidades'); if (!units) { units = await API.get('/configuracion/unidades'); State.setCache('unidades', units); } return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join(''); }
+  try {
+    let units = State.getCache('unidades');
+    if (!units) {
+      units = await API.get('/configuracion/unidades');
+      State.setCache('unidades', units);
+    }
+    return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
+  }
   catch (e) { return ''; }
 };
 
 Productos._initTabs = function () {
   document.querySelectorAll('#productoTabs button').forEach(btn => {
-    btn.addEventListener('click', function (e) { e.preventDefault(); new bootstrap.Tab(this).show(); });
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      new bootstrap.Tab(this).show();
+    });
   });
 };
 
 Productos.configurarVisibilidadCampos = function () {
-  const tipo = $('#tipo').val(), sub = $('#subTipo').val();
-  if (tipo === 'simple') { $('#rowSubTipo').show(); $('#receta-tab').hide(); if (sub === 'reventa') { $('#rowUnidadCompra').hide(); } else { $('#rowUnidadCompra').show(); } }
-  else { $('#rowSubTipo').hide(); $('#receta-tab').show(); $('#rowUnidadCompra').hide(); }
+  const tipo = $('#tipo').val();
+  const subTipo = $('#subTipo').val();
+
+  if (tipo === 'simple') {
+    $('#rowSubTipo').show();
+    $('#receta-tab').hide();
+
+    if (subTipo === 'reventa') {
+      $('#rowUnidadCompra').hide();
+      // Disparar cambio para filtrar unidades
+      $('#subTipo').trigger('change');
+    } else if (subTipo === 'granel') {
+      $('#rowUnidadCompra').show();
+      $('#subTipo').trigger('change');
+    }
+  } else {
+    $('#rowSubTipo').hide();
+    $('#receta-tab').show();
+    $('#rowUnidadCompra').hide();
+  }
 };
 
 Productos.llenarFormulario = function (p) {
@@ -476,18 +678,88 @@ Productos.bindFormularioEvents = function (id, params) {
   const retorno = params?.retorno || null, retornoParams = params?.retornoParams || {};
 
   $('#tipo').on('change', () => self.configurarVisibilidadCampos());
-  $('#subTipo').on('change', () => self.configurarVisibilidadCampos());
+  // Al cambiar sub-tipo, filtrar unidades
+  $('#subTipo').on('change', function () {
+    const subTipo = $(this).val();
+    const todasUnidades = State.getCache('unidades') || [];
+
+    if (subTipo === 'reventa') {
+      // ✅ Reventa: solo unidades tipo "unidad"
+      const unidadesTipo = todasUnidades.filter(u => u.tipo === 'unidad' && u.activo);
+
+      // Actualizar unidad de venta
+      const $venta = $('#unidadVentaId');
+      $venta.empty().append('<option value="">Seleccione...</option>');
+      unidadesTipo.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
+
+      // Seleccionar "Unidad" por defecto
+      const unidadDefault = unidadesTipo.find(u => u.abreviatura === 'ud');
+      if (unidadDefault) $venta.val(unidadDefault.id);
+
+      // Ocultar unidad de compra
+      $('#rowUnidadCompra').hide();
+
+    } else if (subTipo === 'granel') {
+      // ✅ Granel: mostrar unidad de compra con todas las unidades
+      $('#rowUnidadCompra').show();
+
+      // Cargar todas las unidades en unidad de compra
+      const $compra = $('#unidadCompraId');
+      $compra.empty().append('<option value="">Seleccione...</option>');
+      todasUnidades.filter(u => u.activo).forEach(u =>
+        $compra.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`)
+      );
+
+      // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo
+      $('#unidadCompraId').off('change').on('change', function () {
+        const compraId = $(this).val();
+        if (!compraId) {
+          $('#unidadVentaId').empty().append('<option value="">Seleccione...</option>');
+          return;
+        }
+
+        const unidadCompra = todasUnidades.find(u => u.id == compraId);
+        if (!unidadCompra) return;
+
+        const filtradas = todasUnidades.filter(u => u.tipo === unidadCompra.tipo && u.activo);
+
+        const $venta = $('#unidadVentaId');
+        $venta.empty().append('<option value="">Seleccione...</option>');
+        filtradas.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
+
+        if (filtradas.length > 0) $venta.val(filtradas[0].id);
+      });
+    }
+  });
 
   $('#fotoProducto').on('change', function (e) {
-    const f = e.target.files[0]; if (!f) return;
-    if (f.size > 2 * 1024 * 1024) { Toast.warning('Máx 2MB'); return; }
-    const r = new FileReader(); r.onload = e => { $('#previewFoto').attr('src', e.target.result).show(); $('#placeholderFoto').hide(); $('#btnEliminarFoto').show(); $('#previewFotoContainer').find('.default-placeholder').remove(); };
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) {
+      Toast.warning('Máx 2MB'); return;
+    }
+    const r = new FileReader();
+    r.onload = e => {
+      $('#previewFoto').attr('src', e.target.result).show();
+      $('#placeholderFoto').hide(); $('#btnEliminarFoto').show();
+      $('#previewFotoContainer').find('.default-placeholder').remove();
+    };
     r.readAsDataURL(f);
   });
 
-  $('#btnEliminarFoto').on('click', () => { $('#fotoProducto').val(''); $('#previewFoto').hide(); $('#btnEliminarFoto').hide(); Productos._eliminarFoto = true; $('#placeholderFoto').hide(); $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder($('#nombre').val() || 'P', $('#productoId').val() || 1, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`); });
+  $('#btnEliminarFoto').on('click', () => {
+    $('#fotoProducto').val('');
+    $('#previewFoto').hide();
+    $('#btnEliminarFoto').hide();
+    Productos._eliminarFoto = true;
+    $('#placeholderFoto').hide();
+    $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder($('#nombre').val() || 'P', $('#productoId').val() || 1, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`);
+  });
 
-  $('#btnNuevaCategoria').on('click', () => { sessionStorage.setItem('productoFormTemp', JSON.stringify(Productos.recopilarDatosFormulario())); ViewManager.navegar('categorias/nuevo', { retorno: id ? `productos/editar/${id}` : 'productos/nuevo', origen, retornoParams }); });
+  $('#btnNuevaCategoria').on('click', () => {
+    sessionStorage.setItem('productoFormTemp', JSON.stringify(Productos.recopilarDatosFormulario()));
+    ViewManager.navegar('categorias/nuevo', { retorno: id ? `productos/editar/${id}` : 'productos/nuevo', origen, retornoParams });
+  });
 
   $('#btnCancelar, #btnVolver').on('click', () => ViewManager.volver());
   $('.breadcrumb-back').on('click', e => { e.preventDefault(); ViewManager.volver(); });
@@ -497,18 +769,34 @@ Productos.bindFormularioEvents = function (id, params) {
     if (!Productos.validarFormulario()) return;
     const data = Productos.recopilarDatosFormulario();
     const fd = new FormData();
-    Object.keys(data).forEach(k => { if (data[k] !== null && data[k] !== undefined) fd.append(k, typeof data[k] === 'boolean' ? data[k].toString() : data[k]); });
-    const foto = $('#fotoProducto')[0].files[0]; if (foto) fd.append('foto', foto);
+    Object.keys(data).forEach(k => {
+      if (data[k] !== null && data[k] !== undefined)
+        fd.append(k, typeof data[k] === 'boolean' ? data[k].toString() : data[k]);
+    });
+    const foto = $('#fotoProducto')[0].files[0];
+    if (foto) fd.append('foto', foto);
     if (Productos._eliminarFoto) fd.append('eliminar_foto', 'true');
     try {
       Utils.showLoading('Guardando...');
-      let result; if (id) result = await API.productos.actualizar(id, fd); else result = await API.productos.crear(fd);
-      State.invalidateCache('productos'); Productos._eliminarFoto = false; Productos._origenActual = null;
-      Utils.hideLoading(); Toast.success('Producto guardado');
+      let result;
+      if (id)
+        result = await API.productos.actualizar(id, fd);
+      else
+        result = await API.productos.crear(fd);
+      State.invalidateCache('productos');
+      Productos._eliminarFoto = false;
+      Productos._origenActual = null;
+      Utils.hideLoading();
+      Toast.success('Producto guardado');
       const nId = id || result.id;
-      if (retorno) ViewManager.navegar(retorno, { producto_id: nId, ...retornoParams });
-      else ViewManager.volver();
-    } catch (error) { Utils.hideLoading(); console.error(error); }
+      if (retorno)
+        ViewManager.navegar(retorno, { producto_id: nId, ...retornoParams });
+      else
+        ViewManager.volver();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error(error);
+    }
   });
 
   // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo
@@ -538,7 +826,16 @@ Productos.bindFormularioEvents = function (id, params) {
 
 
   const temp = sessionStorage.getItem('productoFormTemp');
-  if (temp) { const d = JSON.parse(temp); Object.keys(d).forEach(k => $(`#${k}`).val(d[k])); sessionStorage.removeItem('productoFormTemp'); const nCat = sessionStorage.getItem('nuevaCategoriaId'); if (nCat) { $('#categoriaId').val(nCat); sessionStorage.removeItem('nuevaCategoriaId'); } }
+  if (temp) {
+    const d = JSON.parse(temp);
+    Object.keys(d).forEach(k => $(`#${k}`).val(d[k]));
+    sessionStorage.removeItem('productoFormTemp');
+    const nCat = sessionStorage.getItem('nuevaCategoriaId');
+    if (nCat) {
+      $('#categoriaId').val(nCat);
+      sessionStorage.removeItem('nuevaCategoriaId');
+    }
+  }
 
   Productos._bindCommon();
 };
@@ -548,7 +845,10 @@ Productos.validarFormulario = function () {
   if (!$('#nombre').val().trim()) { Toast.warning('Nombre requerido'); return false; }
   if (!$('#unidadVentaId').val()) { Toast.warning('Unidad de venta requerida'); return false; }
   const tipo = $('#tipo').val(), sub = $('#subTipo').val();
-  if (tipo === 'simple' && sub === 'granel' && !$('#unidadCompraId').val()) { Toast.warning('Unidad de compra requerida'); return false; }
+  if (tipo === 'simple' && sub === 'granel' && !$('#unidadCompraId').val()) {
+    Toast.warning('Unidad de compra requerida');
+    return false;
+  }
   return true;
 };
 
@@ -577,6 +877,7 @@ Productos.ficha = async function (params) {
     Utils.showLoading('Cargando producto...');
 
     const producto = await API.productos.obtener(id);
+    console.log('Producto', producto);
     const layout = Productos.renderFichaLayout(producto);
 
     $('#app').html(layout);
@@ -727,7 +1028,7 @@ Productos.renderFichaLayout = function (producto) {
                         <p>${producto.unidad_compra_nombre || '-'}</p>
                       </div>
                       <div class="col-md-6">
-                        <label class="text-muted small">Factor de Conversión</label>
+                        <label class="text-muted small">Conversión</label>
                         <p>1 ${producto.unidad_compra_abrev || ''} = ${producto.factor_conversion} ${producto.unidad_venta_abrev || ''}</p>
                       </div>
                     ` : ''}
@@ -1092,6 +1393,7 @@ Productos.bindCostoEvents = function (producto) {
     $('#costoBaseDisplay').text(Utils.formatMoney(costoBase));
     $('#precioBaseDisplay').text(Utils.formatMoney(precioBase));
     $('#gastosDisplay').text(Utils.formatMoney(gastosFijosMonto));
+    $('#gastosPctDisplay').text(Utils.formatNumber(gastosFijosRate * 100));
     $('#precioNetoDisplay').text(Utils.formatMoney(precioNeto));
     $('#margenValor').text(Utils.formatNumber(margenRate * 100));
     $('#margenDisplay').text(Utils.formatMoney(margenMonto));
@@ -1139,18 +1441,6 @@ Productos.bindCostoEvents = function (producto) {
       console.error(error);
     }
   });
-
-  /*
-  // Inicializar
-  if (producto.precio_venta > 0) {
-    actualizarDesglose(producto.precio_venta);
-    const diffPct = (producto.precio_venta * (1 - impuestoPct / 100) - costoBase / (1 - gastosFijosPct / 100)) / (producto.precio_venta * (1 - impuestoPct / 100));
-    const margenInicial = diffPct <= margenMaximo / 100 ? diffPct * 100 : margenMaximo;
-    $('#margen').val(margenInicial.toFixed(2));
-  } else {
-    $('#margen').val(margenMaximo);
-  }
-*/
 
   Productos._bindCommon();
 };
@@ -1590,116 +1880,6 @@ Productos._bindCommon = function () {
   $('#btnLogout').on('click', e => { e.preventDefault(); App.logout(); });
 };
 
-Productos.bindListadoEvents = function (params) {
-  const self = this;
-  const filtroInicial = params.filtro || 'todos';
 
-  $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
-
-  $('[data-filtro]').on('click', function () {
-    const filtro = $(this).data('filtro');
-
-    $('[data-filtro]').removeClass('active');
-    $(this).addClass('active');
-
-    self.dataTable.search('').columns().search('');
-
-    if (filtro === 'todos') {
-      self.dataTable.draw();
-    } else if (filtro === 'simples') {
-      self.dataTable.column(11).search('simple', true, false).draw();
-    } else if (filtro === 'compuestos') {
-      self.dataTable.column(11).search('compuesto', true, false).draw();
-    } else if (filtro === 'stock-bajo') {
-      self.dataTable.column(9).search('true', true, false).draw();
-    } else if (filtro === 'sin-costo') {
-      self.dataTable.column(10).search('true', true, false).draw();
-    }
-  });
-
-  if (filtroInicial !== 'todos') {
-    $(`[data-filtro="${filtroInicial}"]`).trigger('click');
-  }
-
-  $('#productosTable tbody').on('dblclick', 'tr', function () {
-    const row = self.dataTable.row(this);
-    const id = row.data()[8];
-    ViewManager.navegar('productos/ver/' + id);
-  });
-
-  // Ver producto
-  $('#productosTable').on('click', '.ver-producto', function (e) {
-    e.preventDefault();
-    const id = $(this).data('id');
-    ViewManager.navegar('productos/ver/' + id);
-  });
-
-  // Editar producto
-  $('#productosTable').on('click', '.editar-producto', function (e) {
-    e.preventDefault();
-    const id = $(this).data('id');
-    ViewManager.navegar('productos/editar/' + id);
-  });
-
-  // Ficha de costo
-  $('#productosTable').on('click', '.costo-producto', function (e) {
-    e.preventDefault();
-    const id = $(this).data('id');
-    ViewManager.navegar('productos/costo/' + id);
-  });
-
-  // Receta (solo compuestos)
-  $('#productosTable').on('click', '.receta-producto', function (e) {
-    e.preventDefault();
-    const id = $(this).data('id');
-    ViewManager.navegar('productos/receta/' + id);
-  });
-
-  // Eliminar
-  $('#app').on('click', '[data-eliminar]', async function (e) {
-    // Solo si estamos en el módulo de productos
-    if (ViewManager.currentView?.startsWith('productos')) {
-      console.log('🔥🔥🔥 CLICK EN ELIMINAR (delegado) 🔥🔥🔥');
-      e.preventDefault();
-      e.stopPropagation();
-
-      const id = $(this).data('eliminar');
-      console.log('🗑️ ID a eliminar:', id);
-
-      const confirmado = await Utils.confirm('¿Está seguro de eliminar este producto?', 'Confirmar eliminación');
-      console.log('❓ Confirmado:', confirmado);
-
-      if (!confirmado) return;
-
-      try {
-        Utils.showLoading('Eliminando producto...');
-        console.log('📤 Llamando a API.productos.eliminar...');
-
-        const result = await API.productos.eliminar(id);
-        console.log('✅ Resultado API:', result);
-
-        State.invalidateCache('productos');
-        Utils.hideLoading();
-        Toast.success('Producto eliminado');
-        ViewManager.refresh();
-      } catch (error) {
-        Utils.hideLoading();
-        console.error('❌ Error en eliminación:', error);
-        console.log(error);
-      }
-    }
-  });
-
-  $('#toggleSidebar').on('click', () => $('#sidebar').toggleClass('show'));
-  $('#sidebar .nav-link').on('click', function (e) {
-    const href = $(this).attr('href');
-    if (href && href !== '#') {
-      e.preventDefault();
-      ViewManager.navegar(href.substring(1), {}, { replace: true });
-    }
-    if ($(window).width() < 768) $('#sidebar').removeClass('show');
-  });
-  $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
-};
 
 window.Productos = Productos;

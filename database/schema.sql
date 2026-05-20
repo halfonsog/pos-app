@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS productos (
     categoria_id INTEGER,
     unidad_venta_id INTEGER NOT NULL,
     unidad_compra_id INTEGER,
-    factor_conversion REAL DEFAULT 1,
     precio_venta REAL NOT NULL DEFAULT 0,
     stock_minimo REAL DEFAULT 0,
     stock_actual REAL DEFAULT 0,

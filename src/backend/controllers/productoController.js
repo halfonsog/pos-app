@@ -26,6 +26,30 @@ const productoController = {
         ORDER BY p.nombre
       `);
 
+      // Calcular stock efectivo para cada producto
+      for (const p of productos) {
+        if (p.tipo === 'compuesto' && !p.requiere_preparacion) {
+          const receta = await db.all(`
+            SELECT pr.stock_actual, r.cantidad
+            FROM recetas r
+            JOIN productos pr ON r.producto_hijo_id = pr.id
+            WHERE r.producto_padre_id = ?
+          `, [p.id]);
+
+          if (receta.length > 0) {
+            const stocks = receta.map(c => Math.floor(c.stock_actual / c.cantidad));
+            p.stock_efectivo = Math.min(...stocks);
+            p.puede_venderse = p.stock_efectivo > 0 && p.precio_venta > 0;
+          } else {
+            p.stock_efectivo = 0;
+            p.puede_venderse = false;
+          }
+        } else {
+          p.stock_efectivo = p.stock_actual;
+          p.puede_venderse = p.stock_actual > 0 && p.precio_venta > 0;
+        }
+      }
+
       res.json(productos);
     } catch (error) {
       next(error);
@@ -66,44 +90,42 @@ const productoController = {
       // Obtener receta si es compuesto
       if (producto.tipo === 'compuesto') {
         producto.receta = await db.all(`
-          SELECT 
-            r.*,
-            p.nombre as producto_nombre,
-            p.codigo as producto_codigo,
-            p.precio_venta,
-            p.tipo,
-            u.nombre as unidad_nombre,
-            u.abreviatura as unidad_abrev,
-            u.tipo as unidad_tipo,
-            pc.costo_base as costo_ficha
-          FROM recetas r
-          JOIN productos p ON r.producto_hijo_id = p.id
-          JOIN unidades u ON p.unidad_venta_id = u.id
-          LEFT JOIN producto_costos pc ON p.id = pc.producto_id
-          WHERE r.producto_padre_id = ?
-        `, [id]);
+        SELECT 
+          r.*,
+          p.nombre as producto_nombre,
+          p.codigo as producto_codigo,
+          p.precio_venta,
+          p.tipo,
+          p.unidad_compra_id,
+          p.unidad_venta_id,
+          u.nombre as unidad_nombre,
+          u.abreviatura as unidad_abrev,
+          u.tipo as unidad_tipo,
+          pc.costo_base as costo_ficha
+        FROM recetas r
+        JOIN productos p ON r.producto_hijo_id = p.id
+        JOIN unidades u ON p.unidad_venta_id = u.id
+        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
+        WHERE r.producto_padre_id = ?
+      `, [id]);
 
         // Para cada componente, obtener costo de última compra si no tiene ficha
         for (const c of producto.receta) {
           if (!c.costo_ficha || c.costo_ficha === 0) {
             const ultimaCompra = await db.get(`
-              SELECT cd.precio_unitario
-              FROM compra_detalles cd
-              JOIN compras co ON cd.compra_id = co.id
-              WHERE cd.producto_id = ? AND co.estado_inventario = 'completado'
-              ORDER BY co.fecha_compra DESC LIMIT 1
-            `, [c.producto_hijo_id]);
+            SELECT cd.precio_unitario
+            FROM compra_detalles cd
+            JOIN compras co ON cd.compra_id = co.id
+            WHERE cd.producto_id = ? AND co.estado_inventario = 'completado'
+            ORDER BY co.fecha_compra DESC LIMIT 1
+          `, [c.producto_hijo_id]);
 
             if (ultimaCompra?.precio_unitario) {
-              // ✅ Obtener factor de conversión del componente
-              const componente = await db.get(
-                'SELECT factor_conversion, unidad_compra_id, unidad_venta_id FROM productos WHERE id = ?',
-                [c.producto_hijo_id]
-              );
-
-              if (componente && componente.unidad_compra_id && componente.unidad_venta_id &&
-                componente.unidad_compra_id !== componente.unidad_venta_id) {
-                const factor = componente.factor_conversion || 1;
+              // ✅ Usar coeficiente de unidades 
+              if (c.unidad_compra_id && c.unidad_venta_id && c.unidad_compra_id !== c.unidad_venta_id) {
+                const uCompra = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [c.unidad_compra_id]);
+                const uVenta = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [c.unidad_venta_id]);
+                const factor = (uCompra && uVenta) ? uCompra.coeficiente / uVenta.coeficiente : 1;
                 c.costo_unitario = ultimaCompra.precio_unitario / factor;
               } else {
                 c.costo_unitario = ultimaCompra.precio_unitario;
@@ -130,17 +152,20 @@ const productoController = {
       // Costo base para simples (última compra)
       if (producto.tipo === 'simple') {
         const ultimaCompra = await db.get(`
-          SELECT cd.precio_unitario, c.fecha_compra
-          FROM compra_detalles cd
-          JOIN compras c ON cd.compra_id = c.id
-          WHERE cd.producto_id = ? AND c.estado_inventario = 'completado'
-          ORDER BY c.fecha_compra DESC LIMIT 1
-        `, [id]);
+        SELECT cd.precio_unitario, c.fecha_compra
+        FROM compra_detalles cd
+        JOIN compras c ON cd.compra_id = c.id
+        WHERE cd.producto_id = ? AND c.estado_inventario = 'completado'
+        ORDER BY c.fecha_compra DESC LIMIT 1
+      `, [id]);
+
         if (ultimaCompra && (!producto.costo_base || producto.costo_base === 0)) {
-          // ✅ Convertir a unidad de venta si es diferente
+          // ✅ Usar coeficiente de unidades
           if (producto.unidad_compra_id && producto.unidad_venta_id &&
             producto.unidad_compra_id !== producto.unidad_venta_id) {
-            const factor = producto.factor_conversion || 1;
+            const uCompra = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [producto.unidad_compra_id]);
+            const uVenta = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [producto.unidad_venta_id]);
+            const factor = (uCompra && uVenta) ? uCompra.coeficiente / uVenta.coeficiente : 1;
             producto.costo_base = ultimaCompra.precio_unitario / factor;
           } else {
             producto.costo_base = ultimaCompra.precio_unitario;
@@ -165,6 +190,17 @@ const productoController = {
       producto.tiene_compras = compras.count > 0;
       producto.tiene_dependencias = (ventas.count > 0 || compras.count > 0 || recetaPadre.count > 0);
 
+      // Calcular factor de conversión para mostrar en ficha
+      if (producto.tipo === 'simple' && producto.sub_tipo === 'granel' &&
+        producto.unidad_compra_id && producto.unidad_venta_id &&
+        producto.unidad_compra_id !== producto.unidad_venta_id) {
+        const uCompra = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [producto.unidad_compra_id]);
+        const uVenta = await db.get('SELECT coeficiente FROM unidades WHERE id = ?', [producto.unidad_venta_id]);
+        producto.factor_conversion = (uCompra && uVenta) ? uCompra.coeficiente / uVenta.coeficiente : 1;
+      } else {
+        producto.factor_conversion = 1;
+      }
+
       res.json(producto);
     } catch (error) {
       next(error);
@@ -186,8 +222,6 @@ const productoController = {
         return res.status(400).json({ error: 'Unidad de venta requerida' });
       }
 
-      let factor = 1;
-
       // Validar según tipo
       if (data.tipo === 'simple') {
         if (data.sub_tipo === 'granel') {
@@ -199,7 +233,6 @@ const productoController = {
           if (!mismoTipo) {
             return res.status(400).json({ error: 'Unidad de compra y venta deben ser del mismo tipo' });
           }
-          factor = await conversiones.obtenerCoeficienteConversion(data.unidad_compra_id, data.unidad_venta_id);
         } else {
           // Reventa: solo unidades
           data.unidad_compra_id = null;
@@ -217,8 +250,8 @@ const productoController = {
 
       const result = await db.run(`
         INSERT INTO productos (codigo, nombre, tipo, sub_tipo, requiere_preparacion,
-          categoria_id, unidad_venta_id, unidad_compra_id, factor_conversion, stock_minimo, activo, foto)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          categoria_id, unidad_venta_id, unidad_compra_id, stock_minimo, activo, foto)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         data.codigo, data.nombre, data.tipo, data.sub_tipo || null,
         data.requiere_preparacion ? 1 : 0, data.categoria_id || null,
@@ -250,13 +283,6 @@ const productoController = {
       if (data.activo !== undefined) { updates.push('activo = ?'); params.push(data.activo === 'false' || data.activo === false ? 0 : 1); }
       if (data.requiere_preparacion !== undefined) { updates.push('requiere_preparacion = ?'); params.push(data.requiere_preparacion === 'true' || data.requiere_preparacion === true ? 1 : 0); }
       if (data.descripcion_preparacion !== undefined) { updates.push('descripcion_preparacion = ?'); params.push(data.descripcion_preparacion); }
-
-      let factor = 1;
-      if (data.unidad_compra_id && data.unidad_venta_id) {
-        factor = await conversiones.obtenerCoeficienteConversion(data.unidad_compra_id, data.unidad_venta_id);
-      }
-      updates.push('factor_conversion = ?');
-      params.push(factor);
 
       // Foto
       if (req.file) {

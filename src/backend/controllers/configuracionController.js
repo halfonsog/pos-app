@@ -229,7 +229,7 @@ const configuracionController = {
 
       // Obtener todas las unidades de la BD (incluye las base y las personalizadas)
       const unidades = await db.all(
-        'SELECT * FROM unidades WHERE activo = 1 ORDER BY tipo, coeficiente'
+        'SELECT * FROM unidades WHERE activo = 1 ORDER BY nombre, tipo, coeficiente'
       );
 
       res.json(unidades);
@@ -325,7 +325,6 @@ const configuracionController = {
       console.log('cargando terminos de pago')
       const db = await getDb();
       const terminos = await db.all('SELECT id, nombre, dias, activo FROM terminos_pago ORDER BY dias');
-      console.log('terminos: ', terminos)
       res.json(terminos);
     } catch (error) {
       next(error);

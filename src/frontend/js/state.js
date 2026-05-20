@@ -73,8 +73,7 @@ const State = {
       proveedores: null,
       productos: null,
       categorias: null,
-      unidades: null,
-      configuracion: null
+      unidades: null
     };
     localStorage.removeItem('user');
     localStorage.removeItem('token');
@@ -85,13 +84,13 @@ const State = {
     if (key) {
       delete this.cache[key];
     } else {
+      // ✅ Proteger datos que solo se cargan una vez
+      const config = this.cache.configuracion;
+      const unidades = this.cache.unidades;
       this.cache = {
-        proveedores: null,
-        productos: null,
-        categorias: null,
-        unidades: null,
-        compras: null,
-        configuracion: null
+        proveedores: null, productos: null, categorias: null, compras: null,
+        configuracion: config,
+        unidades: unidades
       };
     }
   },

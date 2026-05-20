@@ -1539,7 +1539,7 @@ Compras.renderPagarLayout = function (compra) {
 Compras.bindPagarEvents = function (compra) {
   const pendiente = compra.total - (compra.pagado || 0);
 
-  $('#btnVolver').on('click', () => ViewManager.navegar('compras/ver/' + compra.id));
+  $('#btnVolver').on('click', () => ViewManager.volver());
   $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
 
   $('#pagoForm').on('submit', async function (e) {
@@ -1600,11 +1600,12 @@ Compras.inventariar = async function (params) {
     State.invalidateCache('productos');
     Utils.hideLoading();
     Toast.success('Compra llevada a stock');
-    ViewManager.navegar('compras/ver/' + id);
+    ViewManager.volver();
+    //ViewManager.navegar('compras/ver/' + id);
   } catch (error) {
     Utils.hideLoading();
     console.log(error);
-    ViewManager.navegar('compras/ver/' + id);
+    //ViewManager.navegar('compras/ver/' + id);
   }
 };
 

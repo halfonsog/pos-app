@@ -80,6 +80,57 @@ const Utils = {
   // FUNCIONES DE FECHA Y HORA
   // ============================================
 
+  /**
+   * Convierte fecha local a ISO 8601 (para enviar al servidor)
+   * @param {Date} fecha - Fecha en hora local
+   * @returns {string} ISO 8601 en UTC
+   */
+  fechaLocalToISO: function (fecha) {
+    const f = fecha || new Date();
+    return f.toISOString();
+  },
+
+  /**
+   * Convierte fecha ISO (UTC) a fecha local de JavaScript
+   * @param {string} iso - Fecha en formato ISO 8601 o 'YYYY-MM-DD HH:MM:SS'
+   * @returns {Date} Fecha en hora local
+   */
+  fechaISOToLocal: function (iso) {
+    if (!iso) return null;
+    // Forzar interpretación como UTC
+    return new Date(iso + ' UTC');
+  },
+
+  /**
+   * Formatea una fecha local para mostrar
+   * @param {Date} fecha - Fecha en hora local
+   * @param {string} formato - 'fecha', 'hora', 'datetime', 'corto'
+   * @returns {string}
+   */
+  formatearFecha: function (fecha, formato = 'fecha') {
+    if (!fecha || isNaN(fecha.getTime())) return '-';
+
+    switch (formato) {
+      case 'fecha':
+        return fecha.toLocaleDateString('es-ES');
+      case 'hora':
+        return fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      case 'datetime':
+        return fecha.toLocaleString('es-ES');
+      case 'corto':
+        const hoy = new Date();
+        const ayer = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
+        if (fecha.toDateString() === hoy.toDateString()) {
+          return `Hoy ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        } else if (fecha.toDateString() === ayer.toDateString()) {
+          return `Ayer ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        }
+        return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      default:
+        return fecha.toLocaleString('es-ES');
+    }
+  },
+
   formatDate: function (date, format = 'short') {
     const d = new Date(date);
 
@@ -96,43 +147,6 @@ const Utils = {
     }
 
     return d.toISOString().split('T')[0];
-  },
-
-  /** 
-  * @param { string } fechaISO - Fecha en formato ISO(UTC)
-  * @param { string } formato - 'fecha', 'hora', 'datetime', 'corto'
-  * @returns { string } Fecha formateada en hora local
-  */
-  formatearFecha: function (fechaISO, formato = 'fecha') {
-    if (!fechaISO) return '-';
-
-    const fecha = new Date(fechaISO);
-
-    switch (formato) {
-      case 'fecha':
-        return fecha.toLocaleDateString('es-ES'); // 12/5/2026
-
-      case 'hora':
-        return fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); // 14:09
-
-      case 'datetime':
-        return fecha.toLocaleString('es-ES'); // 12/5/2026, 14:09:56
-
-      case 'corto':
-        const hoy = new Date();
-        const ayer = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
-
-        if (fecha.toDateString() === hoy.toDateString()) {
-          return `Hoy ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-        } else if (fecha.toDateString() === ayer.toDateString()) {
-          return `Ayer ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-        } else {
-          return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        }
-
-      default:
-        return fecha.toLocaleString('es-ES');
-    }
   },
 
   /**
@@ -175,9 +189,8 @@ const Utils = {
   rangoDia: function (fecha) {
     const f = new Date(fecha);
     const inicio = new Date(f.getFullYear(), f.getMonth(), f.getDate(), 0, 0, 0, 0);
-    //const fin = new Date(f.getFullYear(), f.getMonth(), f.getDate(), 23, 59, 59, 999);
-    const fin = new Date();
-    fin.setDate(inicio.getDate() + 1);
+    const fin = new Date(inicio);
+    fin.setDate(fin.getDate() + 1);
 
     return {
       inicio: Utils.formatDateToSQLISO(inicio),

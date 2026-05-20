@@ -83,7 +83,7 @@ Vendedor.renderDashboard = function (t) {
                       <i class="fas fa-cash-register text-success activity-icon"></i>
                       <div class="activity-content">
                         <span class="activity-text">#${v.id} - ${v.metodo_pago === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</span>
-                        <span class="activity-time">${Utils.formatearFecha(v.created_at, 'corto')}</span>
+                        <span class="activity-time">${Utils.formatearFecha(Utils.fechaISOToLocal(v.created_at), 'corto')}</span>
                       </div>
                       <span class="activity-amount">${Utils.formatMoney(v.total)}</span>
                     </div>

@@ -144,7 +144,28 @@ const ventaController = {
           [d.producto_id]
         );
         if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
-        if (producto.stock_actual < d.cantidad) throw new Error(`Stock insuficiente para: ${producto.nombre}`);
+
+        // Verificar stock según tipo de producto
+        if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+          // Para compuestos no preparables, verificar stock de componentes
+          const receta = await db.all(`
+            SELECT pr.stock_actual, r.cantidad, pr.nombre
+            FROM recetas r
+            JOIN productos pr ON r.producto_hijo_id = pr.id
+            WHERE r.producto_padre_id = ?
+          `, [d.producto_id]);
+          for (const c of receta) {
+            if (c.stock_actual < c.cantidad * d.cantidad) {
+              throw new Error(`Stock insuficiente de "${c.nombre}" para vender "${producto.nombre}"`);
+            }
+          }
+        } else {
+          // Para simples y compuestos preparables
+          if (producto.stock_actual < d.cantidad) {
+            throw new Error(`Stock insuficiente para: ${producto.nombre}`);
+          }
+        }
+
         totalExacto += d.cantidad * producto.precio_venta;
       }
 
@@ -189,27 +210,38 @@ const ventaController = {
             // Descontar componentes según la receta
             // ============================================
             const receta = await db.all(`
-            SELECT r.producto_hijo_id, r.cantidad, uv.abreviatura as unidad_abrev
-            FROM recetas r
-            JOIN productos pr ON r.producto_hijo_id = pr.id
-            JOIN unidades uv ON pr.unidad_venta_id = uv.id
-            WHERE r.producto_padre_id = ?
-          `, [d.producto_id]);
+              SELECT r.producto_hijo_id, r.cantidad, uv.abreviatura as unidad_abrev, uv.tipo as unidad_tipo
+              FROM recetas r
+              JOIN productos pr ON r.producto_hijo_id = pr.id
+              JOIN unidades uv ON pr.unidad_venta_id = uv.id
+              WHERE r.producto_padre_id = ?
+            `, [d.producto_id]);
 
             if (receta.length === 0) {
               throw new Error(`"${producto.nombre}" no tiene receta definida`);
             }
 
-            const esUnidad = producto.unidad_abrev === 'ud' || producto.unidad_abrev === 'Unidad';
+            // Obtener el tipo de unidad del producto
+            const productoInfo = await db.get(`
+              SELECT uv.tipo as unidad_tipo
+              FROM productos p
+              JOIN unidades uv ON p.unidad_venta_id = uv.id
+              WHERE p.id = ?
+            `, [d.producto_id]);
+
+            const esUnidad = productoInfo?.unidad_tipo === 'unidad';
 
             for (const componente of receta) {
               let cantidadADescontar;
 
-              if (!esUnidad && componente.unidad_abrev === producto.unidad_abrev) {
+              if (!esUnidad && componente.unidad_tipo === productoInfo.unidad_tipo) {
+                // ✅ Mismo tipo → multiplicar
                 cantidadADescontar = componente.cantidad * d.cantidad;
               } else if (!esUnidad) {
+                // ✅ Diferente tipo → solo un paquete
                 cantidadADescontar = componente.cantidad;
               } else {
+                // ✅ Unidad → multiplicar
                 cantidadADescontar = componente.cantidad * d.cantidad;
               }
 
@@ -260,9 +292,9 @@ const ventaController = {
             );
 
             await db.run(`
-            INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
-            VALUES (?, 'venta', ?, ?, ?)
-          `, [d.producto_id, -d.cantidad, ventaId, usuario_id]);
+              INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
+              VALUES (?, 'venta', ?, ?, ?, ?)
+            `, [d.producto_id, -d.cantidad, ventaId, usuario_id, `Venta de ${d.cantidad} ${producto.unidad_abrev} de "${producto.nombre}"`]);
           }
         }
 
@@ -327,6 +359,7 @@ const ventaController = {
       }
 
       query += ' ORDER BY v.created_at DESC LIMIT 100';
+      console.log('Query: ', query);
 
       const ventas = await db.all(query, params);
       res.json(ventas);

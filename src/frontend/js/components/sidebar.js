@@ -9,13 +9,13 @@ Sidebar.render = function (activeModule) {
 
   const adminModules = [
     { id: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
-    { id: 'inventario', icon: 'fa-warehouse', label: 'Inventario' },
-    { id: 'compras', icon: 'fa-shopping-cart', label: 'Compras' },
-    { id: 'ventas', icon: 'fa-cash-register', label: 'Ventas' },
-    { id: 'productos', icon: 'fa-box', label: 'Productos' },
     { id: 'proveedores', icon: 'fa-truck', label: 'Proveedores' },
-    { id: 'promociones', icon: 'fa-tags', label: 'Promociones' },
+    { id: 'productos', icon: 'fa-box', label: 'Productos' },
+    { id: 'compras', icon: 'fa-shopping-cart', label: 'Compras' },
+    { id: 'inventario', icon: 'fa-warehouse', label: 'Inventario' },
+    { id: 'ventas', icon: 'fa-cash-register', label: 'Ventas' },
     { id: 'reportes', icon: 'fa-chart-bar', label: 'Reportes' },
+    { id: 'promociones', icon: 'fa-tags', label: 'Promociones' },
     { id: 'configuracion', icon: 'fa-cog', label: 'Configuración' }
   ];
 

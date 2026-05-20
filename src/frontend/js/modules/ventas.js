@@ -128,7 +128,7 @@ Ventas.abrirTurno = function () {
             <form id="abrirTurnoForm">
               <div class="mb-3">
                 <label class="form-label">Monto de Apertura ($)</label>
-                <input type="number" class="form-control form-control-lg" id="montoApertura" value="100" step="1" min="0" required autofocus>
+                <input type="number" class="form-control form-control-lg" id="montoApertura" value="1000" step="1" min="0" required autofocus>
                 <small class="text-muted">Dinero inicial en caja para dar cambio</small>
               </div>
             </form>
@@ -420,7 +420,7 @@ Ventas.bindCierreTurnoEvents = function (montoEsperado) {
       await API.ventas.cerrarTurno({ monto_real: total });
       Utils.hideLoading();
       Toast.success('Turno cerrado correctamente');
-      ViewManager.volver();
+      ViewManager.volver(true);
     } catch (error) {
       Utils.hideLoading();
       console.error('Error:', error);
@@ -448,30 +448,19 @@ Ventas.pos = async function () {
     }
 
     const productos = await API.productos.listar();
+
     // Filtrar productos que pueden venderse
     const productosEnVenta = productos.filter(p => {
-      // 1. Producto activo
       if (!p.activo) return false;
-
-      // 2. Tiene ficha de costo con precio > 0
       if (!p.precio_venta || p.precio_venta <= 0) return false;
 
-      // 3. Tiene stock (según tipo)
-      if (p.tipo === 'simple') {
-        // Simples: stock_actual > 0
-        if (p.stock_actual <= 0) return false;
-      } else if (p.tipo === 'compuesto') {
-        if (p.requiere_preparacion) {
-          // Compuestos preparables: deben tener stock del producto preparado > 0
-          if (p.stock_actual <= 0) return false;
-        } else {
-          // Compuestos no preparables: necesitan stock de todos los componentes
-          // Esto ya lo calcula el backend en stock_efectivo
-          if (!p.stock_efectivo || p.stock_efectivo <= 0) return false;
-        }
+      // Usar el campo calculado por el backend
+      if (p.puede_venderse !== undefined) {
+        return p.puede_venderse;
       }
 
-      return true;
+      // Fallback: stock_actual > 0
+      return p.stock_actual > 0;
     });
 
     Ventas._carrito = [];
@@ -917,12 +906,14 @@ Ventas.listado = async function (params) {
       case 'hoy':
         const r = Utils.rangoHoy();
         inicio = r.inicio; fin = r.fin;
+        console.log('Hoy: ', { inicio, fin });
         break;
       case 'ayer':
         const ayer = new Date();
         ayer.setDate(ayer.getDate() - 1);
         const ra = Utils.rangoDia(ayer);
         inicio = ra.inicio; fin = ra.fin;
+        console.log('Ayer: ', { inicio, fin });
         break;
       case 'semana':
         const hoy = new Date();
@@ -963,6 +954,11 @@ Ventas.listado = async function (params) {
 };
 
 Ventas.bindListadoEvents = function (params) {
+  $('#btnVolver').on('click', () => {
+    console.log('Boton Volver presionado');
+    ViewManager.volver();
+  });
+
   // Filtro por fecha
   $('[data-filtro-fecha]').on('click', function () {
     const filtro = $(this).data('filtro-fecha');
@@ -1015,7 +1011,10 @@ Ventas.bindListadoEvents = function (params) {
       Utils.hideLoading();
       const layout = Ventas.verTurno(resumen);
       $('#app').html(layout);
-      $('#btnVolver').on('click', () => ViewManager.volver());
+      $('#btnVolver').on('click', () => {
+        console.log('Boton Volver presionado');
+        ViewManager.volver();
+      });
       Ventas.bindCommonEvents();
     } catch (error) {
       Utils.hideLoading();
@@ -1052,9 +1051,9 @@ Ventas.renderListadoLayout = function (ventas, params) {
           </nav>
           
           <div class="d-flex align-items-center mb-4">
-            <a href="#ventas" class="btn btn-outline-secondary me-3">
-              <i class="fas fa-arrow-left me-1"></i>Volver
-            </a>
+            <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+              </button>
             <h2 class="mb-0"><i class="fas fa-history me-2"></i>Historial de Ventas</h2>
           </div>
           
@@ -1115,7 +1114,7 @@ Ventas.renderListadoLayout = function (ventas, params) {
                 ${ventas.length > 0 ? ventas.map(v => `
                   <tr class="clickable" data-id="${v.id}" data-turno="${v.turno_id}">
                     <td>#${v.id}</td>
-                    <td>${Utils.formatearFecha(v.created_at, 'corto')}</td>
+                    <td>${Utils.formatearFecha(Utils.fechaISOToLocal(v.created_at), 'corto')}</td>
                     <td>${v.vendedor_nombre || '-'}</td>
                     <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
                     <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
@@ -1258,8 +1257,15 @@ Ventas.ficha = async function (params) {
 
     $('#app').html(layout);
 
-    $('#btnVolver').on('click', () => ViewManager.volver());
-    $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
+    $('#btnVolver').on('click', () => {
+      console.log('Boton Volver presionado');
+      ViewManager.volver();
+    }
+    );
+    $('.breadcrumb-back').on('click', (e) => {
+      e.preventDefault();
+      ViewManager.volver();
+    });
 
     Ventas.bindCommonEvents();
     Utils.hideLoading();

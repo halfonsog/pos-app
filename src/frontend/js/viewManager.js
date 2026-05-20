@@ -6,11 +6,11 @@ var ViewManager = window.ViewManager || {};
 
 ViewManager.currentView = null;
 ViewManager.currentParams = null;
-ViewManager.history = [];
-ViewManager._ignorePopState = false;
+ViewManager._historyCount = 0; // Contador interno de rutas
 
-
-// Definición de rutas como ARRAY de objetos
+/**
+ * Definición de rutas
+ */
 ViewManager.routes = [
   { pattern: 'auth/login', module: 'Auth', action: 'login' },
   { pattern: 'dashboard', module: 'Dashboard', action: 'index' },
@@ -33,7 +33,7 @@ ViewManager.routes = [
   { pattern: 'compras/pagar/:id', module: 'Compras', action: 'pagar' },
   { pattern: 'compras/inventariar/:id', module: 'Compras', action: 'inventariar' },
 
-  // Selector de productos
+  // Selector productos
   { pattern: 'selector-productos', module: 'SelectorProductos', action: 'index' },
 
   // Proveedores
@@ -54,7 +54,7 @@ ViewManager.routes = [
   { pattern: 'inventario/ajuste/:id', module: 'Inventario', action: 'ajuste' },
   { pattern: 'inventario/merma', module: 'Inventario', action: 'merma' },
 
-  //Ventas
+  // Ventas
   { pattern: 'ventas', module: 'Ventas', action: 'index' },
   { pattern: 'ventas/pos', module: 'Ventas', action: 'pos' },
   { pattern: 'ventas/listado', module: 'Ventas', action: 'listado' },
@@ -76,206 +76,162 @@ ViewManager.routes = [
   { pattern: 'vendedor', module: 'Vendedor', action: 'index' },
   { pattern: 'vendedor/stock', module: 'Vendedor', action: 'stock' },
   { pattern: 'vendedor/perfil', module: 'Vendedor', action: 'perfil' }
-
 ];
 
-/**
- * Parsea una URL con query parameters
- */
+
 ViewManager.parseUrl = function (url) {
   const [rutaBase, queryString] = url.split('?');
   const params = {};
-
   if (queryString) {
     queryString.split('&').forEach(param => {
       const [key, value] = param.split('=');
-      if (key) {
-        params[key] = decodeURIComponent(value || '');
-      }
+      if (key) params[key] = decodeURIComponent(value || '');
     });
   }
-
   return { ruta: rutaBase, params };
 };
 
-/**
- * Encuentra la ruta que coincide con el patrón
- */
+
 ViewManager.findRoute = function (ruta) {
   for (const route of this.routes) {
     const match = this.matchPattern(route.pattern, ruta);
-    if (match !== null) {
-      return {
-        route: route,
-        params: match
-      };
-    }
+    if (match !== null) return { route: route, params: match };
   }
   return null;
 };
 
-/**
- * Compara un patrón con una ruta real y extrae parámetros
- */
+
 ViewManager.matchPattern = function (pattern, ruta) {
-  const patternParts = pattern.split('/');
-  const rutaParts = ruta.split('/');
-
-  if (patternParts.length !== rutaParts.length) {
-    return null;
-  }
-
+  const pp = pattern.split('/');
+  const rp = ruta.split('/');
+  if (pp.length !== rp.length) return null;
   const params = {};
-
-  for (let i = 0; i < patternParts.length; i++) {
-    const patternPart = patternParts[i];
-    const rutaPart = rutaParts[i];
-
-    if (patternPart.startsWith(':')) {
-      const paramName = patternPart.substring(1);
-      params[paramName] = decodeURIComponent(rutaPart);
-    } else if (patternPart !== rutaPart) {
+  for (let i = 0; i < pp.length; i++) {
+    if (pp[i].startsWith(':')) {
+      params[pp[i].substring(1)] = decodeURIComponent(rp[i]);
+    } else if (pp[i] !== rp[i]) {
       return null;
     }
   }
-
   return params;
 };
 
-/**
- * Navega a una ruta específica (AVANZA)
- */
-ViewManager.navegar = async function (ruta, params = {}, options = {}) {
-  console.log(`🧭 Navegando a: ${ruta}`, params);
 
-  const parsed = this.parseUrl(ruta);
-  const rutaBase = parsed.ruta;
-  const queryParams = parsed.params;
-  const finalParams = { ...queryParams, ...params };
-
-  if (options.reset) {
-    this.history = [];
-    console.log('🔄 Historial reiniciado');
-  }
-
-  if (this.currentView && !options.reset && !options.replace) {
-    this.history.push({
-      ruta: this.currentView,
-      params: this.currentParams
-    });
-  }
-  console.log('📝 Historial:', this.history);
-
-  // Desactivar popstate temporalmente
-  this._ignorePopState = true;
-  window.location.hash = ruta;
-  setTimeout(() => { this._ignorePopState = false; }, 100);
-
-  await this._cargarVista(ruta, finalParams);
+ViewManager._buildState = function (ruta, params = {}) {
+  return { ruta, params };
 };
 
-/**
- * Carga una vista (usado internamente)
- */
-ViewManager._cargarVista = async function (ruta, params) {
+
+ViewManager._cargarVista = async function (ruta, params = {}) {
+  console.log('📄 Cargando vista:', ruta);
+
   const parsed = this.parseUrl(ruta);
-  const rutaBase = parsed.ruta;
-  const routeMatch = this.findRoute(rutaBase);
+  const routeMatch = this.findRoute(parsed.ruta);
 
   if (!routeMatch) {
-    console.error('❌ Ruta no encontrada:', rutaBase);
+    console.error('❌ Ruta no encontrada:', parsed.ruta);
     return;
   }
 
-  // ✅ Bloquear vistas de admin para vendedores
-  const rutasAdmin = ['dashboard', 'compras', 'inventario', 'proveedores', 'configuracion', 'reportes'];
-  const isAdmin = State.isAdmin();
-
-  if (!isAdmin && rutasAdmin.some(r => ruta.startsWith(r))) {
-    Toast.warning('Acceso restringido');
-    return;
-  }
-
-  const { route, params: urlParams } = routeMatch;
-  const allParams = { ...urlParams, ...params };
+  const allParams = { ...routeMatch.params, ...parsed.params, ...params };
 
   this.currentView = ruta;
   this.currentParams = allParams;
 
   try {
-    const module = window[route.module];
-    if (module && typeof module[route.action] === 'function') {
-      await module[route.action](allParams);
-    } else {
-      console.error(`❌ Módulo ${route.module} o acción ${route.action} no encontrado`);
-    }
+    const moduleObj = window[routeMatch.route.module];
+    if (!moduleObj) { console.error('❌ Módulo no encontrado:', routeMatch.route.module); return; }
+
+    const actionFn = moduleObj[routeMatch.route.action];
+    if (typeof actionFn !== 'function') { console.error('❌ Acción inválida:', routeMatch.route.action); return; }
+
+    await actionFn(allParams);
   } catch (error) {
     console.error('❌ Error cargando vista:', error);
   }
 };
 
-/**
- * Volver a la vista anterior
- */
-ViewManager.volver = function () {
-  console.log('⬅️ Volviendo atrás. Historial:', this.history.length);
 
-  if (this.history.length > 0) {
-    const previous = this.history.pop();
-    console.log('↩️ Volviendo a:', previous.ruta);
+ViewManager.navegar = async function (ruta, params = {}, options = {}) {
+  console.log('🧭 Navegando a:', ruta);
 
-    // ✅ NO usar navegar (que dispara popstate)
-    // En su lugar, cargar la vista directamente
-    this._ignorePopState = true;
-    window.location.hash = previous.ruta;
-    setTimeout(() => { this._ignorePopState = false; }, 100);
+  const state = this._buildState(ruta, params);
 
-    this._cargarVista(previous.ruta, previous.params);
+  if (options.reset) {
+    // Menú lateral: reemplazar estado actual y reiniciar contador
+    this._historyCount = 1;
+    history.replaceState(state, '', '#' + ruta);
+  } else if (options.replace) {
+    // Guardar/Cancelar: reemplazar estado actual sin añadir
+    history.replaceState(state, '', '#' + ruta);
   } else {
-    console.log('⚠️ No hay historial, yendo a vendedor');
-    this.navegar(State.isAdmin() ? 'dashboard' : 'vendedor', {}, { reset: true });
+    // Navegación normal: añadir al historial
+    this._historyCount++;
+    history.pushState(state, '', '#' + ruta);
   }
+
+  await this._cargarVista(ruta, params);
+
+  console.log('📝 Rutas en historial:', this._historyCount);
 };
 
-/**
- * Refresca la vista actual
- */
+
+ViewManager.volver = function () {
+  console.log('⬅️ Volviendo atrás. Rutas:', this._historyCount);
+  if (this._historyCount > 1) {
+    this._historyCount--;
+  }
+  window.history.back();
+};
+
+
 ViewManager.refresh = async function () {
   if (this.currentView) {
-    console.log('🔄 Refrescando vista:', this.currentView);
-
-    // Invalidar caché del módulo actual
-    const routeMatch = this.findRoute(this.currentView);
-    if (routeMatch) {
-      const moduleName = routeMatch.route.module.toLowerCase();
-      State.invalidateCache(moduleName);
-    }
-
-    // Recargar la vista sin modificar historial
+    console.log('🔄 Refrescando:', this.currentView);
     await this._cargarVista(this.currentView, this.currentParams);
   }
 };
 
-// Evento popstate
-window.addEventListener('popstate', function (e) {
-  if (ViewManager._ignorePopState) {
-    console.log('⏭️ Ignorando popstate');
-    return;
+
+// Manejar back/forward del navegador
+window.addEventListener('popstate', async function (e) {
+  console.log('⬅️ popstate:', e.state);
+
+  let ruta = null;
+  let params = {};
+
+  if (e.state && e.state.ruta) {
+    ruta = e.state.ruta;
+    params = e.state.params || {};
+  } else {
+    ruta = window.location.hash.substring(1);
   }
 
-  const hash = window.location.hash.substring(1);
-  if (hash) {
-    console.log('⬅️ popstate: navegando a', hash);
-    ViewManager._cargarVista(hash, {});
+  if (!ruta) return;
+
+  // Actualizar contador interno
+  if (ViewManager._historyCount > 1) {
+    ViewManager._historyCount--;
   }
+
+  await ViewManager._cargarVista(ruta, params);
 });
 
-// Manejar navegación inicial
-$(document).ready(function () {
+
+// Navegación inicial
+$(document).ready(async function () {
   const hash = window.location.hash.substring(1);
-  if (hash) {
-    ViewManager.navegar(hash, {}, { reset: true });
-  }
+  const rutaInicial = hash || (State.isAdmin() ? 'dashboard' : 'vendedor');
+
+  ViewManager._historyCount = 1;
+
+  history.replaceState(
+    { ruta: rutaInicial, params: {} },
+    '',
+    '#' + rutaInicial
+  );
+
+  await ViewManager._cargarVista(rutaInicial);
 });
 
 window.ViewManager = ViewManager;

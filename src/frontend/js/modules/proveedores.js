@@ -441,7 +441,7 @@ Proveedores.bindCommonEvents = function () {
     e.preventDefault();
     const href = $(this).attr('href');
     if (href && href !== '#') {
-      ViewManager.navegar(href.substring(1), {}, { replace: true });
+      ViewManager.navegar(href.substring(1), {}, { reset: true });
     }
     if ($(window).width() < 768) $('#sidebar').removeClass('show');
   });

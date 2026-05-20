@@ -9,6 +9,8 @@ router.use(authMiddleware);
 router.get('/', compraController.listar);
 router.get('/:id', compraController.obtener);
 router.post('/', compraController.crear);
+router.put('/:id', compraController.actualizar);
+router.delete('/:id', compraController.eliminar);
 router.post('/:id/inventariar', compraController.inventariar);
 router.post('/:id/pagar', compraController.pagar);
 

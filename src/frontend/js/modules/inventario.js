@@ -391,16 +391,14 @@ Inventario.bindStockEvents = function (params) {
   $('#stockTable').on('click', '.preparar-producto', function (e) {
     e.preventDefault();
     const id = $(this).data('id');
-    Toast.info('Preparación de productos - Próximamente');
-    // ViewManager.navegar('inventario/preparar/' + id);
+    ViewManager.navegar('inventario/preparar/' + id);
   });
 
   // Ajustar stock
   $('#stockTable').on('click', '.ajustar-producto', function (e) {
     e.preventDefault();
     const id = $(this).data('id');
-    Toast.info('Ajuste de stock - Próximamente');
-    // ViewManager.navegar('inventario/ajuste/' + id);
+    ViewManager.navegar('inventario/ajuste/' + id);
   });
 
   Inventario.bindCommonEvents();
