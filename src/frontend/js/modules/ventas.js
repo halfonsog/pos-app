@@ -504,7 +504,7 @@ Ventas.pos = async function () {
                           <h6 class="mb-0 small">${p.nombre}</h6>
                           <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
                           <div class="mt-1">
-                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${Utils.formatNumber(p.stock_efectivo || p.stock_actual, 0)} ${p.unidad_venta_abrev || 'uds'}</span>
+                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${Utils.formatNumber(p.stock_efectivo, (p.unidad_venta_tipo === 'unidad' ? 0 : 2))} ${p.unidad_venta_abrev || 'uds'}</span>
                           </div>
                         </div>
                       </div>
@@ -602,7 +602,7 @@ Ventas.bindPosEvents = function () {
 };
 
 Ventas.agregarAlCarrito = function (id, nombre, precio, unidadAbrev, cantidad, tipoUnidad) {
-  const esUnidad = tipoUnidad === 'Unidad';
+  const esUnidad = tipoUnidad === 'unidad';
 
   const existente = Ventas._carrito.find(item => item.id === id);
 

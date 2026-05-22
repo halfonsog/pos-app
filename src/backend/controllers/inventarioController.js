@@ -16,9 +16,24 @@ const inventarioController = {
 
       // Stock bajo
       const stockBajo = await db.get(`
-        SELECT COUNT(*) as count 
-        FROM productos 
-        WHERE activo = 1 AND stock_actual <= stock_minimo AND stock_minimo > 0
+        WITH stock_componentes AS (
+          SELECT r.producto_padre_id,
+                MIN(pr.stock_actual / r.cantidad) as stock_efectivo
+          FROM recetas r
+          JOIN productos pr ON r.producto_hijo_id = pr.id
+          WHERE pr.activo = 1
+          GROUP BY r.producto_padre_id
+        )
+        SELECT COUNT(*) as count
+        FROM productos p
+        LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
+        WHERE p.activo = 1 
+          AND p.stock_minimo > 0
+          AND CASE 
+            WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 0 
+              THEN COALESCE(sc.stock_efectivo, 0)
+            ELSE p.stock_actual
+          END <= p.stock_minimo
       `);
 
       // Compras pendientes de stock
