@@ -17,6 +17,11 @@
   background-color: #f8f9fa;
 }
 
+.dropdown-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
 .clickable {
   cursor: pointer !important;
 }

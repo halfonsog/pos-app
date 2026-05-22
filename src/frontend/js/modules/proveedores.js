@@ -333,6 +333,21 @@ Proveedores.initDataTable = function (proveedores) {
     pageLength: 25,
     responsive: true,
     drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      // Eliminar filas vacías anteriores
+      $table.find('.empty-row').remove();
+
+      // Si hay menos de 5 filas, añadir vacías
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
       $('#proveedoresTable tbody tr').addClass('clickable-row');
     }
   });
@@ -368,6 +383,8 @@ Proveedores.bindListadoEvents = function (params) {
   }
 
   $('#proveedoresTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;  // ← Ignorar filas vacías
+
     const row = self.dataTable.row(this);
     const id = row.data()[6];
     ViewManager.navegar('proveedores/ver/' + id);

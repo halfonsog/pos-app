@@ -340,6 +340,21 @@ Inventario.initStockTable = function (productos) {
     pageLength: 25,
     responsive: true,
     drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      // Eliminar filas vacías anteriores
+      $table.find('.empty-row').remove();
+
+      // Si hay menos de 5 filas, añadir vacías
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
       $('#stockTable tbody tr').addClass('clickable-row');
     }
   });
@@ -375,6 +390,8 @@ Inventario.bindStockEvents = function (params) {
   }
 
   $('#stockTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;  // ← Ignorar filas vacías
+
     const row = self.dataTable.row(this);
     const id = row.data()[7];
     ViewManager.navegar('productos/ver/' + id);
@@ -576,7 +593,7 @@ Inventario.initMovimientosTable = function (movimientos) {
     const cantidadSigno = m.cantidad > 0 ? '+' : '';
 
     return [
-      Utils.formatDate(m.fecha, 'datetime'),
+      Utils.formatearFecha(Utils.fechaISOToLocal(m.fecha), 'datetime'),
       `${m.producto_nombre} <small class="text-muted">${m.codigo}</small>`,
       tipoBadge,
       `<span class="${cantidadClass} fw-bold">${cantidadSigno}${Utils.formatNumber(m.cantidad, 2)}</span>`,
@@ -620,6 +637,21 @@ Inventario.initMovimientosTable = function (movimientos) {
     pageLength: 25,
     responsive: true,
     drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      // Eliminar filas vacías anteriores
+      $table.find('.empty-row').remove();
+
+      // Si hay menos de 5 filas, añadir vacías
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
       $('#movimientosTable tbody tr').addClass('clickable-row');
     }
   });
@@ -653,6 +685,8 @@ Inventario.bindMovimientosEvents = function (params) {
   });
 
   $('#movimientosTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;  // ← Ignorar filas vacías
+
     const row = self.dataTable.row(this).data();
     const tipo = row[6]; // Índice del TipoFiltro
     const refId = row[7]; // Índice del ReferenciaID

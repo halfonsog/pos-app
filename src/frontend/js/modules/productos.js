@@ -239,7 +239,24 @@ Productos.initDataTable = function (productos) {
       // ✅ Excluir columnas de filtro del responsive
       { targets: [9, 10, 11, 12], responsivePriority: 0 }
     ],
-    drawCallback: function () { $('#productosTable tbody tr').addClass('clickable-row'); }
+    drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      // Eliminar filas vacías anteriores
+      $table.find('.empty-row').remove();
+
+      // Si hay menos de 5 filas, añadir vacías
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
+      $('#productosTable tbody tr').addClass('clickable-row');
+    }
   });
 };
 
@@ -282,6 +299,8 @@ Productos.bindListadoEvents = function (params) {
   }
 
   $('#productosTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;  // ← Ignorar filas vacías
+
     const row = self.dataTable.row(this);
     const id = row.data()[8];
     ViewManager.navegar('productos/ver/' + id);
@@ -361,64 +380,6 @@ Productos.bindListadoEvents = function (params) {
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
 };
-
-/*
-Productos.bindListadoEvents = function (params) {
-  const self = this, filtroInicial = params.filtro || 'todos';
-  $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
-
-
-  $('[data-filtro]').on('click', function () {
-    const f = $(this).data('filtro');
-
-    console.log('🔥 Filtro clickeado:', f);  // ← Añade esto
-    console.log('🔥 Elemento:', this);        // ← Y esto
-    return;
-    $('[data-filtro]').removeClass('active');
-    $(this).addClass('active');
-    self.dataTable.search('').columns().search('');
-    if (f === 'todos') self.dataTable.draw();
-    else if (f === 'simples') {
-      console.log('Filtrando por simples!');
-      //console.log('Columnas: ', self.dataTable.columns());
-      self.dataTable.column(11).search('simple', true, false).draw();
-    }
-    else if (f === 'compuestos') self.dataTable.column(11).search('compuesto', true, false).draw();
-    else if (f === 'stock-bajo') self.dataTable.column(9).search('true', true, false).draw();
-    else if (f === 'sin-costo') self.dataTable.column(10).search('true', true, false).draw();
-  });
-
-
-  if (filtroInicial !== 'todos') $(`[data-filtro="${filtroInicial}"]`).trigger('click');
-
-  $('#productosTable').on('click', '.ver-producto', function (e) { e.preventDefault(); ViewManager.navegar('productos/ver/' + $(this).data('id')); });
-  $('#productosTable').on('click', '.editar-producto', function (e) { e.preventDefault(); ViewManager.navegar('productos/editar/' + $(this).data('id')); });
-  $('#productosTable').on('click', '.costo-producto', function (e) { e.preventDefault(); ViewManager.navegar('productos/costo/' + $(this).data('id')); });
-  $('#productosTable').on('click', '.receta-producto', function (e) { e.preventDefault(); ViewManager.navegar('productos/receta/' + $(this).data('id')); });
-
-  $('#productosTable tbody').on('dblclick', 'tr', function () { ViewManager.navegar('productos/ver/' + self.dataTable.row(this).data()[8]); });
-
-  $(document).on('click', '[data-eliminar]', async function (e) {
-    const cv = ViewManager.currentView || '';
-    if (!cv.startsWith('productos')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const id = $(this).data('eliminar');
-    if (!await Utils.confirm('¿Eliminar este producto?', 'Confirmar')) return;
-    try {
-      Utils.showLoading('Eliminando...');
-      await API.productos.eliminar(id);
-      State.invalidateCache('productos'); Utils.hideLoading(); Toast.success('Producto eliminado');
-      ViewManager.refresh();
-    }
-    catch (error) {
-      Utils.hideLoading();
-      console.error(error);
-    }
-  });
-  Productos._bindCommon();
-};
-*/
 
 // ============================================
 // FORMULARIO (NUEVO/EDITAR)

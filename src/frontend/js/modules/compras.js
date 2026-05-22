@@ -315,7 +315,7 @@ Compras.initDataTable = function (compras) {
     const estadoStockText = c.estado_inventario === 'completado' ? 'En Stock' : 'Pendiente';
 
     return [
-      Utils.formatDate(c.fecha_compra),                  // 0
+      Utils.formatearFecha(Utils.fechaISOToLocal(c.fecha_compra), 'corto'),  // 0
       c.codigo_factura || '-',                           // 1
       c.proveedor_nombre || '-',                         // 2
       Utils.formatMoney(c.total),                        // 3
@@ -403,6 +403,22 @@ Compras.initDataTable = function (compras) {
       { targets: [6, 7], responsivePriority: 3 }
     ],
     drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      // Eliminar filas vacías anteriores
+      $table.find('.empty-row').remove();
+
+      // Si hay menos de 5 filas, añadir vacías
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
+
       $('#comprasTable tbody tr').addClass('clickable-row');
     }
   });
@@ -440,6 +456,8 @@ Compras.bindListadoEvents = function (params) {
   }
 
   $('#comprasTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;  // ← Ignorar filas vacías
+
     const row = self.dataTable.row(this);
     const id = row.data()[8];
     ViewManager.navegar('compras/ver/' + id);
