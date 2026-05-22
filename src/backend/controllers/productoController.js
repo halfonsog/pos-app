@@ -11,43 +11,39 @@ const productoController = {
       const db = await getDb();
 
       const productos = await db.all(`
+      WITH stock_componentes AS (
         SELECT 
-          p.*,
-          c.nombre as categoria_nombre,
-          uv.nombre as unidad_venta_nombre,
-          uv.abreviatura as unidad_venta_abrev,
-          uv.tipo as unidad_venta_tipo,
-          uc.nombre as unidad_compra_nombre,
-          uc.abreviatura as unidad_compra_abrev
-        FROM productos p
-        LEFT JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
-        LEFT JOIN unidades uc ON p.unidad_compra_id = uc.id
-        ORDER BY p.nombre
-      `);
+          r.producto_padre_id,
+          MIN(pr.stock_actual / r.cantidad) as stock_efectivo
+        FROM recetas r
+        JOIN productos pr ON r.producto_hijo_id = pr.id
+        WHERE pr.activo = 1
+        GROUP BY r.producto_padre_id
+      )
+      SELECT 
+        p.*,
+        c.nombre as categoria_nombre,
+        uv.nombre as unidad_venta_nombre,
+        uv.abreviatura as unidad_venta_abrev,
+        uv.tipo as unidad_venta_tipo,
+        uc.nombre as unidad_compra_nombre,
+        uc.abreviatura as unidad_compra_abrev,
+        CASE 
+          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 0 
+            THEN COALESCE(sc.stock_efectivo, 0)
+          ELSE p.stock_actual
+        END as stock_efectivo
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+      LEFT JOIN unidades uc ON p.unidad_compra_id = uc.id
+      LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
+      ORDER BY p.nombre
+    `);
 
-      // Calcular stock efectivo para cada producto
+      // Solo procesar puede_venderse (sin consultas adicionales)
       for (const p of productos) {
-        if (p.tipo === 'compuesto' && !p.requiere_preparacion) {
-          const receta = await db.all(`
-            SELECT pr.stock_actual, r.cantidad
-            FROM recetas r
-            JOIN productos pr ON r.producto_hijo_id = pr.id
-            WHERE r.producto_padre_id = ?
-          `, [p.id]);
-
-          if (receta.length > 0) {
-            const stocks = receta.map(c => Math.floor(c.stock_actual / c.cantidad));
-            p.stock_efectivo = Math.min(...stocks);
-            p.puede_venderse = p.stock_efectivo > 0 && p.precio_venta > 0;
-          } else {
-            p.stock_efectivo = 0;
-            p.puede_venderse = false;
-          }
-        } else {
-          p.stock_efectivo = p.stock_actual;
-          p.puede_venderse = p.stock_actual > 0 && p.precio_venta > 0;
-        }
+        p.puede_venderse = p.stock_efectivo > 0 && p.precio_venta > 0;
       }
 
       res.json(productos);

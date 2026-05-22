@@ -139,13 +139,28 @@ Productos.renderListadoLayout = function (productos, params) {
             <h2><i class="fas fa-list me-2"></i>Listado de Productos</h2>
             <div><a href="#productos" class="btn btn-outline-secondary me-2"><i class="fas fa-th-large me-1"></i>Vista Cards</a><button class="btn btn-primary" id="btnNuevoProducto"><i class="fas fa-plus me-1"></i>Nuevo Producto</button></div>
           </div>
-          <div class="mb-3"><div class="btn-group">
-            <button class="btn btn-outline-primary ${filtro === 'todos' ? 'active' : ''}" data-filtro="todos"><i class="fas fa-list me-1"></i>Todos</button>
-            <button class="btn btn-outline-primary ${filtro === 'simples' ? 'active' : ''}" data-filtro="simples"><i class="fas fa-cube me-1"></i>Simples</button>
-            <button class="btn btn-outline-primary ${filtro === 'compuestos' ? 'active' : ''}" data-filtro="compuestos"><i class="fas fa-cubes me-1"></i>Compuestos</button>
-            <button class="btn btn-outline-warning ${filtro === 'stock-bajo' ? 'active' : ''}" data-filtro="stock-bajo"><i class="fas fa-exclamation-triangle me-1"></i>Stock Bajo</button>
-            <button class="btn btn-outline-danger ${filtro === 'sin-costo' ? 'active' : ''}" data-filtro="sin-costo"><i class="fas fa-calculator me-1"></i>Sin Ficha Costo</button>
-          </div></div>
+          <div class="mb-3">
+            <div class="btn-group">
+              <button class="btn btn-outline-success ${filtro === 'activos' ? 'active' : ''}" data-filtro="activos">
+                <i class="fas fa-check-circle me-1"></i>Activos
+              </button>
+              <button class="btn btn-outline-secondary ${filtro === 'inactivos' ? 'active' : ''}" data-filtro="inactivos">
+                <i class="fas fa-ban me-1"></i>Inactivos
+              </button>
+              <button class="btn btn-outline-primary ${filtro === 'simples' ? 'active' : ''}" data-filtro="simples">
+                <i class="fas fa-cube me-1"></i>Simples
+              </button>
+              <button class="btn btn-outline-primary ${filtro === 'compuestos' ? 'active' : ''}" data-filtro="compuestos">
+                <i class="fas fa-cubes me-1"></i>Compuestos
+              </button>
+              <button class="btn btn-outline-warning ${filtro === 'stock-bajo' ? 'active' : ''}" data-filtro="stock-bajo">
+                <i class="fas fa-exclamation-triangle me-1"></i>Stock Bajo
+              </button>
+              <button class="btn btn-outline-danger ${filtro === 'sin-costo' ? 'active' : ''}" data-filtro="sin-costo">
+                <i class="fas fa-calculator me-1"></i>Sin Ficha Costo
+              </button>
+            </div>
+          </div>
           <div class="table-responsive"><table class="table table-hover" id="productosTable" style="width:100%">
             <thead class="table-light"><tr><th style="width:50px"></th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Tipo</th><th class="text-end">Precio</th><th class="text-end">Stock</th><th class="text-center">Estado</th><th class="text-center" style="width:60px"></th></tr></thead>
             <tbody></tbody>
@@ -235,7 +250,7 @@ Productos.getTipoBadge = function (p) {
 
 Productos.bindListadoEvents = function (params) {
   const self = this;
-  const filtroInicial = params.filtro || 'todos';
+  const filtroInicial = params.filtro || 'activos';
 
   $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
 
@@ -247,8 +262,10 @@ Productos.bindListadoEvents = function (params) {
 
     self.dataTable.search('').columns().search('');
 
-    if (filtro === 'todos') {
-      self.dataTable.draw();
+    if (filtro === 'activos') {
+      self.dataTable.column(7).search('Activo').draw();
+    } else if (filtro === 'inactivos') {
+      self.dataTable.column(7).search('Inactivo').draw();
     } else if (filtro === 'simples') {
       self.dataTable.column(12).search('simple', true, false).draw();
     } else if (filtro === 'compuestos') {
@@ -258,7 +275,6 @@ Productos.bindListadoEvents = function (params) {
     } else if (filtro === 'sin-costo') {
       self.dataTable.column(11).search('true', true, false).draw();
     }
-
   });
 
   if (filtroInicial !== 'todos') {
@@ -879,7 +895,7 @@ Productos.ficha = async function (params) {
 
     const producto = await API.productos.obtener(id);
     console.log('Producto', producto);
-    const layout = Productos.renderFichaLayout(producto);
+    const layout = await Productos.renderFichaLayout(producto);
 
     $('#app').html(layout);
     Productos.bindFichaEvents(producto);
@@ -892,11 +908,14 @@ Productos.ficha = async function (params) {
   }
 };
 
-Productos.renderFichaLayout = function (producto) {
+Productos.renderFichaLayout = async function (producto) {
   const user = State.getUser();
-  const config = State.getConfig();
-
-  console.log('preparing for render. User:', user);
+  const config = await State.getConfig();
+  console.log('renderFichaLayout. Config:', config);
+  if (!config) {
+    Toast.warning('Error al cargar la configuración. Intente de nuevo.');
+    return;
+  }
 
   return `
     <div class="app-wrapper">
@@ -1156,7 +1175,7 @@ Productos.costo = async function (params) {
     Utils.showLoading('Cargando ficha de costo...');
 
     const producto = await API.productos.obtener(id);
-    const layout = Productos.renderCostoLayout(producto);
+    const layout = await Productos.renderCostoLayout(producto);
 
     $('#app').html(layout);
     Productos.bindCostoEvents(producto);
@@ -1169,9 +1188,14 @@ Productos.costo = async function (params) {
   }
 };
 
-Productos.renderCostoLayout = function (producto) {
+Productos.renderCostoLayout = async function (producto) {
   const user = State.getUser();
-  const config = State.getConfig();
+  const config = await State.getConfig();
+  console.log('renderCostoLayout. Config:', config);
+  if (!config) {
+    Toast.warning('Error al cargar la configuración. Intente de nuevo.');
+    return;
+  }
   const margenMaxRate = (config.margen_recomendado || 20) / 100;
   const impuestoDefRate = (config.impuesto_ventas || 15) / 100;
   const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
@@ -1368,8 +1392,13 @@ Productos.renderCostoLayout = function (producto) {
   `;
 };
 
-Productos.bindCostoEvents = function (producto) {
-  const config = State.getConfig();
+Productos.bindCostoEvents = async function (producto) {
+  const config = await State.getConfig();
+  console.log('bindCostoEvents. Config:', config);
+  if (!config) {
+    Toast.warning('Error al cargar la configuración. Intente de nuevo.');
+    return;
+  }
   const margenMaxRate = (config.margen_recomendado || 20) / 100; //margenMaximo
   const impuestoDefRate = (config.impuesto_ventas || 15) / 100; //  impuestoPct
   const costoBase = producto.costo_base || 0;
@@ -1762,7 +1791,7 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
       State.invalidateCache('productos');
       Utils.hideLoading();
       Toast.success('Configuración guardada');
-
+      ViewManager.volver();
     } catch (error) {
       Utils.hideLoading();
       Toast.error(error.message);

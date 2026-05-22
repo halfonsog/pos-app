@@ -10,29 +10,33 @@ const API = {
   request: async function (endpoint, options = {}) {
     const token = State.getToken();
 
-    const defaultOptions = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
-      ...options
-    };
-
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, defaultOptions);
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error en la petición');
+      // ✅ Detectar token expirado
+      if (response.status === 401) {
+        State.clear();
+        Toast.warning('Sesión expirada. Inicie sesión nuevamente.');
+        ViewManager.navegar('auth/login', {}, { reset: true });
+        throw new Error('Sesión expirada');
       }
 
-      if (response.status === 204) {
-        return null;
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Error en la petición');
       }
 
       return await response.json();
     } catch (error) {
-      console.error('API Error:', error);
+      if (error.message !== 'Sesión expirada') {
+        console.error('API Error:', error);
+      }
       throw error;
     }
   },

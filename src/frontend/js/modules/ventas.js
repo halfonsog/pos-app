@@ -464,7 +464,12 @@ Ventas.pos = async function () {
     });
 
     Ventas._carrito = [];
-    const config = State.getConfig();
+    const config = await State.getConfig();
+    console.log('pos. Config:', config);
+    if (!config) {
+      Toast.warning('Error al cargar la configuración. Intente de nuevo.');
+      return;
+    }
     Ventas._impuestoPorcentaje = config.impuesto_ventas / 100;
 
     const layout = `
@@ -490,7 +495,7 @@ Ventas.pos = async function () {
                 <div class="row g-2" id="productosGrid">
                   ${productosEnVenta.map(p => `
                     <div class="col-6 col-md-4 col-lg-3">
-                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}" data-unidad="${p.unidad_venta_abrev}">
+                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}" data-unidad="${p.unidad_venta_abrev}" data-tipo-unidad="${p.unidad_venta_tipo || 'unidad'}">
                         <div class="card-body text-center p-2">
                           ${p.foto
         ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
@@ -499,7 +504,7 @@ Ventas.pos = async function () {
                           <h6 class="mb-0 small">${p.nombre}</h6>
                           <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
                           <div class="mt-1">
-                            <span class="badge bg-secondary small">Stock: ${Utils.formatNumber(p.stock_actual, 0)} ${p.unidad_venta_abrev || 'uds'}</span>
+                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${Utils.formatNumber(p.stock_efectivo || p.stock_actual, 0)} ${p.unidad_venta_abrev || 'uds'}</span>
                           </div>
                         </div>
                       </div>
@@ -509,14 +514,14 @@ Ventas.pos = async function () {
               </div>
               
               <!-- Carrito -->
-              <div class="col-lg-4 bg-light p-3 d-flex flex-column" style="border-left: 1px solid #dee2e6;">
-                <h5 class="mb-3"><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
+              <div class="col-lg-4 bg-light d-flex flex-column" style="border-left: 1px solid #dee2e6; max-height: calc(100vh - 56px);">
+                <h5 class="mb-3 mt-3 px-3"><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
                 
-                <div id="carritoItems" style="flex: 1; overflow-y: auto;">
+                <div id="carritoItems" class="px-3" style="flex: 1; overflow-y: auto;">
                   <p class="text-muted text-center py-4">No hay productos en el carrito</p>
                 </div>
                 
-                <div class="border-top pt-3">
+                <div class="border-top p-3 mt-auto">
                   <div class="d-flex justify-content-between mb-1">
                     <span>Subtotal:</span>
                     <span id="subtotalCarrito">$0.00</span>
@@ -567,8 +572,9 @@ Ventas.bindPosEvents = function () {
     const nombre = $(this).data('nombre');
     const precio = parseFloat($(this).data('precio'));
     const unidadAbrev = $(this).data('unidad');
+    const tipoUnidad = $(this).data('tipo-unidad');
 
-    Ventas.mostrarPopupCantidad(id, nombre, precio, unidadAbrev);
+    Ventas.mostrarPopupCantidad(id, nombre, precio, unidadAbrev, tipoUnidad);
   });
 
   // Búsqueda
@@ -595,28 +601,26 @@ Ventas.bindPosEvents = function () {
   Ventas.bindCommonEvents();
 };
 
-Ventas.agregarAlCarrito = function (id, nombre, precio, unidadAbrev, cantidad) {
+Ventas.agregarAlCarrito = function (id, nombre, precio, unidadAbrev, cantidad, tipoUnidad) {
+  const esUnidad = tipoUnidad === 'Unidad';
+
   const existente = Ventas._carrito.find(item => item.id === id);
+
   if (existente) {
-
-    cantidadExistente = existente.cantidad;
-
-    console.log('item existe:', { cantidadExistente, cantidad });
     existente.cantidad += cantidad;
     existente.total = existente.cantidad * existente.precio;
   } else {
-    const unidad = Utils.getNombreUnidad(unidadAbrev);
-    console.log('agregarAlCarrito', { id, nombre, precio, unidadAbrev, cantidad, unidad });
     Ventas._carrito.push({
       id: id,
       nombre: nombre,
       precio: precio,
       cantidad: cantidad,
       total: cantidad * precio,
-      unidadAbrev: unidadAbrev,
-      unidad: unidad || ''
+      unidadAbrev: unidadAbrev || 'ud',
+      esUnidad: esUnidad
     });
   }
+
   Ventas.actualizarCarritoUI();
 };
 
@@ -635,7 +639,7 @@ Ventas.actualizarCarritoUI = function () {
   let subtotalSinImpuesto = 0;
 
   carrito.forEach((item, i) => {
-    //    subtotalSinImpuesto += item.total / (1 + Ventas._impuestoPorcentaje);
+    const esUnidad = item.tipoUnidad === 'unidad';
     const precioNeto = item.total * (1 - Ventas._impuestoPorcentaje);
 
     html += `
@@ -643,7 +647,7 @@ Ventas.actualizarCarritoUI = function () {
       <div>
         <small class="fw-bold">${item.nombre}</small>
         <br>
-        <small class="text-muted">${Utils.formatNumber(item.cantidad, item.unidadAbrev === 'ud' ? 0 : 2)} ${item.unidadAbrev} × ${Utils.formatMoney(item.precio)}</small>
+        <small class="text-muted">${Utils.formatNumber(item.cantidad, esUnidad ? 0 : 2)} ${item.unidadAbrev} × ${Utils.formatMoney(item.precio)}</small>
       </div>
       <div class="text-end">
         <span class="text-success fw-bold">${Utils.formatMoney(item.total)}</span>
@@ -674,63 +678,64 @@ Ventas.actualizarCarritoUI = function () {
   });
 };
 
-Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev) {
-  const esUnidad = unidadAbrev === 'ud' || unidadAbrev === 'Unidad';
+Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev, tipoUnidad) {
+  const esUnidad = tipoUnidad === 'unidad';
   const unidad = Utils.getNombreUnidad(unidadAbrev);
-  const cantidadDefault = esUnidad ? 1 : 1;
-  const stepValue = esUnidad ? '1' : '0.01';
+  //const cantidadDefault = esUnidad ? 1 : 1;
+  const inputMode = esUnidad ? 'numeric' : 'decimal';
+  //const stepValue = esUnidad ? '1' : '0.1';
 
   const modalHtml = `
-  <div class="modal fade" id="cantidadModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-      <div class="modal-content">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title">${nombre}</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center">
-          <p class="text-muted mb-2">${Utils.formatMoney(precio)} / ${unidadAbrev}</p>
-          
-          <!-- Toggle: Cantidad / Precio -->
-          <div class="btn-group btn-group-sm mb-3" role="group">
-            <button type="button" class="btn btn-outline-primary active" id="modoCantidad">Cantidad</button>
-            <button type="button" class="btn btn-outline-primary" id="modoPrecio">Precio</button>
+    <div class="modal fade" id="cantidadModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title">${nombre}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          
-          <!-- Input Cantidad -->
-          <div class="mb-3" id="divCantidad">
-            <div class="input-group input-group-lg">
-              <input type="text" class="form-control text-center fw-bold" id="cantidadInput" value="${cantidadDefault}" inputmode="decimal" data-precio="${precio}">
-              <span class="input-group-text">${unidadAbrev}</span>
+          <div class="modal-body text-center">
+            <p class="text-muted mb-2">${Utils.formatMoney(precio)} / ${unidadAbrev}</p>
+            
+            <!-- Toggle: Cantidad / Precio -->
+            <div class="btn-group btn-group-sm mb-3" role="group">
+              <button type="button" class="btn btn-outline-primary active" id="modoCantidad">Cantidad</button>
+              <button type="button" class="btn btn-outline-primary" id="modoPrecio">Precio</button>
+            </div>
+            
+            <!-- Input Cantidad -->
+            <div class="mb-3" id="divCantidad">
+              <div class="input-group input-group-lg">
+                <input type="text" class="form-control text-center fw-bold" id="cantidadInput" value="" inputmode="${inputMode}" placeholder="0" data-precio="${precio}">
+                <span class="input-group-text">${unidadAbrev}</span>
+              </div>
+            </div>
+            
+            <!-- Input Precio (oculto por defecto) -->
+            <div class="mb-3 d-none" id="divPrecio">
+              <div class="input-group input-group-lg">
+                <span class="input-group-text">$</span>
+                <input type="text" class="form-control text-center fw-bold" id="precioInput" value="" inputmode="decimal" placeholder="0.00">
+              </div>
+              <small class="text-muted">Cantidad calculada automáticamente</small>
+            </div>
+            
+            <!-- Teclado numérico -->
+            <div class="teclado-numerico">
+              ${['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(tecla => `
+                <button class="btn btn-outline-secondary btn-lg tecla-num" data-val="${tecla}" style="width:30%;margin:2px">${tecla}</button>
+              `).join('')}
             </div>
           </div>
-          
-          <!-- Input Precio (oculto por defecto) -->
-          <div class="mb-3 d-none" id="divPrecio">
-            <div class="input-group input-group-lg">
-              <span class="input-group-text">$</span>
-              <input type="text" class="form-control text-center fw-bold" id="precioInput" value="" inputmode="decimal" placeholder="0.00">
-            </div>
-            <small class="text-muted">Cantidad calculada automáticamente</small>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-success btn-lg" id="btnConfirmarCantidad">
+              <i class="fas fa-cart-plus me-1"></i>Agregar
+            </button>
           </div>
-          
-          <!-- Teclado numérico -->
-          <div class="teclado-numerico">
-            ${['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(tecla => `
-              <button class="btn btn-outline-secondary btn-lg tecla-num" data-val="${tecla}" style="width:30%;margin:2px">${tecla}</button>
-            `).join('')}
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-success btn-lg" id="btnConfirmarCantidad">
-            <i class="fas fa-cart-plus me-1"></i>Agregar
-          </button>
         </div>
       </div>
     </div>
-  </div>
-`;
+  `;
 
   $('body').append(modalHtml);
 
@@ -824,7 +829,7 @@ Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev) {
       Toast.warning('Ingrese una cantidad o precio válido');
       return;
     }
-    Ventas.agregarAlCarrito(id, nombre, precio, unidadAbrev, cantidad);
+    Ventas.agregarAlCarrito(id, nombre, precio, unidadAbrev, cantidad, tipoUnidad);
     $('#btnConfirmarCantidad').blur();
     modal.hide();
   }
@@ -843,7 +848,12 @@ Ventas.procesarVenta = async function (metodoPago) {
   }));
 
   // Obtener configuración de redondeo
-  const config = State.getConfig();
+  const config = await State.getConfig();
+  console.log('procesarVenta. Config:', config);
+  if (!config) {
+    Toast.warning('Error al cargar la configuración. Intente de nuevo.');
+    return;
+  }
   const REDONDEO = config.redondeo_venta || 5;
 
   // Calcular total exacto
@@ -879,6 +889,9 @@ Ventas.procesarVenta = async function (metodoPago) {
     Ventas._carrito = [];
     Ventas.actualizarCarritoUI();
 
+    // ✅ Recargar productos (para actualizar stock)
+    await Ventas.cargarProductos();
+
     Utils.hideLoading();
     Toast.success(`Venta registrada - Total: ${totalRedondeado}`);
 
@@ -887,6 +900,79 @@ Ventas.procesarVenta = async function (metodoPago) {
     console.error('Error en venta:', error);
     Toast.warning(error.message);
   }
+};
+
+Ventas.cargarProductos = async function () {
+  try {
+    const productos = await API.productos.listar();
+    const productosEnVenta = productos.filter(p => {
+      if (!p.activo) return false;
+      if (!p.precio_venta || p.precio_venta <= 0) return false;
+      if (p.puede_venderse !== undefined) return p.puede_venderse;
+      return p.stock_actual > 0;
+    });
+
+    // Intentar obtener ranking de más vendidos
+    try {
+      const rango = Utils.rangoHoy();
+      const ranking = await API.reportes.ventasPorProducto(rango.inicio, rango.fin);
+
+      if (ranking && ranking.productos && ranking.productos.length > 0) {
+        // Crear un mapa de id → posición en el ranking (0 = más vendido)
+        const rankingPos = {};
+        ranking.productos.forEach((p, i) => {
+          rankingPos[p.id] = i;
+        });
+
+        // Ordenar: primero los que están en el ranking, luego alfabético
+        productosEnVenta.sort((a, b) => {
+          const aEnRanking = rankingPos[a.id] !== undefined;
+          const bEnRanking = rankingPos[b.id] !== undefined;
+
+          // Ambos en ranking → ordenar por posición
+          if (aEnRanking && bEnRanking) {
+            return rankingPos[a.id] - rankingPos[b.id];
+          }
+
+          // Solo uno en ranking → el que está en ranking va primero
+          if (aEnRanking) return -1;
+          if (bEnRanking) return 1;
+
+          // Ninguno en ranking → orden alfabético
+          return a.nombre.localeCompare(b.nombre);
+        });
+      }
+    } catch (e) {
+      // Si falla el ranking, orden alfabético simple
+      productosEnVenta.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+
+    Ventas.renderProductosGrid(productosEnVenta);
+  } catch (error) {
+    console.error('Error recargando productos:', error);
+  }
+};
+
+Ventas.renderProductosGrid = function (productos) {
+  const html = productos.map(p => `
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card producto-card h-100" data-id="${p.id}" 
+           data-nombre="${p.nombre}" data-precio="${p.precio_venta}"
+           data-unidad="${p.unidad_venta_abrev || 'ud'}">
+        <div class="card-body text-center p-2">
+          ${p.foto ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
+      : `<img src="${Utils.getProductPlaceholder(p, p.id, 80)}" class="producto-img mb-2">`}
+          <h6 class="mb-0 small">${p.nombre}</h6>
+          <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
+          <div class="mt-1">
+            <span class="badge ${bg - secondary} small">Stock: ${Utils.formatNumber(p.stock_efectivo || p.stock_actual, 0)} ${p.unidad_venta_abrev || ''}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  $('#productosGrid').html(html);
 };
 
 // ============================================

@@ -267,7 +267,7 @@ Inventario.initStockTable = function (productos) {
       `<span class="${p.stock_actual <= p.stock_minimo ? 'text-warning fw-bold' : ''}">${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_abrev || ''}</span>`, // 3
       `${Utils.formatNumber(p.stock_minimo, 2)} ${p.unidad_abrev || ''}`, // 4
       p.puede_venderse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>', // 5
-      p.es_preparable ? (p.puede_prepararse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-warning">Sin componentes</span>') : '<span class="badge bg-secondary">No</span>', // 6
+      p.es_preparable ? (p.puede_prepararse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-warning">Sin componentes</span>') : '<span class="badge bg-secondary">No</span>',  // 6
       p.id,                                                    // 7
       p.tiene_ficha_costo ? 'true' : 'false',                  // 8
       (p.stock_actual <= p.stock_minimo) ? 'true' : 'false',   // 9
@@ -567,6 +567,8 @@ Inventario.initMovimientosTable = function (movimientos) {
       case 'preparacion_salida': tipoBadge = '<span class="badge bg-warning">Prep. Salida</span>'; break;
       case 'merma': tipoBadge = '<span class="badge bg-danger">Merma</span>'; break;
       case 'ajuste': tipoBadge = '<span class="badge bg-secondary">Ajuste</span>'; break;
+      case 'donacion': tipoBadge = '<span class="badge bg-warning">Donación</span>'; break;
+      case 'autoconsumo': tipoBadge = '<span class="badge bg-secondary">Autoconsumo</span>'; break;
       default: tipoBadge = `<span class="badge bg-secondary">${m.tipo}</span>`;
     }
 
@@ -580,7 +582,8 @@ Inventario.initMovimientosTable = function (movimientos) {
       `<span class="${cantidadClass} fw-bold">${cantidadSigno}${Utils.formatNumber(m.cantidad, 2)}</span>`,
       m.usuario_nombre || 'Sistema',
       m.observaciones || '-',
-      m.tipo
+      m.tipo,
+      m.referencia_id || ''
     ];
   });
 
@@ -593,7 +596,8 @@ Inventario.initMovimientosTable = function (movimientos) {
       { data: 3, title: 'Cantidad', className: 'text-end' },
       { data: 4, title: 'Usuario' },
       { data: 5, title: 'Observaciones' },
-      { data: 6, title: 'TipoFiltro', visible: false, searchable: true }
+      { data: 6, title: 'TipoFiltro', visible: false, searchable: true },
+      { data: 13, title: 'ReferenciaID', visible: false }
     ],
     order: [[0, 'desc']],
     language: {
@@ -643,8 +647,22 @@ Inventario.bindMovimientosEvents = function (params) {
       self.dataTable.column(6).search('preparacion', true, false).draw();
     } else if (filtro === 'merma') {
       self.dataTable.column(6).search('merma', true, false).draw();
-    } else if (filtro === 'ajuste') {
+    } else if (filtro === 'ajuste' || filtro === 'donacion' || filtro === 'autoconsumo') {
       self.dataTable.column(6).search('ajuste', true, false).draw();
+    }
+  });
+
+  $('#movimientosTable tbody').on('dblclick', 'tr', function () {
+    const row = self.dataTable.row(this).data();
+    const tipo = row[6]; // Índice del TipoFiltro
+    const refId = row[7]; // Índice del ReferenciaID
+
+    if (refId) {
+      if (tipo === 'compra') {
+        ViewManager.navegar('compras/ver/' + refId);
+      } else if (tipo === 'venta') {
+        ViewManager.navegar('ventas/ver/' + refId);
+      }
     }
   });
 

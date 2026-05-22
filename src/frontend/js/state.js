@@ -45,8 +45,21 @@ const State = {
     return localStorage.getItem('token');
   },
 
-  getConfig: function () {
-    return this.getCache('configuracion');
+  getConfig: async function () {
+    let cached = this.getCache('configuracion');
+    if (cached) return cached;
+
+    // Intentar recargar
+    try {
+      console.warn('⚠️ Configuración no en caché, recargando...');
+      const config = await API.get('/configuracion/general');
+      this.setCache('configuracion', config);
+      console.log('✅ Configuración recargada exitosamente');
+      return config;
+    } catch (error) {
+      console.error('❌ No se pudo cargar la configuración');
+      return null;
+    }
   },
 
   // Gestión de caché de módulos

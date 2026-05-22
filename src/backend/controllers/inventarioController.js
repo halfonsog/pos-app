@@ -56,65 +56,54 @@ const inventarioController = {
       const db = await getDb();
 
       const productos = await db.all(`
-      WITH stock_componentes AS (
+        WITH stock_componentes AS (
+          SELECT 
+            r.producto_padre_id,
+            MIN(pr.stock_actual / r.cantidad) as stock_efectivo,
+            MIN(CASE WHEN pr.stock_actual >= r.cantidad THEN 1 ELSE 0 END) as todos_disponibles
+          FROM recetas r
+          JOIN productos pr ON r.producto_hijo_id = pr.id
+          WHERE pr.activo = 1
+          GROUP BY r.producto_padre_id
+        )
         SELECT 
-          r.producto_padre_id,
-          MIN(pr.stock_actual / r.cantidad) as stock_efectivo
-        FROM recetas r
-        JOIN productos pr ON r.producto_hijo_id = pr.id
-        WHERE pr.activo = 1
-        GROUP BY r.producto_padre_id
-      )
-      SELECT 
-        p.id, p.codigo, p.nombre, p.tipo, p.sub_tipo,
-        CASE 
-          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 THEN p.stock_actual
-          WHEN p.tipo = 'compuesto' THEN COALESCE(sc.stock_efectivo, 0)
-          ELSE p.stock_actual
-        END as stock_actual,
-        p.stock_minimo, p.precio_venta,
-        p.requiere_preparacion, p.activo,
-        c.nombre as categoria_nombre,
-        uv.abreviatura as unidad_abrev,
-        CASE WHEN p.precio_venta > 0 THEN 1 ELSE 0 END as tiene_ficha_costo,
-        CASE 
-          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 
-            AND EXISTS (SELECT 1 FROM recetas WHERE producto_padre_id = p.id)
-          THEN 1 ELSE 0 
-        END as es_preparable
-      FROM productos p
-      LEFT JOIN categorias c ON p.categoria_id = c.id
-      LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
-      LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
-      WHERE p.activo = 1
-      ORDER BY p.nombre
-    `);
+          p.id, p.codigo, p.nombre, p.tipo, p.sub_tipo,
+          CASE 
+            WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 THEN p.stock_actual
+            WHEN p.tipo = 'compuesto' THEN COALESCE(sc.stock_efectivo, 0)
+            ELSE p.stock_actual
+          END as stock_actual,
+          p.stock_minimo, p.precio_venta,
+          p.requiere_preparacion, p.activo,
+          c.nombre as categoria_nombre,
+          uv.abreviatura as unidad_abrev,
+          uv.tipo as unidad_venta_tipo,
+          CASE WHEN p.precio_venta > 0 THEN 1 ELSE 0 END as tiene_ficha_costo,
+          CASE 
+            WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 
+              AND EXISTS (SELECT 1 FROM recetas WHERE producto_padre_id = p.id)
+            THEN 1 ELSE 0 
+          END as es_preparable,
+          CASE 
+            WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 
+              AND sc.todos_disponibles = 1
+            THEN 1 ELSE 0 
+          END as puede_prepararse
+        FROM productos p
+        LEFT JOIN categorias c ON p.categoria_id = c.id
+        LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+        LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
+        WHERE p.activo = 1
+        ORDER BY p.nombre
+      `);
 
       // Procesar resultados
       for (const p of productos) {
-        // ¿Se puede vender?
         p.puede_venderse = p.tiene_ficha_costo === 1 && p.stock_actual > 0;
-
-        // ¿Es preparable? (tiene receta y requiere preparación)
-        p.es_preparable = p.tipo === 'compuesto' && p.requiere_preparacion === 1;
-
-        // ¿Se puede preparar AHORA? (componentes con stock suficiente)
-        if (p.es_preparable) {
-          // Verificar stock de componentes
-          const componentes = await db.all(`
-            SELECT pr.stock_actual, r.cantidad
-            FROM recetas r
-            JOIN productos pr ON r.producto_hijo_id = pr.id
-            WHERE r.producto_padre_id = ?
-          `, [p.id]);
-
-          p.puede_prepararse = componentes.length > 0 &&
-            componentes.every(c => c.stock_actual >= c.cantidad);
-        } else {
-          p.puede_prepararse = false;
-        }
+        p.es_preparable = p.es_preparable === 1;
+        p.puede_prepararse = p.puede_prepararse === 1;
+        p.tiene_ficha_costo = p.tiene_ficha_costo === 1;
       }
-
       res.json(productos);
     } catch (error) {
       console.error('Error en listar stock:', error);
@@ -128,22 +117,21 @@ const inventarioController = {
       const db = await getDb();
 
       const movimientos = await db.all(`
-        SELECT 
-          m.id, m.tipo, m.cantidad, m.created_at as fecha,
-          m.observaciones,
-          p.id as producto_id, p.codigo, p.nombre as producto_nombre,
-          u.username as usuario_nombre
-        FROM movimientos_stock m
-        JOIN productos p ON m.producto_id = p.id
-        LEFT JOIN usuarios u ON m.usuario_id = u.id
-        ORDER BY m.created_at DESC
-        LIMIT 100
-      `);
+      SELECT 
+        m.id, m.tipo, m.cantidad, m.created_at as fecha,
+        m.observaciones, m.referencia_id,
+        p.id as producto_id, p.codigo, p.nombre as producto_nombre,
+        u.username as usuario_nombre
+      FROM movimientos_stock m
+      JOIN productos p ON m.producto_id = p.id
+      LEFT JOIN usuarios u ON m.usuario_id = u.id
+      ORDER BY m.created_at DESC
+      LIMIT 100
+    `);
 
       res.json(movimientos);
     } catch (error) {
-      console.error('Error en listar movimientos:', error);
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   },
 

@@ -33,6 +33,10 @@ ViewManager.routes = [
   { pattern: 'compras/pagar/:id', module: 'Compras', action: 'pagar' },
   { pattern: 'compras/inventariar/:id', module: 'Compras', action: 'inventariar' },
 
+  // Categorias
+  { pattern: 'categorias', module: 'Categorias', action: 'listado' },
+  { pattern: 'categorias/nuevo', module: 'Categorias', action: 'formulario' },
+
   // Selector productos
   { pattern: 'selector-productos', module: 'SelectorProductos', action: 'index' },
 
@@ -64,8 +68,8 @@ ViewManager.routes = [
   { pattern: 'configuracion', module: 'Configuracion', action: 'index' },
   { pattern: 'configuracion/general', module: 'Configuracion', action: 'general' },
   { pattern: 'configuracion/gastos', module: 'Configuracion', action: 'gastos' },
-  { pattern: 'configuracion/categorias', module: 'Configuracion', action: 'categorias' },
   { pattern: 'configuracion/unidades', module: 'Configuracion', action: 'unidades' },
+  { pattern: 'configuracion/categorias', module: 'Configuracion', action: 'categorias' },
   { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' },
   { pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
 

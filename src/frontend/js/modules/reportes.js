@@ -289,7 +289,7 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
           </table>
         </div>
         <div class="card">
-          <div class="card-header"><h5 class="mb-0">Top 10 Productos</h5></div>
+          <div class="card-header"><h5 class="mb-0">Top 10 Productos por volumen de venta</h5></div>
           <div class="card-body"><div style="height: 300px;"><canvas id="ventasProductoChart"></canvas></div></div>
         </div>
         <script>
@@ -394,7 +394,7 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
               <tr>
                 <th>Producto</th>
                 <th class="text-end">Cantidad</th>
-                <th class="text-end">Venta Total</th>
+                <th class="text-end" title="Total facturado en el período">Venta Total</th>
                 <th class="text-end">Costo</th>
                 <th class="text-end">G. Fijos</th>
                 <th class="text-end">Ganancia</th>
