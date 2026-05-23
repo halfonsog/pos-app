@@ -114,7 +114,7 @@ const API = {
     listar: () => API.get('/proveedores'),
     obtener: (id) => API.get(`/proveedores/${id}`),
     crear: (data) => API.post('/proveedores', data),
-    actualizar: (id, data) => API.put(`/ proveedores / ${id} `, data),
+    actualizar: (id, data) => API.put(`/proveedores/${id}`, data),
     eliminar: (id) => API.delete(`/ proveedores / ${id} `),
     listarContactos: (id) => API.get(`/ proveedores / ${id}/contactos`),
     crearContacto: (id, data) => API.post(`/proveedores/${id}/contactos`, data),
@@ -183,7 +183,6 @@ const API = {
     crear: (data) => API.post('/ventas', data),
     obtener: (id) => API.get(`/ventas/${id}`),
     resumenTurno: (id) => API.get(`/ventas/resumen-turno/${id}`),
-    //listar: () => API.get('/ventas'),
     listar: (params = {}) => {
       const query = new URLSearchParams();
       if (params.inicio) query.append('inicio', params.inicio);
@@ -192,7 +191,8 @@ const API = {
       if (params.busqueda) query.append('busqueda', params.busqueda);
       return API.get('/ventas?' + query.toString());
     },
-    miTurno: () => API.get('/ventas/mi-turno')
+    miTurno: () => API.get('/ventas/mi-turno'),
+    anular: (id) => API.post(`/ventas/${id}/anular`)
   },
 
   reportes: {
@@ -203,6 +203,15 @@ const API = {
 
   dashboard: {
     obtener: (inicio, fin) => API.get(`/dashboard?inicio=${inicio}&fin=${fin}`)
+  },
+
+  mantenimiento: {
+    eliminarInactivos: () => API.post('/mantenimiento/eliminar-inactivos'),
+    eliminarAnio: (anio) => API.post('/mantenimiento/eliminar-anio', { anio }),
+    eliminarEntidad: (tipo, id) => API.post('/mantenimiento/eliminar-entidad', { tipo, id }),
+    reset: () => API.post('/mantenimiento/reset'),
+    restaurar: (formData) => API.postFormData('/mantenimiento/restaurar', formData),
+    verLogs: () => API.get('/mantenimiento/logs')
   }
 };
 

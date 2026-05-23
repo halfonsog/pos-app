@@ -474,6 +474,7 @@ Proveedores.bindCommonEvents = function () {
 // ============================================
 Proveedores.formulario = async function (params) {
   console.log('📝 Cargando formulario de proveedor', params);
+  console.log('📝 ID recibido:', JSON.stringify(params.id)); // ← Añade esto
 
   const id = params.id;
   const isEdit = !!id;
@@ -640,6 +641,10 @@ Proveedores.bindFormularioEvents = function (id, params) {
       Utils.showLoading('Guardando proveedor...');
 
       let result;
+
+      console.log('🔑 ID antes de enviar:', JSON.stringify(id), 'tipo:', typeof id);
+      console.log('🔑 API.put URL:', `/proveedores/${id}`);
+
       if (id) {
         result = await API.proveedores.actualizar(id, data);
       } else {
@@ -780,6 +785,10 @@ Proveedores.renderFichaLayout = function (proveedor) {
                     <label class="text-muted small">Término de Pago</label>
                     <p>${proveedor.termino_pago_nombre || 'No especificado'}</p>
                   </div>
+                  <div class="col-md-6">
+                    <label class="text-muted small">ID del Proveedor</label>
+                    <p class="text-muted">#${proveedor.id}</p>
+                  </div>
                 </div>
               </div>
               
@@ -860,7 +869,7 @@ Proveedores.renderFichaLayout = function (proveedor) {
                       <tbody>
                         ${proveedor.ultimas_compras.map(c => `
                           <tr class="clickable" data-route="compras/ver/${c.id}">
-                            <td>${Utils.formatDate(c.fecha_compra)}</td>
+                            <td>${Utils.formatearFecha(Utils.fechaISOToLocal(c.fecha_compra), 'corto')}</td>
                             <td>${c.codigo_factura || '-'}</td>
                             <td class="text-end">${Utils.formatMoney(c.total)}</td>
                             <td>

@@ -11,6 +11,7 @@ const configuracionRoutes = require('./configuracion');
 const ventasRoutes = require('./ventas');
 const dashboardController = require('../controllers/dashboardController');
 const reportesRoutes = require('./reportes');
+const mantenimientoRoutes = require('./mantenimiento');
 
 // Health check (público)
 router.get('/health', (req, res) => {
@@ -33,5 +34,6 @@ router.use('/inventario', inventarioRoutes);
 router.use('/configuracion', configuracionRoutes);
 router.use('/ventas', ventasRoutes);
 router.use('/reportes', reportesRoutes);
+router.use('/mantenimiento', mantenimientoRoutes);
 
 module.exports = router;

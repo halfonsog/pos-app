@@ -35,7 +35,7 @@ Ventas.index = async function () {
                     <i class="fas fa-clock fa-2x ${turno.abierto ? 'text-success' : 'text-danger'} mb-2"></i>
                     <h5>${turno.abierto ? 'Turno Abierto' : 'Turno Cerrado'}</h5>
                     ${turno.abierto ? `
-                      <p class="text-muted small">${turno.vendedor_nombre} - ${Utils.formatDate(turno.abierto_at, 'datetime')}</p>
+                      <p class="text-muted small">${turno.vendedor_nombre} - ${Utils.formatearFecha(Utils.fechaISOToLocal(turno.abierto_at), 'datetime')}</p>
                     ` : ''}
                   </div>
                 </div>
@@ -459,8 +459,8 @@ Ventas.pos = async function () {
         return p.puede_venderse;
       }
 
-      // Fallback: stock_actual > 0
-      return p.stock_actual > 0;
+      // Fallback: stock_efectivo > 0
+      return p.stock_efectivo > 0;
     });
 
     Ventas._carrito = [];
@@ -504,7 +504,7 @@ Ventas.pos = async function () {
                           <h6 class="mb-0 small">${p.nombre}</h6>
                           <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
                           <div class="mt-1">
-                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${Utils.formatNumber(p.stock_efectivo, (p.unidad_venta_tipo === 'unidad' ? 0 : 2))} ${p.unidad_venta_abrev || 'uds'}</span>
+                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)} ${p.unidad_venta_abrev}</span>
                           </div>
                         </div>
                       </div>
@@ -909,7 +909,7 @@ Ventas.cargarProductos = async function () {
       if (!p.activo) return false;
       if (!p.precio_venta || p.precio_venta <= 0) return false;
       if (p.puede_venderse !== undefined) return p.puede_venderse;
-      return p.stock_actual > 0;
+      return p.stock_efectivo > 0;
     });
 
     // Intentar obtener ranking de más vendidos
@@ -965,7 +965,7 @@ Ventas.renderProductosGrid = function (productos) {
           <h6 class="mb-0 small">${p.nombre}</h6>
           <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
           <div class="mt-1">
-            <span class="badge ${bg - secondary} small">Stock: ${Utils.formatNumber(p.stock_efectivo || p.stock_actual, 0)} ${p.unidad_venta_abrev || ''}</span>
+            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)}  ${p.unidad_venta_abrev}</span>
           </div>
         </div>
       </div>
@@ -978,6 +978,82 @@ Ventas.renderProductosGrid = function (productos) {
 // ============================================
 // LISTADO DE VENTAS
 // ============================================
+Ventas.initDataTable = function (ventas) {
+  if (this.dataTable) this.dataTable.destroy();
+  $.fn.dataTable.ext.errMode = 'none';
+
+  const tableData = ventas.map(v => {
+    return [
+      `#${v.id}`,
+      Utils.formatearFecha(Utils.fechaISOToLocal(v.created_at), 'corto'),
+      v.vendedor_nombre || '-',
+      v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>',
+      Utils.formatMoney(v.total),
+      v.estado === 'anulada' ? '<span class="badge bg-danger">Anulada</span>' :
+        `<div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item ver-venta" href="#" data-id="${v.id}"><i class="fas fa-receipt me-2"></i>Ver Venta</a></li>
+            <li><a class="dropdown-item ver-turno" href="#" data-turno="${v.turno_id}"><i class="fas fa-clock me-2"></i>Ver Turno</a></li>
+            ${v.estado !== 'anulada' && State.isAdmin() ? `
+              <li><a class="dropdown-item anular-venta text-danger" href="#" data-id="${v.id}">
+                <i class="fas fa-undo me-2"></i>Anular Venta
+              </a></li>
+            ` : ''}
+          </ul>
+        </div>`,
+      v.id,
+      v.turno_id
+    ];
+  });
+
+  this.dataTable = $('#ventasTable').DataTable({
+    data: tableData,
+    columns: [
+      { data: 0, title: 'ID' },
+      { data: 1, title: 'Fecha' },
+      { data: 2, title: 'Vendedor' },
+      { data: 3, title: 'Método' },
+      { data: 4, title: 'Total', className: 'text-end' },
+      { data: 5, title: '', orderable: false, className: 'text-center' },
+      { data: 6, title: 'ID', visible: false },
+      { data: 7, title: 'TurnoID', visible: false }
+    ],
+    order: [[6, 'desc']],
+    language: {
+      decimal: ",", thousands: ".",
+      processing: "Procesando...",
+      lengthMenu: "Mostrar _MENU_ registros",
+      zeroRecords: "No se encontraron resultados",
+      emptyTable: "Ninguna venta en este período",
+      info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+      search: "Buscar:", searchPlaceholder: "Buscar...",
+      paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" }
+    },
+    pageLength: 25,
+    responsive: true,
+    drawCallback: function () {
+      const $table = $(this);
+      const rows = $table.DataTable().rows({ page: 'current' }).count();
+
+      $table.find('.empty-row').remove();
+
+      if (rows > 0 && rows < 5) {
+        const tbody = $table.find('tbody');
+        const emptyRows = 5 - rows;
+        const colCount = $table.find('thead th').length;
+        for (let i = 0; i < emptyRows; i++) {
+          tbody.append(`<tr class="empty-row" style="height: 45px;"><td colspan="${colCount}">&nbsp;</td></tr>`);
+        }
+      }
+
+      $('#ventasTable tbody tr').addClass('clickable-row');
+    }
+  });
+};
+
 Ventas.listado = async function (params) {
   console.log('📋 Cargando historial de ventas', params);
 
@@ -992,14 +1068,12 @@ Ventas.listado = async function (params) {
       case 'hoy':
         const r = Utils.rangoHoy();
         inicio = r.inicio; fin = r.fin;
-        console.log('Hoy: ', { inicio, fin });
         break;
       case 'ayer':
         const ayer = new Date();
         ayer.setDate(ayer.getDate() - 1);
         const ra = Utils.rangoDia(ayer);
         inicio = ra.inicio; fin = ra.fin;
-        console.log('Ayer: ', { inicio, fin });
         break;
       case 'semana':
         const hoy = new Date();
@@ -1029,6 +1103,8 @@ Ventas.listado = async function (params) {
 
     const layout = Ventas.renderListadoLayout(ventas, params);
     $('#app').html(layout);
+
+    Ventas.initDataTable(ventas);
     Ventas.bindListadoEvents(params);
 
     Utils.hideLoading();
@@ -1040,10 +1116,7 @@ Ventas.listado = async function (params) {
 };
 
 Ventas.bindListadoEvents = function (params) {
-  $('#btnVolver').on('click', () => {
-    console.log('Boton Volver presionado');
-    ViewManager.volver();
-  });
+  const self = this;
 
   // Filtro por fecha
   $('[data-filtro-fecha]').on('click', function () {
@@ -1081,13 +1154,21 @@ Ventas.bindListadoEvents = function (params) {
     }
   });
 
-  // Ver venta
+  // Doble clic en fila
+  $('#ventasTable tbody').on('dblclick', 'tr', function () {
+    if ($(this).hasClass('empty-row')) return;
+    const row = Ventas.dataTable.row(this).data();
+    const id = row[6];
+    ViewManager.navegar('ventas/ver/' + id);
+  });
+
+  // Ver venta desde dropdown
   $('#ventasTable').on('click', '.ver-venta', function (e) {
     e.preventDefault();
     ViewManager.navegar('ventas/ver/' + $(this).data('id'));
   });
 
-  // Ver turno
+  // Ver turno desde dropdown
   $('#ventasTable').on('click', '.ver-turno', async function (e) {
     e.preventDefault();
     const turnoId = $(this).data('turno');
@@ -1097,10 +1178,7 @@ Ventas.bindListadoEvents = function (params) {
       Utils.hideLoading();
       const layout = Ventas.verTurno(resumen);
       $('#app').html(layout);
-      $('#btnVolver').on('click', () => {
-        console.log('Boton Volver presionado');
-        ViewManager.volver();
-      });
+      $('#btnVolver').on('click', () => ViewManager.volver());
       Ventas.bindCommonEvents();
     } catch (error) {
       Utils.hideLoading();
@@ -1108,10 +1186,30 @@ Ventas.bindListadoEvents = function (params) {
     }
   });
 
-  // Doble click = ver venta
-  $('#ventasTable tbody').on('dblclick', 'tr', function () {
+  // Anular venta desde dropdown (admin)
+  $('#ventasTable').on('click', '.anular-venta', async function (e) {
+    e.preventDefault();
     const id = $(this).data('id');
-    ViewManager.navegar('ventas/ver/' + id);
+
+    const confirmado = await Utils.confirm(
+      `¿Anular la venta #${id}?\n\nEl stock será devuelto automáticamente.\nEsta acción no se puede deshacer.`,
+      '⚠️ Anular Venta'
+    );
+
+    if (!confirmado) return;
+
+    try {
+      Utils.showLoading('Anulando...');
+      await API.ventas.anular(id);
+      State.invalidateCache('ventas');
+      State.invalidateCache('productos');
+      Utils.hideLoading();
+      Toast.success('Venta anulada. Stock devuelto.');
+      ViewManager.refresh();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error(error);
+    }
   });
 
   Ventas.bindCommonEvents();
@@ -1137,9 +1235,9 @@ Ventas.renderListadoLayout = function (ventas, params) {
           </nav>
           
           <div class="d-flex align-items-center mb-4">
-            <button class="btn btn-outline-secondary me-3" id="btnVolver">
-                <i class="fas fa-arrow-left me-1"></i>Volver
-              </button>
+            <a href="#ventas" class="btn btn-outline-secondary me-3">
+              <i class="fas fa-arrow-left me-1"></i>Volver
+            </a>
             <h2 class="mb-0"><i class="fas fa-history me-2"></i>Historial de Ventas</h2>
           </div>
           
@@ -1183,9 +1281,9 @@ Ventas.renderListadoLayout = function (ventas, params) {
             </div>
           </div>
           
-          <!-- Tabla -->
+          <!-- Tabla DataTable -->
           <div class="table-responsive">
-            <table class="table table-hover" id="ventasTable">
+            <table class="table table-hover" id="ventasTable" style="width:100%">
               <thead class="table-light">
                 <tr>
                   <th>ID</th>
@@ -1196,28 +1294,7 @@ Ventas.renderListadoLayout = function (ventas, params) {
                   <th class="text-center" style="width: 60px;"></th>
                 </tr>
               </thead>
-              <tbody>
-                ${ventas.length > 0 ? ventas.map(v => `
-                  <tr class="clickable" data-id="${v.id}" data-turno="${v.turno_id}">
-                    <td>#${v.id}</td>
-                    <td>${Utils.formatearFecha(Utils.fechaISOToLocal(v.created_at), 'corto')}</td>
-                    <td>${v.vendedor_nombre || '-'}</td>
-                    <td>${v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>'}</td>
-                    <td class="text-end fw-bold">${Utils.formatMoney(v.total)}</td>
-                    <td class="text-center">
-                      <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
-                          <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                          <li><a class="dropdown-item ver-venta" href="#" data-id="${v.id}"><i class="fas fa-receipt me-2"></i>Ver Venta</a></li>
-                          <li><a class="dropdown-item ver-turno" href="#" data-turno="${v.turno_id}"><i class="fas fa-clock me-2"></i>Ver Turno</a></li>
-                        </ul>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">No hay ventas en este período</td></tr>'}
-              </tbody>
+              <tbody></tbody>
             </table>
           </div>
         </div>
@@ -1251,19 +1328,26 @@ Ventas.ficha = async function (params) {
                 <li class="breadcrumb-item active">Venta #${venta.id}</li>
               </ol>
             </nav>
-            
-            <div class="d-flex align-items-center mb-4">
-              <button class="btn btn-outline-secondary me-3" id="btnVolver">
-                <i class="fas fa-arrow-left me-1"></i>Volver
-              </button>
-              <h2 class="mb-0">
-                Venta #${venta.id}
-                <span class="badge bg-${venta.estado === 'completada' ? 'success' : 'danger'} ms-2">
-                  ${venta.estado === 'completada' ? 'Completada' : 'Anulada'}
-                </span>
-              </h2>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div class="d-flex align-items-center mb-4">
+                <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                  <i class="fas fa-arrow-left me-1"></i>Volver
+                </button>
+                <h3 class="mb-0">
+                  Venta #${venta.id}
+                  <span class="badge bg-${venta.estado === 'completada' ? 'success' : 'danger'} ms-2">
+                    ${venta.estado === 'completada' ? 'Completada' : 'Anulada'}
+                  </span>
+                </h3>
+              </div>
+              <div class="btn-group">
+                ${venta.estado === 'completada' && State.isAdmin() ? `
+                <button class="btn btn-danger" id="btnAnularVenta">
+                  <i class="fas fa-undo me-1"></i>Anular Venta
+                </button>
+              ` : ''}
+              </div>
             </div>
-            
             <div class="row">
               <div class="col-lg-5">
                 <div class="card mb-4">
@@ -1271,7 +1355,7 @@ Ventas.ficha = async function (params) {
                   <div class="card-body">
                     <div class="mb-3">
                       <label class="text-muted small">Fecha</label>
-                      <p>${Utils.formatDate(venta.created_at, 'datetime')}</p>
+                      <p>${Utils.formatearFecha(Utils.fechaISOToLocal(venta.created_at), 'datetime')}</p>
                     </div>
                     <div class="mb-3">
                       <label class="text-muted small">Vendedor</label>
@@ -1346,11 +1430,36 @@ Ventas.ficha = async function (params) {
     $('#btnVolver').on('click', () => {
       console.log('Boton Volver presionado');
       ViewManager.volver();
-    }
-    );
+    });
+
     $('.breadcrumb-back').on('click', (e) => {
       e.preventDefault();
       ViewManager.volver();
+    });
+
+    $('#btnAnularVenta').on('click', async function () {
+      const confirmado = await Utils.confirm(
+        `¿Anular la venta #${venta.id}?\n\n` +
+        `Total: ${Utils.formatMoney(venta.total)}\n` +
+        `El stock será devuelto automáticamente.\n\n` +
+        `Esta acción no se puede deshacer.`,
+        '⚠️ Anular Venta'
+      );
+
+      if (!confirmado) return;
+
+      try {
+        Utils.showLoading('Anulando venta...');
+        await API.ventas.anular(venta.id);
+        State.invalidateCache('ventas');
+        State.invalidateCache('productos');
+        Utils.hideLoading();
+        Toast.success('Venta anulada. Stock devuelto.');
+        ViewManager.refresh();
+      } catch (error) {
+        Utils.hideLoading();
+        console.error(error);
+      }
     });
 
     Ventas.bindCommonEvents();
@@ -1406,14 +1515,14 @@ Ventas.verTurno = function (resumen) {
             <div class="col-md-3">
               <div class="card"><div class="card-body text-center">
                 <small class="text-muted">Apertura</small>
-                <h6>${Utils.formatDate(t.abierto_at, 'datetime')}</h6>
+                <h6>${Utils.formatearFecha(Utils.fechaISOToLocal(t.abierto_at), 'datetime')}</h6>
               </div></div>
             </div>
             ${t.cerrado_at ? `
               <div class="col-md-3">
                 <div class="card"><div class="card-body text-center">
                   <small class="text-muted">Cierre</small>
-                  <h6>${Utils.formatDate(t.cerrado_at, 'datetime')}</h6>
+                  <h6>${Utils.formatearFecha(Utils.fechaISOToLocal(t.cerrado_at), 'datetime')}</h6>
                 </div></div>
               </div>
             ` : ''}

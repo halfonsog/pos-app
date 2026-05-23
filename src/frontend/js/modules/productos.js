@@ -27,10 +27,10 @@ Productos.obtenerEstadisticas = async function () {
   try {
     const productos = await API.productos.listar();
     const activos = productos.filter(p => p.activo);
-    const stockBajo = productos.filter(p => p.stock_actual <= p.stock_minimo);
-    const compuestos = productos.filter(p => p.tipo === 'compuesto');
-    const simples = productos.filter(p => p.tipo === 'simple');
-    const sinCosto = productos.filter(p => !p.precio_venta || p.precio_venta === 0);
+    const stockBajo = activos.filter(p => p.stock_efectivo <= p.stock_minimo);
+    const compuestos = activos.filter(p => p.tipo === 'compuesto');
+    const simples = activos.filter(p => p.tipo === 'simple');
+    const sinCosto = activos.filter(p => !p.precio_venta || p.precio_venta === 0);
     return {
       total: productos.length, activos: activos.length, stockBajo: stockBajo.length,
       compuestos: compuestos.length, simples: simples.length, sinCosto: sinCosto.length,
@@ -79,7 +79,7 @@ Productos.renderIndexLayout = function (stats) {
                   ${stats.productosDestacados.length > 0 ? stats.productosDestacados.map(p => `
                     <div class="stock-item clickable" data-route="productos/ver/${p.id}">
                       <div class="stock-info"><span class="stock-code">${p.codigo}</span><span class="stock-name">${p.nombre}</span></div>
-                      <div class="stock-level"><div class="progress" style="height:6px"><div class="progress-bar bg-warning" style="width:${Math.min((p.stock_actual / p.stock_minimo) * 100, 100)}%"></div></div><span class="stock-text">${p.stock_actual}/${p.stock_minimo}</span></div>
+                      <div class="stock-level"><div class="progress" style="height:6px"><div class="progress-bar bg-warning" style="width:${Math.min((p.stock_efectivo / p.stock_minimo) * 100, 100)}%"></div></div><span class="stock-text">${p.stock_efectivo}/${p.stock_minimo}</span></div>
                     </div>`).join('') : '<p class="text-muted text-center py-3">No hay productos con stock bajo</p>'}
                 </div>
               </div>
@@ -175,14 +175,14 @@ Productos.initDataTable = function (productos) {
   $.fn.dataTable.ext.errMode = 'none';
 
   const tableData = productos.map(p => {
-    const stockBajo = p.stock_actual <= p.stock_minimo;
+    const stockBajo = p.stock_efectivo <= p.stock_minimo;
     const sinCosto = !p.precio_venta || p.precio_venta === 0;
     return [
       p.foto ? `/uploads/productos/${p.foto}` : Utils.getProductPlaceholder(p, p.id, 40),
       p.codigo, p.nombre, p.categoria_nombre || '-',
       Productos.getTipoBadge(p),
       Utils.formatMoney(p.precio_venta),
-      `${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_venta_abrev || ''}`,
+      `${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)}  ${p.unidad_venta_abrev}`,
       p.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>',
       p.id, stockBajo ? 'true' : 'false', sinCosto ? 'true' : 'false',
       p.tipo,
@@ -1026,6 +1026,10 @@ Productos.renderFichaLayout = async function (producto) {
                     <div class="col-md-6">
                       <label class="text-muted small">Estado</label>
                       <p>${producto.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}</p>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="text-muted small">ID del Producto</label>
+                      <p class="text-muted">#${producto.id}</p>
                     </div>
                   </div>
                 </div>

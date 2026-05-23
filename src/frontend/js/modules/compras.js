@@ -1300,7 +1300,7 @@ Compras.renderFichaLayout = function (compra) {
                 <div class="card-body">
                   <div class="mb-3">
                     <label class="text-muted small">Fecha</label>
-                    <p class="fs-5">${Utils.formatDate(compra.fecha_compra)}</p>
+                    <p class="fs-5">${Utils.formatearFecha(Utils.fechaISOToLocal(compra.fecha_compra), 'corto')}</p>
                   </div>
                   <div class="mb-3">
                     <label class="text-muted small">Factura</label>

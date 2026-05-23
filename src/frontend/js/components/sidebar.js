@@ -16,7 +16,8 @@ Sidebar.render = function (activeModule) {
     { id: 'ventas', icon: 'fa-cash-register', label: 'Ventas' },
     { id: 'reportes', icon: 'fa-chart-bar', label: 'Reportes' },
     { id: 'promociones', icon: 'fa-tags', label: 'Promociones' },
-    { id: 'configuracion', icon: 'fa-cog', label: 'Configuración' }
+    { id: 'configuracion', icon: 'fa-cog', label: 'Configuración' },
+    { id: 'mantenimiento', icon: 'fa-tools', label: 'Mantenimiento' }
   ];
 
   const vendedorModules = [

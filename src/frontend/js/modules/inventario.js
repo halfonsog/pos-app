@@ -5,6 +5,7 @@
 var Inventario = window.Inventario || {};
 
 Inventario.dataTable = null;
+Inventario.selProduct = null;
 
 // ============================================
 // VISTA PRINCIPAL (INDEX - Cards Dashboard)
@@ -264,13 +265,13 @@ Inventario.initStockTable = function (productos) {
       p.codigo,                                                // 0
       p.nombre,                                                // 1
       p.categoria_nombre || '-',                               // 2
-      `<span class="${p.stock_actual <= p.stock_minimo ? 'text-warning fw-bold' : ''}">${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_abrev || ''}</span>`, // 3
-      `${Utils.formatNumber(p.stock_minimo, 2)} ${p.unidad_abrev || ''}`, // 4
+      `<span class="${p.stock_efectivo <= p.stock_minimo ? 'text-warning fw-bold' : ''}">${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)} ${p.unidad_abrev}</span>`, // 3
+      `${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_minimo) : Utils.formatNumber(p.stock_minimo, 2)} ${p.unidad_abrev}`, // 4
       p.puede_venderse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>', // 5
       p.es_preparable ? (p.puede_prepararse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-warning">Sin componentes</span>') : '<span class="badge bg-secondary">No</span>',  // 6
       p.id,                                                    // 7
       p.tiene_ficha_costo ? 'true' : 'false',                  // 8
-      (p.stock_actual <= p.stock_minimo) ? 'true' : 'false',   // 9
+      (p.stock_efectivo <= p.stock_minimo) ? 'true' : 'false',   // 9
       p.es_preparable ? 'true' : 'false',                      // 10
       p.puede_venderse ? 'true' : 'false',                     // 11
       p.puede_prepararse ? 'true' : 'false'                    // 12
@@ -772,8 +773,7 @@ Inventario.renderPrepararLayout = function (productos) {
                       <small class="text-muted">${p.codigo}</small>
                       <div class="mt-3">
                         <label class="form-label">Cantidad a preparar</label>
-                        <input type="number" class="form-control form-control-sm cantidad-preparar" 
-                               value="1" min="1" max="${p.cantidad_maxima}" step="1">
+                        <input type="number" class="form-control form-control-sm cantidad-preparar" value="1" min="1" max="${p.cantidad_maxima}" step="1">
                       </div>
                       <button class="btn btn-primary w-100 mt-2 btn-preparar">
                         <i class="fas fa-flask me-1"></i>Preparar
@@ -886,13 +886,9 @@ Inventario.ajuste = async function (params) {
   try {
     Utils.showLoading('Cargando...');
 
+    Inventario.selProduct = null;
     const productos = await API.productos.listar();
-    const productosAjustables = productos.filter(p =>
-      p.activo && (
-        p.tipo === 'simple' ||
-        (p.tipo === 'compuesto' && !p.requiere_preparacion)
-      )
-    );
+    const productosAjustables = productos.filter(p => p.activo && (p.tipo === 'simple' || (p.tipo === 'compuesto' && p.requiere_preparacion)));
     const layout = Inventario.renderAjusteLayout(productosAjustables, productoId, tipoInicial);
 
     $('#app').html(layout);
@@ -1029,9 +1025,9 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoI
 
 Inventario.cargarInfoProducto = async function (productoId) {
   try {
-    const producto = await API.productos.obtener(productoId);
-    $('#stockActual').val(`${Utils.formatNumber(producto.stock_actual, 2)} ${producto.unidad_venta_abrev || ''}`);
-    $('#stockActual').data('valor', producto.stock_actual);
+    Inventario.selProduct = await API.productos.obtener(productoId);
+    $('#stockActual').val(`${Utils.formatNumber(Inventario.selProduct.stock_actual, 2)} ${Inventario.selProduct.unidad_venta_abrev || ''}`);
+    $('#stockActual').data('valor', Inventario.selProduct.stock_actual);
   } catch (error) {
     console.error('Error cargando producto:', error);
   }
@@ -1107,6 +1103,7 @@ Inventario.bindAjusteEvents = function () {
 
 Inventario.validarAjuste = function () {
   const productoId = $('#productoId').val();
+  const productos = State.getCache('productos');
   const tipo = $('#tipoAjuste').val();
   const cantidad = parseFloat($('#cantidad').val());
   const stockActual = $('#stockActual').data('valor') || 0;
@@ -1114,6 +1111,7 @@ Inventario.validarAjuste = function () {
   if (!productoId || !tipo || !cantidad) {
     return false;
   }
+  const p = Inventario.selProduct;
 
   let esValido = true;
   let mensaje = '';
@@ -1124,7 +1122,8 @@ Inventario.validarAjuste = function () {
       esValido = false;
       mensaje = `Stock insuficiente. Stock actual: ${stockActual}`;
     } else {
-      mensaje = `Se descontarán ${cantidad} unidades del stock. Stock resultante: ${stockActual - cantidad}`;
+      const stk = stockActual - cantidad;
+      mensaje = `Se descontarán ${cantidad} ${p.unidad_venta_abrev} del stock. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stk) : Utils.formatNumber(stk, 2)} ${p.unidad_venta_abrev}`;
     }
   }
 
@@ -1135,9 +1134,9 @@ Inventario.validarAjuste = function () {
       esValido = false;
       mensaje = `No se puede descontar más del stock actual (${stockActual})`;
     } else if (cantidadFinal > 0) {
-      mensaje = `Se incrementará el stock en ${cantidad} unidades. Stock resultante: ${stockActual + cantidad}`;
+      mensaje = `Se incrementará el stock en ${cantidad} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual + cantidad) : Utils.formatNumber(stockActual + cantidad, 2)} ${p.unidad_venta_abrev}`;
     } else if (cantidadFinal < 0) {
-      mensaje = `Se descontarán ${Math.abs(cantidad)} unidades. Stock resultante: ${stockActual - Math.abs(cantidad)}`;
+      mensaje = `Se descontarán ${Math.abs(cantidad)} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual - Math.abs(cantidad)) : Utils.formatNumber(stockActual - Math.abs(cantidad), 2)} ${p.unidad_venta_abrev}`;
     }
   }
 

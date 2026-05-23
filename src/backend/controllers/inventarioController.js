@@ -87,7 +87,7 @@ const inventarioController = {
             WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 1 THEN p.stock_actual
             WHEN p.tipo = 'compuesto' THEN COALESCE(sc.stock_efectivo, 0)
             ELSE p.stock_actual
-          END as stock_actual,
+          END as stock_efectivo,
           p.stock_minimo, p.precio_venta,
           p.requiere_preparacion, p.activo,
           c.nombre as categoria_nombre,

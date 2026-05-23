@@ -73,6 +73,9 @@ ViewManager.routes = [
   { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' },
   { pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
 
+  // Mantenimiento
+  { pattern: 'mantenimiento', module: 'Mantenimiento', action: 'index' },
+
   // Reportes
   { pattern: 'reportes', module: 'Reportes', action: 'index' },
 

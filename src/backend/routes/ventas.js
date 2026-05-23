@@ -17,5 +17,6 @@ router.get('/mi-turno', ventaController.miTurno);
 router.get('/', ventaController.listarVentas);
 router.get('/:id', ventaController.obtenerVenta);
 router.post('/', ventaController.crearVenta);
+router.post('/:id/anular', ventaController.anularVenta);
 
 module.exports = router;

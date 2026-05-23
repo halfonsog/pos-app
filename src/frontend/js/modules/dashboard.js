@@ -163,7 +163,7 @@ Dashboard.renderLayout = function (d) {
                       <i class="fas ${a.tipo === 'venta' ? 'fa-cash-register text-success' : 'fa-shopping-cart text-primary'} activity-icon"></i>
                       <div class="activity-content">
                         <span class="activity-text">${a.tipo === 'venta' ? 'Venta' : 'Compra'} #${a.id} - ${a.usuario || 'N/A'}</span>
-                        <span class="activity-time">${Utils.formatDate(a.created_at, 'datetime')}</span>
+                        <span class="activity-time">${Utils.formatearFecha(Utils.fechaISOToLocal(a.created_at), 'datetime')}</span>
                       </div>
                       <span class="activity-amount">${Utils.formatMoney(a.total)}</span>
                     </div>

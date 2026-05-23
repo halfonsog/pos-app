@@ -333,15 +333,9 @@ const ventaController = {
         SELECT v.*, u.nombre_completo as vendedor_nombre
         FROM ventas v
         LEFT JOIN usuarios u ON v.vendedor_id = u.id
-        WHERE v.estado = 'completada'
+        WHERE 1=1
       `;
       const params = [];
-
-      // ✅ Si es vendedor, solo ver sus ventas
-      if (!isAdmin) {
-        query += ' AND v.vendedor_id = ?';
-        params.push(usuario_id);
-      }
 
       if (inicio && fin) {
         query += ' AND v.created_at >= ? AND v.created_at <= ?';
@@ -533,6 +527,84 @@ const ventaController = {
 
     } catch (error) {
       next(error);
+    }
+  },
+
+  // POST /api/ventas/:id/anular
+  anularVenta: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+      const usuario_id = req.usuario?.id || 1;
+      const usuario = req.usuario?.username || 'sistema';
+
+      // Verificar que existe y no está anulada
+      const venta = await db.get('SELECT * FROM ventas WHERE id = ?', [id]);
+      if (!venta) return res.status(404).json({ error: 'Venta no encontrada' });
+      if (venta.estado === 'anulada') return res.status(400).json({ error: 'Venta ya anulada' });
+
+      await db.run('BEGIN TRANSACTION');
+
+      try {
+        // Cambiar estado
+        await db.run('UPDATE ventas SET estado = ? WHERE id = ?', ['anulada', id]);
+
+        // Devolver stock de cada producto
+        const detalles = await db.all(`
+        SELECT vd.producto_id, vd.cantidad, p.nombre, p.tipo, p.requiere_preparacion
+        FROM venta_detalles vd
+        JOIN productos p ON vd.producto_id = p.id
+        WHERE vd.venta_id = ?
+      `, [id]);
+
+        for (const d of detalles) {
+          if (d.tipo === 'compuesto' && !d.requiere_preparacion) {
+            // Para compuestos no preparables, devolver stock a los componentes
+            const receta = await db.all(`
+            SELECT producto_hijo_id, cantidad, pr.nombre
+            FROM recetas r
+            JOIN productos pr ON r.producto_hijo_id = pr.id
+            WHERE r.producto_padre_id = ?
+          `, [d.producto_id]);
+
+            for (const c of receta) {
+              const cantidadDev = c.cantidad * d.cantidad;
+              await db.run('UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
+                [cantidadDev, c.producto_hijo_id]);
+
+              await db.run(`
+              INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
+              VALUES (?, 'devolucion', ?, ?, ?, ?)
+            `, [c.producto_hijo_id, cantidadDev, id, usuario_id,
+              `Devolución venta #${id} - "${d.nombre}" (componente)`]);
+            }
+          } else {
+            // Para simples y preparables
+            await db.run('UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
+              [d.cantidad, d.producto_id]);
+
+            await db.run(`
+            INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, observaciones)
+            VALUES (?, 'devolucion', ?, ?, ?, ?)
+          `, [d.producto_id, d.cantidad, id, usuario_id,
+            `Devolución venta #${id} - "${d.nombre}"`]);
+          }
+        }
+
+        await db.run('COMMIT');
+
+        const { log } = require('../utils/logger');
+        log('ANULAR', 'venta', id, usuario, `Venta anulada por ${usuario}`);
+
+        res.json({ message: 'Venta anulada correctamente. Stock devuelto.' });
+
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error anulando venta:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };
