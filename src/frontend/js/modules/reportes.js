@@ -19,7 +19,6 @@ Reportes.index = async function () {
         <div class="container-fluid p-4">
           <h2 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Reportes</h2>
           
-          <!-- Tabs -->
           <ul class="nav nav-tabs mb-4" id="reportesTabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active" id="ventas-producto-tab" data-bs-toggle="tab" 
@@ -37,6 +36,12 @@ Reportes.index = async function () {
               <button class="nav-link" id="rentabilidad-tab" data-bs-toggle="tab" 
                       data-bs-target="#rentabilidad" type="button">
                 <i class="fas fa-calculator me-1"></i>Rentabilidad
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="contables-tab" data-bs-toggle="tab" 
+                      data-bs-target="#contables" type="button">
+                <i class="fas fa-file-invoice me-1"></i>Contables
               </button>
             </li>
           </ul>
@@ -87,6 +92,53 @@ Reportes.index = async function () {
                 <p class="text-muted text-center py-4">Cargando...</p>
               </div>
             </div>
+            
+            <!-- Contables -->
+            <div class="tab-pane fade" id="contables">
+              <div class="row mb-3">
+                <div class="col-md-3">
+                  <label class="form-label">Tipo de Reporte</label>
+                  <select class="form-select" id="tipoReporte">
+                    <option value="todas">Todos</option>
+                    <option value="ventas">Ventas</option>
+                    <option value="compras">Compras</option>
+                    <option value="rentabilidad">Rentabilidad</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Mes</label>
+                  <select class="form-select" id="mesReporte">
+                    <option value="1">Enero</option>
+                    <option value="2">Febrero</option>
+                    <option value="3">Marzo</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Mayo</option>
+                    <option value="6">Junio</option>
+                    <option value="7">Julio</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Septiembre</option>
+                    <option value="10">Octubre</option>
+                    <option value="11">Noviembre</option>
+                    <option value="12">Diciembre</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Año</label>
+                  <select class="form-select" id="anioReporte">
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                  </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                  <button class="btn btn-primary" id="btnGenerarReporte">
+                    <i class="fas fa-play me-1"></i>Generar
+                  </button>
+                </div>
+              </div>
+              <div id="reporteContableContenido">
+                <p class="text-muted text-center py-4">Seleccione tipo, mes y año</p>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -95,17 +147,13 @@ Reportes.index = async function () {
 
   $('#app').html(layout);
 
-  // Cargar Ventas por Producto (Hoy) por defecto
   const r = Utils.rangoHoy();
   Reportes.cargarVentasPorProducto(r.inicio, r.fin);
-
   Reportes.bindEvents();
 };
 
 Reportes.bindEvents = function () {
-  // ============================================
   // Filtros Ventas por Producto
-  // ============================================
   $('[data-filtro]').on('click', function () {
     $('[data-filtro]').removeClass('active');
     $(this).addClass('active');
@@ -154,9 +202,7 @@ Reportes.bindEvents = function () {
     }
   });
 
-  // ============================================
   // Filtros Tendencia
-  // ============================================
   $('[data-filtro-tendencia]').on('click', function () {
     $('[data-filtro-tendencia]').removeClass('active');
     $(this).addClass('active');
@@ -177,9 +223,7 @@ Reportes.bindEvents = function () {
     Reportes.cargarTendencia(inicio, fin, agrupar);
   });
 
-  // ============================================
   // Filtros Rentabilidad
-  // ============================================
   $('[data-filtro-rentabilidad]').on('click', function () {
     $('[data-filtro-rentabilidad]').removeClass('active');
     $(this).addClass('active');
@@ -204,9 +248,25 @@ Reportes.bindEvents = function () {
     Reportes.cargarRentabilidad(inicio, fin);
   });
 
-  // ============================================
-  // Cargar datos al cambiar de tab
-  // ============================================
+  // Generar Reporte Contable
+  $('#btnGenerarReporte').on('click', async function () {
+    const tipo = $('#tipoReporte').val();
+    const mes = $('#mesReporte').val();
+    const anio = $('#anioReporte').val();
+
+    try {
+      Utils.showLoading('Generando...');
+      const datos = await API.reportes.contables({ tipo, mes, anio });
+      Utils.hideLoading();
+
+      $('#reporteContableContenido').html(Reportes.renderReporteContable(datos, tipo, mes, anio));
+    } catch (error) {
+      Utils.hideLoading();
+      console.error(error);
+    }
+  });
+
+  // Cargar al cambiar de tab
   $('#tendencia-tab').on('shown.bs.tab', function () {
     if ($('#tendenciaContenido').text().includes('Cargando')) {
       const rm = Utils.mesActual();
@@ -226,9 +286,7 @@ Reportes.bindEvents = function () {
     }
   });
 
-  // ============================================
   // Common
-  // ============================================
   $('#toggleSidebar').on('click', () => $('#sidebar').toggleClass('show'));
   $('#sidebar .nav-link').on('click', function (e) {
     e.preventDefault();
@@ -239,6 +297,10 @@ Reportes.bindEvents = function () {
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
 };
+
+// ============================================
+// Carga de datos
+// ============================================
 
 Reportes.cargarVentasPorProducto = async function (inicio, fin) {
   try {
@@ -268,18 +330,18 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
               ${datos.productos.map(p => `
                 <tr>
                   <td>${p.nombre} <small class="text-muted">${p.codigo}</small></td>
-                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 1)}</td>
+                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 2)}</td>
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end ${p.ganancia >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct)}%</td>
+                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot class="table-dark">
               <tr>
                 <th>TOTAL</th>
-                <th class="text-end">${Utils.formatNumber(datos.totales.cantidad_total, 1)}</th>
+                <th class="text-end">${Utils.formatNumber(datos.totales.cantidad_total, 2)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.venta_total)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.costo_total)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.ganancia_total)}</th>
@@ -289,7 +351,7 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
           </table>
         </div>
         <div class="card">
-          <div class="card-header"><h5 class="mb-0">Top 10 Productos por volumen de venta</h5></div>
+          <div class="card-header"><h5 class="mb-0">Top 10 Productos por Ventas Totales ($)</h5></div>
           <div class="card-body"><div style="height: 300px;"><canvas id="ventasProductoChart"></canvas></div></div>
         </div>
         <script>
@@ -394,7 +456,7 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
               <tr>
                 <th>Producto</th>
                 <th class="text-end">Cantidad</th>
-                <th class="text-end" title="Total facturado en el período">Venta Total</th>
+                <th class="text-end">Venta Total</th>
                 <th class="text-end">Costo</th>
                 <th class="text-end">G. Fijos</th>
                 <th class="text-end">Ganancia</th>
@@ -405,12 +467,12 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
               ${datos.map(p => `
                 <tr>
                   <td>${p.nombre}</td>
-                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 1)}</td>
+                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 2)}</td>
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.gastos_fijos)}</td>
-                  <td class="text-end ${p.ganancia_neta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_bruta)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct)}%</td>
+                  <td class="text-end ${p.ganancia_neta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_neta)}</td>
+                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -422,6 +484,125 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
     $('#rentabilidadContenido').html(html);
 
   } catch (error) { Utils.hideLoading(); console.error('Error:', error); }
+};
+
+// ============================================
+// Reportes Contables
+// ============================================
+
+Reportes.renderReporteContable = function (datos, tipo, mes, anio) {
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const mesNombre = meses[mes - 1];
+
+  let html = '';
+
+  // Ventas
+  if (datos.ventas) {
+    html += `
+      <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">💰 VENTAS - ${mesNombre} ${anio}</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr><td>Total Ventas:</td><td class="text-end"><strong>${datos.ventas.total_ventas}</strong></td></tr>
+                <tr><td>Venta Total (sin ajuste):</td><td class="text-end">${Utils.formatMoney(datos.ventas.venta_total)}</td></tr>
+                <tr><td>Impuesto Cobrado:</td><td class="text-end">${Utils.formatMoney(datos.ventas.impuesto_cobrado)}</td></tr>
+                <tr><td>Ajuste Redondeo:</td><td class="text-end">${Utils.formatMoney(datos.ventas.ajuste_redondeo)}</td></tr>
+                <tr class="fw-bold"><td>Total Cobrado:</td><td class="text-end text-primary">${Utils.formatMoney(datos.ventas.total_cobrado)}</td></tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <h6>Por método de pago</h6>
+              ${datos.ventas.porMetodo.map(v => `
+                <div class="d-flex justify-content-between">
+                  <span>${v.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}:</span>
+                  <span>${v.cantidad} ventas - ${Utils.formatMoney(v.total)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Compras
+  if (datos.compras) {
+    html += `
+      <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">📦 COMPRAS - ${mesNombre} ${anio}</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr><td>Total Compras:</td><td class="text-end"><strong>${datos.compras.total_compras}</strong></td></tr>
+                <tr><td>Total Comprado:</td><td class="text-end">${Utils.formatMoney(datos.compras.total_comprado)}</td></tr>
+                <tr><td>Total Pagado:</td><td class="text-end">${Utils.formatMoney(datos.compras.total_pagado)}</td></tr>
+                <tr class="fw-bold"><td>Pendiente Pago:</td><td class="text-end text-danger">${Utils.formatMoney(datos.compras.pendiente_pago)}</td></tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <h6>Por proveedor</h6>
+              ${datos.compras.porProveedor.slice(0, 5).map(c => `
+                <div class="d-flex justify-content-between">
+                  <span>${c.nombre}:</span>
+                  <span>${c.cantidad} - ${Utils.formatMoney(c.total)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rentabilidad
+  if (datos.rentabilidad) {
+    const r = datos.rentabilidad;
+    html += `
+      <div class="card mb-4 border-info">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0">📊 RENTABILIDAD - ${mesNombre} ${anio}</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr class="fw-bold"><td colspan="2">Ingresos</td></tr>
+            <tr><td>(+) Venta Total:</td><td class="text-end">${Utils.formatMoney(r.ventaTotal)}</td></tr>
+            <tr><td>(-) Impuesto Ventas:</td><td class="text-end text-danger">${Utils.formatMoney(r.impuestoCobrado)}</td></tr>
+            <tr class="fw-bold"><td>(=) Venta Neta:</td><td class="text-end">${Utils.formatMoney(r.ventaNeta)}</td></tr>
+            
+            <tr><td colspan="2"><hr></td></tr>
+            <tr class="fw-bold"><td colspan="2">Costos</td></tr>
+            <tr><td>(-) Costo de Ventas:</td><td class="text-end text-danger">${Utils.formatMoney(r.costoTotal)}</td></tr>
+            <tr><td>(-) Proveedores (compras):</td><td class="text-end text-danger">${Utils.formatMoney(r.proveedores)}</td></tr>
+            <tr class="fw-bold"><td>(=) Ganancia Bruta:</td><td class="text-end text-success">${Utils.formatMoney(r.gananciaBruta)}</td></tr>
+            
+            <tr><td colspan="2"><hr></td></tr>
+            <tr class="fw-bold"><td colspan="2">Gastos Operativos</td></tr>
+            <tr><td>(-) Gastos Fijos:</td><td class="text-end text-danger">${Utils.formatMoney(r.gastosFijos)}</td></tr>
+            <tr><td>(+) Ajuste Redondeo:</td><td class="text-end">${Utils.formatMoney(r.ajusteRedondeo)}</td></tr>
+            <tr class="fw-bold"><td>(=) Ganancia Antes de Impuestos:</td><td class="text-end text-primary">${Utils.formatMoney(r.gananciaAntesImpuestos)}</td></tr>
+            
+            <tr><td colspan="2"><hr></td></tr>
+            <tr class="fw-bold"><td colspan="2">Impuestos</td></tr>
+            <tr><td>(-) Impuesto a la Ganancia (${r.impuestoGananciaPct}%):</td><td class="text-end text-danger">${Utils.formatMoney(r.impuestoGanancia)}</td></tr>
+            <tr class="fw-bold"><td>(=) Ganancia Neta:</td><td class="text-end text-success fs-5">${Utils.formatMoney(r.gananciaNeta)}</td></tr>
+            
+            <tr><td colspan="2"><hr></td></tr>
+            <tr><td>Margen Neto:</td><td class="text-end">${r.margen.toFixed(2)}%</td></tr>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  return html;
 };
 
 window.Reportes = Reportes;

@@ -1,0 +1,1 @@
+ALTER TABLE configuracion_general ADD COLUMN impuesto_ganancia REAL DEFAULT 35;

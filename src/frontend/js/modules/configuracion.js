@@ -142,6 +142,11 @@ Configuracion.general = async function () {
                                value="${config.impuesto_ventas}" step="0.5" min="0" max="100">
                       </div>
                       <div class="mb-3">
+                        <label class="form-label">Impuesto sobre la Ganancia (%)</label>
+                        <input type="number" class="form-control" id="impuestoGanancia" 
+                              value="${config.impuesto_ganancia || 35}" step="1" min="0" max="100">
+                      </div>
+                      <div class="mb-3">
                         <label class="form-label">Redondeo de Venta ($)</label>
                         <input type="number" class="form-control" id="redondeoVenta" 
                               value="${config.redondeo_venta || 5}" step="1" min="0">

@@ -199,7 +199,12 @@ const API = {
   reportes: {
     ventasPorProducto: (inicio, fin) => API.get(`/reportes/ventas-por-producto?inicio=${inicio}&fin=${fin}`),
     tendencia: (inicio, fin, agrupar) => API.get(`/reportes/tendencia?inicio=${inicio}&fin=${fin}&agrupar=${agrupar}`),
-    rentabilidad: (inicio, fin) => API.get(`/reportes/rentabilidad?inicio=${inicio}&fin=${fin}`)
+    rentabilidad: (inicio, fin) => API.get(`/reportes/rentabilidad?inicio=${inicio}&fin=${fin}`),
+    contables: (params) => {
+      const query = new URLSearchParams(params).toString();
+      return API.get('/reportes/contables?' + query);
+    },
+    resumenAnual: (anio) => API.get(`/reportes/resumen-anual?anio=${anio}`)
   },
 
   dashboard: {
