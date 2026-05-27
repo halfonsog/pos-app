@@ -8,25 +8,25 @@ const compraController = {
       const db = await getDb();
 
       const compras = await db.all(`
-      SELECT 
-        c.*,
-        p.nombre as proveedor_nombre
-      FROM compras c
-      LEFT JOIN proveedores p ON c.proveedor_id = p.id
-      ORDER BY c.fecha_compra DESC
-    `);
+        SELECT 
+          c.*,
+          p.nombre as proveedor_nombre
+        FROM compras c
+        LEFT JOIN proveedores p ON c.proveedor_id = p.id
+        ORDER BY c.fecha_compra DESC, c.created_at DESC
+      `);
 
       // Para cada compra, obtener sus detalles
       for (const compra of compras) {
         compra.detalles = await db.all(`
-        SELECT 
-          cd.*,
-          pr.nombre as producto_nombre,
-          pr.codigo as producto_codigo
-        FROM compra_detalles cd
-        JOIN productos pr ON cd.producto_id = pr.id
-        WHERE cd.compra_id = ?
-      `, [compra.id]);
+          SELECT 
+            cd.*,
+            pr.nombre as producto_nombre,
+            pr.codigo as producto_codigo
+          FROM compra_detalles cd
+          JOIN productos pr ON cd.producto_id = pr.id
+          WHERE cd.compra_id = ?
+        `, [compra.id]);
       }
 
       res.json(compras);

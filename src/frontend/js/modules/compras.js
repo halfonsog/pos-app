@@ -315,7 +315,7 @@ Compras.initDataTable = function (compras) {
     const estadoStockText = c.estado_inventario === 'completado' ? 'En Stock' : 'Pendiente';
 
     return [
-      Utils.formatearFecha(Utils.fechaISOToLocal(c.fecha_compra), 'corto'),  // 0
+      Utils.formatDateOnly(c.fecha_compra),              // 0
       c.codigo_factura || '-',                           // 1
       c.proveedor_nombre || '-',                         // 2
       Utils.formatMoney(c.total),                        // 3
@@ -374,7 +374,7 @@ Compras.initDataTable = function (compras) {
       { data: 9, title: 'TienePendiente', visible: false, searchable: true },
       { data: 10, title: 'EstadoStockFiltro', visible: false, searchable: true }
     ],
-    order: [[0, 'desc']],
+    order: [], //order: [[0, 'desc']],
     language: {
       decimal: ",",
       thousands: ".",
@@ -604,7 +604,6 @@ Compras.formulario = async function (params) {
       Compras.llenarFormulario(compra);
     }
 
-    // Restaurar datos del formulario si existen
     // Restaurar datos del formulario si existen (solo si tienen valor)
     if (tempData && !id) {
       const data = JSON.parse(tempData);
@@ -668,8 +667,7 @@ Compras.renderFormularioLayout = function (compra, proveedores, productos) {
             <div class="row g-3 mb-4">
               <div class="col-md-3">
                 <label class="form-label">Fecha <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" id="fechaCompra" required 
-                       value="${isEdit ? compra.fecha_compra : new Date().toISOString().split('T')[0]}">
+                <input type="date" class="form-control" id="fechaCompra" required value="${isEdit ? compra.fecha_compra : Utils.fechaLocalToInput(new Date())}">
               </div>
               <div class="col-md-3">
                 <label class="form-label">Nº Factura</label>
@@ -799,7 +797,7 @@ Compras.renderFormularioLayout = function (compra, proveedores, productos) {
 };
 
 Compras.llenarFormulario = function (compra) {
-  $('#fechaCompra').val(compra.fecha_compra);
+  $('#fechaCompra').val(Utils.fechaLocalToInput(Utils.fechaISOToLocal(compra.fecha_compra)));
   $('#codigoFactura').val(compra.codigo_factura || '');
   $('#proveedorId').val(compra.proveedor_id);
   $('#pagoInicial').val(compra.pagado || 0);
@@ -829,7 +827,6 @@ Compras.bindFormularioEvents = function (id, productos) {
     ViewManager.navegar('proveedores/nuevo', { retorno });
   });
 
-  // Agregar producto - ABRIR VISTA
   // Agregar producto - Usar SelectorProductos unificado
   $('#btnAgregarProducto').on('click', function () {
     // Guardar estado actual del formulario (solo campos visibles)

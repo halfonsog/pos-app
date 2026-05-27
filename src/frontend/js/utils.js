@@ -149,6 +149,16 @@ const Utils = {
     return d.toISOString().split('T')[0];
   },
 
+  formatDateOnly: function (fecha) {
+    if (!fecha) return '-';
+    // Si es formato YYYY-MM-DD
+    if (typeof fecha === 'string' && fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [y, m, d] = fecha.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    return Utils.formatearFecha(Utils.fechaISOToLocal(fecha), 'fecha');
+  },
+
   /**
    * Devuelve una fecha en formato YYYY-MM-DD (para inputs de tipo date)
    */
@@ -168,6 +178,17 @@ const Utils = {
   fechaLocal: function () {
     const ahora = new Date();
     return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  },
+
+  fechaLocalToInput: function (fecha) {
+    const f = fecha || new Date();
+    return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
+  },
+
+  // Nueva: convertir input date a UTC ISO
+  fechaInputToUTC: function (fechaInput) {
+    if (!fechaInput) return null;
+    return new Date(fechaInput + 'T00:00:00').toISOString();
   },
 
   /**
