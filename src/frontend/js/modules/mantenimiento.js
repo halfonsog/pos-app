@@ -9,13 +9,16 @@ Mantenimiento.index = async function () {
       <main class="main-content">
         ${Mantenimiento.renderNavbar(user)}
         <div class="container-fluid p-4">
-          <h2 class="mb-4"><i class="fas fa-tools me-2"></i>Mantenimiento</h2>
-          
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0"><i class="fas fa-tools me-2"></i>Mantenimiento</h2>
+            <button class="btn btn-outline-info" id="btnVerLogs">
+              <i class="fas fa-history me-1"></i>Ver Registro de Actividad
+            </button>
+          </div>         
           <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
             <strong>Precaución:</strong> Estas operaciones son irreversibles. Se registrarán en el log del sistema.
           </div>
-          
           <!-- Limpieza General -->
           <div class="card mb-4">
             <div class="card-header"><h5 class="mb-0"><i class="fas fa-broom me-2"></i>Limpieza General</h5></div>
@@ -107,6 +110,11 @@ Mantenimiento.bindEvents = function () {
     const tipo = $('#tipoEntidad').val();
     const id = $('#idEntidad').val();
     $('#btnEliminarEntidad').prop('disabled', !tipo || !id);
+  });
+
+  //ver logs
+  $('#btnVerLogs').on('click', () => {
+    Mantenimiento.logs();
   });
 
   // Eliminar inactivos

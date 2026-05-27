@@ -5,16 +5,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestion Punto de Venta</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#3498db">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="POS">
+  <link rel="apple-touch-icon" href="/img/icon-192.png">
 
-  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/img/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/img/icon-512.png">
   <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
   <link rel="stylesheet" href="/lib/css/datatables.css">
   <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
+
+<script>
+  /*
+  // Registrar Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(function () { console.log('✅ SW registrado'); })
+      .catch(function (err) { console.log('❌ SW error:', err); });
+  }
+*/
+  // Solo registrar SW en producción (no en localhost)
+  if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(function () { console.log('✅ SW registrado'); })
+      .catch(function (err) { console.log('❌ SW error:', err); });
+  }
+</script>
 
 <body>
   <div id="app">

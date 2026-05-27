@@ -23,6 +23,7 @@ ViewManager.routes = [
   { pattern: 'productos/ver/:id', module: 'Productos', action: 'ficha' },
   { pattern: 'productos/costo/:id', module: 'Productos', action: 'costo' },
   { pattern: 'productos/receta/:id', module: 'Productos', action: 'receta' },
+  { pattern: 'productos/trazabilidad/:id', module: 'Productos', action: 'trazabilidad' },
 
   // Compras
   { pattern: 'compras', module: 'Compras', action: 'index' },

@@ -226,7 +226,7 @@ Ventas.cerrarTurno = async function () {
                     </div>
                   </div>
                 </div>
-                
+
                 <!-- Rentabilidad -->
                 <div class="card mb-4">
                   <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Rentabilidad</h5></div>
@@ -236,7 +236,7 @@ Ventas.cerrarTurno = async function () {
                       <span>${Utils.formatMoney(f.ventaTotal)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                      <span>(-) Impuestos:</span>
+                      <span>(-) Impuestos (${Utils.formatMoney(f.impuestos / f.ventaTotal) * 100}):</span>
                       <span>${Utils.formatMoney(f.impuestos)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 fw-bold">
@@ -245,15 +245,15 @@ Ventas.cerrarTurno = async function () {
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Costo base:</span>
+                      <span>(-) Costo base (${Utils.formatMoney(f.costoBase / f.ventaNeta) * 100}):</span>
                       <span>${Utils.formatMoney(f.costoBase)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Gastos fijos:</span>
+                      <span>(-) Gastos fijos (${Utils.formatMoney(f.gastosFijos / f.ventaNeta) * 100}):</span>
                       <span>${Utils.formatMoney(f.gastosFijos)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Margen:</span>
+                      <span>(=) Margen (${Utils.formatMoney(f.margen / f.ventaNeta) * 100}):</span>
                       <span class="text-success">${Utils.formatMoney(f.margen)}</span>
                     </div>
                     <hr>
@@ -262,8 +262,8 @@ Ventas.cerrarTurno = async function () {
                       <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
                     </div>
                     <div class="d-flex justify-content-between fw-bold">
-                      <span>(=) Ganancia neta:</span>
-                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaNeta)}</span>
+                      <span>(=) Ganancia bruta:</span>
+                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaBruta)}</span>
                     </div>
                   </div>
                 </div>
@@ -280,7 +280,7 @@ Ventas.cerrarTurno = async function () {
                         ${resumen.productosVendidos.map(p => `
                           <tr>
                             <td>${p.nombre}</td>
-                            <td class="text-end">${Utils.formatNumber(p.cantidad_total, 2)} ${p.abreviatura}</td>
+                            <td class="text-end">${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.cantidad_total) : Utils.formatNumber(p.cantidad_total, 1)} ${p.unidad_venta_abrev}</td>
                             <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                           </tr>
                         `).join('')}
@@ -447,25 +447,11 @@ Ventas.pos = async function () {
       return;
     }
 
-    const productos = await API.productos.listar();
-
-    // Filtrar productos que pueden venderse
-    const productosEnVenta = productos.filter(p => {
-      if (!p.activo) return false;
-      if (!p.precio_venta || p.precio_venta <= 0) return false;
-
-      // Usar el campo calculado por el backend
-      if (p.puede_venderse !== undefined) {
-        return p.puede_venderse;
-      }
-
-      // Fallback: stock_efectivo > 0
-      return p.stock_efectivo > 0;
-    });
+    // Obtener los productos que pueden venderse y guardarlos en Ventas._productosEnVenta
+    await Ventas.cargarProductos();
 
     Ventas._carrito = [];
     const config = await State.getConfig();
-    console.log('pos. Config:', config);
     if (!config) {
       Toast.warning('Error al cargar la configuración. Intente de nuevo.');
       return;
@@ -491,26 +477,12 @@ Ventas.pos = async function () {
                     <input type="text" class="form-control" id="buscarProducto" placeholder="Buscar...">
                   </div>
                 </div>
-                
-                <div class="row g-2" id="productosGrid">
-                  ${productosEnVenta.map(p => `
-                    <div class="col-6 col-md-4 col-lg-3">
-                      <div class="card producto-card h-100" data-id="${p.id}" data-nombre="${p.nombre}" data-precio="${p.precio_venta}" data-unidad="${p.unidad_venta_abrev}" data-tipo-unidad="${p.unidad_venta_tipo || 'unidad'}">
-                        <div class="card-body text-center p-2">
-                          ${p.foto
-        ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
-        : `<img src="${Utils.getProductPlaceholder(p, p.id, 80)}" class="producto-img mb-2">`
-      }
-                          <h6 class="mb-0 small">${p.nombre}</h6>
-                          <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
-                          <div class="mt-1">
-                            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)} ${p.unidad_venta_abrev}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  `).join('')}
+
+                <div class="mb-2">
+                  <div class="btn-group btn-group-sm flex-wrap" id="filtrosCategoria"></div>
                 </div>
+
+                <div class="row g-2" id="productosGrid"></div>
               </div>
               
               <!-- Carrito -->
@@ -557,6 +529,9 @@ Ventas.pos = async function () {
     $('#app').html(layout);
     Ventas.bindPosEvents();
 
+    Ventas.cargaFiltrosCategorias();
+    Ventas.renderProductosGrid(Ventas._productosEnVenta);
+
     Utils.hideLoading();
 
   } catch (error) {
@@ -574,16 +549,32 @@ Ventas.bindPosEvents = function () {
     const unidadAbrev = $(this).data('unidad');
     const tipoUnidad = $(this).data('tipo-unidad');
 
+    console.log({ id, nombre, precio, unidadAbrev, tipoUnidad });
     Ventas.mostrarPopupCantidad(id, nombre, precio, unidadAbrev, tipoUnidad);
   });
 
   // Búsqueda
   $('#buscarProducto').on('input', function () {
     const search = $(this).val().toLowerCase();
-    $('.producto-card').each(function () {
-      const nombre = $(this).data('nombre').toLowerCase();
-      $(this).toggle(nombre.includes(search));
-    });
+
+    const filtrados = Ventas._productosEnVenta.filter(p =>
+      p.nombre.toLowerCase().includes(search) ||
+      p.codigo.toLowerCase().includes(search)
+    );
+
+    Ventas.renderProductosGrid(filtrados);
+  });
+
+  // Filtros
+  $('#filtrosCategoria').on('click', '[data-filtro-cat]', function () {
+    const cat = $(this).data('filtro-cat');
+
+    const filtrados = (cat === 'todas') ? Ventas._productosEnVenta : Ventas._productosEnVenta.filter(p => p.categoria_nombre === cat);
+
+    $('#filtrosCategoria button').removeClass('active');
+    $(this).addClass('active');
+
+    Ventas.renderProductosGrid(filtrados);
   });
 
   // Cobrar efectivo
@@ -599,6 +590,98 @@ Ventas.bindPosEvents = function () {
   });
 
   Ventas.bindCommonEvents();
+};
+
+Ventas.cargarProductos = async function () {
+  try {
+    const productos = await API.productos.listar();
+    Ventas._productosEnVenta = productos.filter(p => {
+      if (!p.activo) return false;
+      if (!p.precio_venta || p.precio_venta <= 0) return false;
+      return p.puede_venderse !== false;
+    });
+
+    // Intentar obtener ranking de más vendidos
+    try {
+      const rango = Utils.rangoHoy();
+      const ranking = await API.reportes.ventasPorProducto(rango.inicio, rango.fin);
+
+      if (ranking && ranking.productos && ranking.productos.length > 0) {
+        // Crear un mapa de id → posición en el ranking (0 = más vendido)
+        const rankingPos = {};
+        ranking.productos.forEach((p, i) => {
+          rankingPos[p.id] = i;
+        });
+
+        // Ordenar: primero los que están en el ranking, luego alfabético
+        Ventas._productosEnVenta.sort((a, b) => {
+          const aEnRanking = rankingPos[a.id] !== undefined;
+          const bEnRanking = rankingPos[b.id] !== undefined;
+
+          // Ambos en ranking → ordenar por posición
+          if (aEnRanking && bEnRanking) {
+            return rankingPos[a.id] - rankingPos[b.id];
+          }
+
+          // Solo uno en ranking → el que está en ranking va primero
+          if (aEnRanking) return -1;
+          if (bEnRanking) return 1;
+
+          // Ninguno en ranking → orden alfabético
+          return a.nombre.localeCompare(b.nombre);
+        });
+      }
+    } catch (e) {
+      // Si falla el ranking, orden alfabético simple
+      Ventas._productosEnVenta.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+
+  } catch (error) {
+    console.error('Error recargando productos:', error);
+  }
+};
+
+Ventas.cargaFiltrosCategorias = function () {
+  const categorias = [...new Set(Ventas._productosEnVenta.map(p => p.categoria_nombre).filter(Boolean))];
+  $('#filtrosCategoria').html('<button class="btn btn-outline-secondary active" data-filtro-cat="todas"><b>Todas</b></button>');
+  const botonesFiltro = [];
+  for (let i = 0; i < categorias.length; i++) {
+    const cat = categorias[i];
+    botonesFiltro.push(`<button class="btn btn-outline-secondary" data-filtro-cat="${cat}"><b>${cat}</b></button>`);
+    // limitadas categorias podran ser filtradas
+    if (i > 6) {
+      break;
+    }
+  }
+  $('#filtrosCategoria').append(botonesFiltro.join(''));
+}
+
+Ventas.renderProductosGrid = function (productos) {
+  const html = productos.map(p => `
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card producto-card h-100" 
+           data-id="${p.id}" 
+           data-nombre="${p.nombre}" 
+           data-precio="${p.precio_venta}"
+           data-unidad="${p.unidad_venta_abrev}"
+           data-tipo-unidad="${p.unidad_venta_tipo}"
+           data-categoria="${p.categoria_nombre}">
+        <div class="card-body text-center p-2">
+          ${p.foto
+      ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
+      : `<img src="${Utils.getProductPlaceholder(p, p.id, 80)}" class="producto-img mb-2">`
+    }
+          <h6 class="mb-0 small">${p.nombre}</h6>
+          <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
+          <div class="mt-1">
+            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 1)} ${p.unidad_venta_abrev}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  $('#productosGrid').html(html);
 };
 
 Ventas.agregarAlCarrito = function (id, nombre, precio, unidadAbrev, cantidad, tipoUnidad) {
@@ -647,7 +730,7 @@ Ventas.actualizarCarritoUI = function () {
       <div>
         <small class="fw-bold">${item.nombre}</small>
         <br>
-        <small class="text-muted">${Utils.formatNumber(item.cantidad, esUnidad ? 0 : 2)} ${item.unidadAbrev} × ${Utils.formatMoney(item.precio)}</small>
+        <small class="text-muted">${Utils.formatNumber(item.cantidad, esUnidad ? 0 : 1)} ${item.unidadAbrev} × ${Utils.formatMoney(item.precio)}</small>
       </div>
       <div class="text-end">
         <span class="text-success fw-bold">${Utils.formatMoney(item.total)}</span>
@@ -678,12 +761,10 @@ Ventas.actualizarCarritoUI = function () {
   });
 };
 
-Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev, tipoUnidad) {
+Ventas.mostrarPopupCantidad = async function (id, nombre, precio, unidadAbrev, tipoUnidad) {
   const esUnidad = tipoUnidad === 'unidad';
   const unidad = Utils.getNombreUnidad(unidadAbrev);
-  //const cantidadDefault = esUnidad ? 1 : 1;
   const inputMode = esUnidad ? 'numeric' : 'decimal';
-  //const stepValue = esUnidad ? '1' : '0.1';
 
   const modalHtml = `
     <div class="modal fade" id="cantidadModal" tabindex="-1">
@@ -767,9 +848,18 @@ Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev, tipoUni
   });
 
   // Teclado numérico
-  $('.tecla-num').on('click', function () {
+  $('.tecla-num').on('click', async function () {
     const val = $(this).data('val');
     const currentVal = $(inputActual).val();
+    console.log({ currentVal, val, esUnidad });
+
+    if (esUnidad && val === '.') {
+      await Utils.confirm(
+        'Este producto se vende por unidades enteras.\nNo se permiten decimales.',
+        '⚠️ Unidades enteras'
+      );
+      return;
+    }
 
     if (val === '⌫') {
       $(inputActual).val(currentVal.slice(0, -1) || '');
@@ -814,21 +904,44 @@ Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev, tipoUni
     productoConfirmado();
   });
 
-  function productoConfirmado() {
+  async function productoConfirmado() {
     $('#btnConfirmarCantidad').focus();
     let cantidad;
     const precioIngresado = parseFloat($('#precioInput').val()) || 0;
 
     if (modoActual === 'precio' && precioIngresado > 0) {
       cantidad = precioIngresado / precio;
+
+      // ✅ Si es tipo unidad, verificar que la cantidad sea entera
+      if (esUnidad && !Number.isInteger(cantidad)) {
+        const cantidadEntera = Math.floor(cantidad);
+        const precioEntero = cantidadEntera * precio;
+        await Utils.confirm(
+          `Este producto se vende por unidades enteras.\n\n` +
+          `El precio ingresado equivale a ${cantidad.toFixed(2)} unidades.\n` +
+          `Sugerencia: ${cantidadEntera} unidades por ${Utils.formatMoney(precioEntero)}`,
+          '⚠️ Unidades enteras'
+        );
+        return;
+      }
     } else {
       cantidad = parseFloat($('#cantidadInput').val()) || 0;
+
+      // ✅ Si es tipo unidad, verificar que la cantidad sea entera
+      if (esUnidad && !Number.isInteger(cantidad)) {
+        await Utils.confirm(
+          'Este producto se vende por unidades enteras.\nNo se permiten decimales.',
+          '⚠️ Unidades enteras'
+        );
+        return;
+      }
     }
 
     if (cantidad <= 0) {
       Toast.warning('Ingrese una cantidad o precio válido');
       return;
     }
+
     Ventas.agregarAlCarrito(id, nombre, precio, unidadAbrev, cantidad, tipoUnidad);
     $('#btnConfirmarCantidad').blur();
     modal.hide();
@@ -838,6 +951,8 @@ Ventas.mostrarPopupCantidad = function (id, nombre, precio, unidadAbrev, tipoUni
     $(this).remove();
   });
 };
+
+
 
 Ventas.procesarVenta = async function (metodoPago) {
   if (Ventas._carrito.length === 0) return;
@@ -891,6 +1006,9 @@ Ventas.procesarVenta = async function (metodoPago) {
 
     // ✅ Recargar productos (para actualizar stock)
     await Ventas.cargarProductos();
+    Ventas.cargaFiltrosCategorias();
+    Ventas.renderProductosGrid(Ventas._productosEnVenta);
+
 
     Utils.hideLoading();
     Toast.success(`Venta registrada - Total: ${totalRedondeado}`);
@@ -900,79 +1018,6 @@ Ventas.procesarVenta = async function (metodoPago) {
     console.error('Error en venta:', error);
     Toast.warning(error.message);
   }
-};
-
-Ventas.cargarProductos = async function () {
-  try {
-    const productos = await API.productos.listar();
-    const productosEnVenta = productos.filter(p => {
-      if (!p.activo) return false;
-      if (!p.precio_venta || p.precio_venta <= 0) return false;
-      if (p.puede_venderse !== undefined) return p.puede_venderse;
-      return p.stock_efectivo > 0;
-    });
-
-    // Intentar obtener ranking de más vendidos
-    try {
-      const rango = Utils.rangoHoy();
-      const ranking = await API.reportes.ventasPorProducto(rango.inicio, rango.fin);
-
-      if (ranking && ranking.productos && ranking.productos.length > 0) {
-        // Crear un mapa de id → posición en el ranking (0 = más vendido)
-        const rankingPos = {};
-        ranking.productos.forEach((p, i) => {
-          rankingPos[p.id] = i;
-        });
-
-        // Ordenar: primero los que están en el ranking, luego alfabético
-        productosEnVenta.sort((a, b) => {
-          const aEnRanking = rankingPos[a.id] !== undefined;
-          const bEnRanking = rankingPos[b.id] !== undefined;
-
-          // Ambos en ranking → ordenar por posición
-          if (aEnRanking && bEnRanking) {
-            return rankingPos[a.id] - rankingPos[b.id];
-          }
-
-          // Solo uno en ranking → el que está en ranking va primero
-          if (aEnRanking) return -1;
-          if (bEnRanking) return 1;
-
-          // Ninguno en ranking → orden alfabético
-          return a.nombre.localeCompare(b.nombre);
-        });
-      }
-    } catch (e) {
-      // Si falla el ranking, orden alfabético simple
-      productosEnVenta.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    }
-
-    Ventas.renderProductosGrid(productosEnVenta);
-  } catch (error) {
-    console.error('Error recargando productos:', error);
-  }
-};
-
-Ventas.renderProductosGrid = function (productos) {
-  const html = productos.map(p => `
-    <div class="col-6 col-md-4 col-lg-3">
-      <div class="card producto-card h-100" data-id="${p.id}" 
-           data-nombre="${p.nombre}" data-precio="${p.precio_venta}"
-           data-unidad="${p.unidad_venta_abrev || 'ud'}">
-        <div class="card-body text-center p-2">
-          ${p.foto ? `<img src="/uploads/productos/${p.foto}" class="producto-img mb-2">`
-      : `<img src="${Utils.getProductPlaceholder(p, p.id, 80)}" class="producto-img mb-2">`}
-          <h6 class="mb-0 small">${p.nombre}</h6>
-          <span class="fw-bold text-success">${Utils.formatMoney(p.precio_venta)}</span>
-          <div class="mt-1">
-            <span class="badge ${p.stock_efectivo > p.stock_minimo ? 'bg-secondary' : 'bg-danger'} small">Stock: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)}  ${p.unidad_venta_abrev}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  $('#productosGrid').html(html);
 };
 
 // ============================================
@@ -1409,7 +1454,7 @@ Ventas.ficha = async function (params) {
                         ${venta.detalles.map(d => `
                           <tr>
                             <td>${d.producto_nombre}</td>
-                            <td class="text-end">${Utils.formatNumber(d.cantidad, 2)}</td>
+                            <td class="text-end">${Utils.formatNumber(d.cantidad, 1)}</td>
                             <td class="text-end">${Utils.formatMoney(d.precio_unitario)}</td>
                             <td class="text-end">${Utils.formatMoney(d.total)}</td>
                           </tr>
@@ -1563,35 +1608,35 @@ Ventas.verTurno = function (resumen) {
                     <span>${Utils.formatMoney(f.ventaTotal)}</span>
                   </div>
                   <div class="d-flex justify-content-between mb-2">
-                    <span>(-) Impuestos:</span>
-                    <span>${Utils.formatMoney(f.impuestos)}</span>
-                  </div>
-                  <div class="d-flex justify-content-between mb-2 fw-bold">
-                    <span>(=) Venta neta:</span>
-                    <span>${Utils.formatMoney(f.ventaNeta)}</span>
-                  </div>
-                  <hr>
-                  <div class="d-flex justify-content-between mb-2 text-danger">
-                    <span>(-) Costo base:</span>
-                    <span>${Utils.formatMoney(f.costoBase)}</span>
-                  </div>
-                  <div class="d-flex justify-content-between mb-2 text-danger">
-                    <span>(-) Gastos fijos:</span>
-                    <span>${Utils.formatMoney(f.gastosFijos)}</span>
-                  </div>
-                  <div class="d-flex justify-content-between mb-2 fw-bold">
-                    <span>(=) Margen:</span>
-                    <span class="text-success">${Utils.formatMoney(f.margen)}</span>
-                  </div>
-                  <hr>
-                  <div class="d-flex justify-content-between mb-2">
-                    <span>(+) Ajuste redondeo:</span>
-                    <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
-                  </div>
-                  <div class="d-flex justify-content-between fw-bold">
-                    <span>(=) Ganancia neta:</span>
-                    <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaNeta)}</span>
-                  </div>
+                      <span>(-) Impuestos (${f.ventaTotal > 0 ? ((f.impuestos / f.ventaTotal) * 100).toFixed(1) : 0}):</span>
+                      <span>${Utils.formatMoney(f.impuestos)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 fw-bold">
+                      <span>(=) Venta neta:</span>
+                      <span>${Utils.formatMoney(f.ventaNeta)}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                      <span>(-) Costo base (${Utils.formatMoney(f.costoBase / f.ventaNeta) * 100}):</span>
+                      <span>${Utils.formatMoney(f.costoBase)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                      <span>(-) Gastos fijos (${Utils.formatMoney(f.gastosFijos / f.ventaNeta) * 100}):</span>
+                      <span>${Utils.formatMoney(f.gastosFijos)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 fw-bold">
+                      <span>(=) Margen (${Utils.formatMoney(f.margen / f.ventaNeta) * 100}):</span>
+                      <span class="text-success">${Utils.formatMoney(f.margen)}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                      <span>(+) Ajuste redondeo:</span>
+                      <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between fw-bold">
+                      <span>(=) Ganancia bruta:</span>
+                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaBruta)}</span>
+                    </div>
                 </div>
               </div>
             </div>
@@ -1607,7 +1652,7 @@ Ventas.verTurno = function (resumen) {
                       ${resumen.productosVendidos.length > 0 ? resumen.productosVendidos.map(p => `
                         <tr>
                           <td>${p.nombre}</td>
-                          <td class="text-end">${Utils.formatNumber(p.cantidad_total, 2)} ${p.abreviatura}</td>
+                          <td class="text-end">${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.cantidad_total) : Utils.formatNumber(p.cantidad_total, 1)} ${p.unidad_venta_abrev}</td>
                           <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                         </tr>
                       `).join('') : '<tr><td colspan="3" class="text-center text-muted py-3">Sin ventas</td></tr>'}

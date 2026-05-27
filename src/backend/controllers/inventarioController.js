@@ -114,7 +114,7 @@ const inventarioController = {
 
       // Procesar resultados
       for (const p of productos) {
-        p.puede_venderse = p.tiene_ficha_costo === 1 && p.stock_actual > 0;
+        p.puede_venderse = p.tiene_ficha_costo === 1 && p.stock_efectivo > 0;
         p.es_preparable = p.es_preparable === 1;
         p.puede_prepararse = p.puede_prepararse === 1;
         p.tiene_ficha_costo = p.tiene_ficha_costo === 1;

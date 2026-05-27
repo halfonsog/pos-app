@@ -98,6 +98,8 @@ const mantenimientoController = {
   // GET /api/mantenimiento/backup
   backup: async (req, res, next) => {
     try {
+      const usuario = req.usuario?.username || 'sistema';
+
       const dbPath = path.join(__dirname, '../../../database/database.db');
       const backupPath = path.join(__dirname, '../../../database/backup.db');
 
@@ -179,6 +181,16 @@ const mantenimientoController = {
   // GET /api/mantenimiento/logs
   verLogs: async (req, res, next) => {
     try {
+      const { getLogs } = require('../utils/logger');
+      const logs = getLogs(100);
+      res.json({ logs });
+    } catch (error) {
+      next(error);
+    }
+  }
+  /*
+  verLogs: async (req, res, next) => {
+    try {
       const logFile = getLogFile();
       if (!fs.existsSync(logFile)) {
         return res.json({ logs: [] });
@@ -192,6 +204,7 @@ const mantenimientoController = {
       next(error);
     }
   }
+  */
 };
 
 module.exports = mantenimientoController;

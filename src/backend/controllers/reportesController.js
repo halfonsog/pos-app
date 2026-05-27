@@ -29,8 +29,7 @@ const reportesController = {
       // Calcular ganancia para cada producto
       for (const p of productos) {
         p.costo_total = p.costo_unitario * p.cantidad_vendida;
-        p.ganancia = p.total_vendido - p.costo_total;
-        p.margen_real = p.total_vendido > 0 ? (p.ganancia / p.total_vendido) * 100 : 0;
+        p.ganancia = p.total_vendido * p.margen_pct / 100;
       }
 
       // Totales
@@ -118,13 +117,13 @@ const reportesController = {
 
       for (const p of productos) {
         p.costo_total = p.costo_base * p.cantidad_vendida;
-        p.ganancia_bruta = p.total_vendido - p.costo_total;
+        p.ganancia_bruta = p.total_vendido * p.margen_pct / 100;
         p.margen_real = p.total_vendido > 0 ? (p.ganancia_bruta / p.total_vendido) * 100 : 0;
 
         // Gastos fijos asignados
-        const pctGastos = (p.gastos_fijos_pct || 0) / 100;
-        p.gastos_fijos = pctGastos > 0 ? p.costo_base * (pctGastos / (1 - pctGastos)) * p.cantidad_vendida : 0;
-        p.ganancia_neta = p.ganancia_bruta - p.gastos_fijos;
+        //const gastos_pct = (p.gastos_fijos_pct || 0) / 100;
+        //p.gastos_fijos = gastos_pct > 0 ? p.costo_base * (pctGastos / (1 - gastos_pct)) * p.cantidad_vendida : 0;
+        p.gastos_fijos = p.total_vendido * p.gastos_fijos_pct / 100;
       }
 
       res.json(productos);

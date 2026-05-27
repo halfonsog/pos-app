@@ -37,4 +37,7 @@ router.delete('/:id/receta/:componenteId', productoController.eliminarComponente
 // Ficha de costo
 router.put('/:id/costo', productoController.actualizarCosto);
 
+//Trazabilidad
+router.get('/:id/trazabilidad', productoController.trazabilidad);
+
 module.exports = router;

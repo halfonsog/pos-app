@@ -265,8 +265,8 @@ Inventario.initStockTable = function (productos) {
       p.codigo,                                                // 0
       p.nombre,                                                // 1
       p.categoria_nombre || '-',                               // 2
-      `<span class="${p.stock_efectivo <= p.stock_minimo ? 'text-warning fw-bold' : ''}">${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)} ${p.unidad_abrev}</span>`, // 3
-      `${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_minimo) : Utils.formatNumber(p.stock_minimo, 2)} ${p.unidad_abrev}`, // 4
+      `<span class="${p.stock_efectivo <= p.stock_minimo ? 'text-warning fw-bold' : ''}">${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 1)} ${p.unidad_abrev}</span>`, // 3
+      `${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_minimo) : Utils.formatNumber(p.stock_minimo, 1)} ${p.unidad_abrev}`, // 4
       p.puede_venderse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>', // 5
       p.es_preparable ? (p.puede_prepararse ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-warning">Sin componentes</span>') : '<span class="badge bg-secondary">No</span>',  // 6
       p.id,                                                    // 7
@@ -597,7 +597,7 @@ Inventario.initMovimientosTable = function (movimientos) {
       Utils.formatearFecha(Utils.fechaISOToLocal(m.fecha), 'datetime'),
       `${m.producto_nombre} <small class="text-muted">${m.codigo}</small>`,
       tipoBadge,
-      `<span class="${cantidadClass} fw-bold">${cantidadSigno}${Utils.formatNumber(m.cantidad, 2)}</span>`,
+      `<span class="${cantidadClass} fw-bold">${cantidadSigno}${Utils.formatNumber(m.cantidad, 1)}</span>`,
       m.usuario_nombre || 'Sistema',
       m.observaciones || '-',
       m.tipo,
@@ -1026,7 +1026,7 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoI
 Inventario.cargarInfoProducto = async function (productoId) {
   try {
     Inventario.selProduct = await API.productos.obtener(productoId);
-    $('#stockActual').val(`${Utils.formatNumber(Inventario.selProduct.stock_actual, 2)} ${Inventario.selProduct.unidad_venta_abrev || ''}`);
+    $('#stockActual').val(`${Utils.formatNumber(Inventario.selProduct.stock_actual, 1)} ${Inventario.selProduct.unidad_venta_abrev || ''}`);
     $('#stockActual').data('valor', Inventario.selProduct.stock_actual);
   } catch (error) {
     console.error('Error cargando producto:', error);
@@ -1123,7 +1123,7 @@ Inventario.validarAjuste = function () {
       mensaje = `Stock insuficiente. Stock actual: ${stockActual}`;
     } else {
       const stk = stockActual - cantidad;
-      mensaje = `Se descontarán ${cantidad} ${p.unidad_venta_abrev} del stock. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stk) : Utils.formatNumber(stk, 2)} ${p.unidad_venta_abrev}`;
+      mensaje = `Se descontarán ${cantidad} ${p.unidad_venta_abrev} del stock. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stk) : Utils.formatNumber(stk, 1)} ${p.unidad_venta_abrev}`;
     }
   }
 
@@ -1134,9 +1134,9 @@ Inventario.validarAjuste = function () {
       esValido = false;
       mensaje = `No se puede descontar más del stock actual (${stockActual})`;
     } else if (cantidadFinal > 0) {
-      mensaje = `Se incrementará el stock en ${cantidad} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual + cantidad) : Utils.formatNumber(stockActual + cantidad, 2)} ${p.unidad_venta_abrev}`;
+      mensaje = `Se incrementará el stock en ${cantidad} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual + cantidad) : Utils.formatNumber(stockActual + cantidad, 1)} ${p.unidad_venta_abrev}`;
     } else if (cantidadFinal < 0) {
-      mensaje = `Se descontarán ${Math.abs(cantidad)} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual - Math.abs(cantidad)) : Utils.formatNumber(stockActual - Math.abs(cantidad), 2)} ${p.unidad_venta_abrev}`;
+      mensaje = `Se descontarán ${Math.abs(cantidad)} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual - Math.abs(cantidad)) : Utils.formatNumber(stockActual - Math.abs(cantidad), 1)} ${p.unidad_venta_abrev}`;
     }
   }
 

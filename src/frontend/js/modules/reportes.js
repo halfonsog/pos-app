@@ -268,18 +268,18 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
               ${datos.productos.map(p => `
                 <tr>
                   <td>${p.nombre} <small class="text-muted">${p.codigo}</small></td>
-                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 2)}</td>
+                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 1)}</td>
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end ${p.ganancia >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
+                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct)}%</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot class="table-dark">
               <tr>
                 <th>TOTAL</th>
-                <th class="text-end">${Utils.formatNumber(datos.totales.cantidad_total, 2)}</th>
+                <th class="text-end">${Utils.formatNumber(datos.totales.cantidad_total, 1)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.venta_total)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.costo_total)}</th>
                 <th class="text-end">${Utils.formatMoney(datos.totales.ganancia_total)}</th>
@@ -405,12 +405,12 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
               ${datos.map(p => `
                 <tr>
                   <td>${p.nombre}</td>
-                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 2)}</td>
+                  <td class="text-end">${Utils.formatNumber(p.cantidad_vendida, 1)}</td>
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.gastos_fijos)}</td>
-                  <td class="text-end ${p.ganancia_neta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_neta)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
+                  <td class="text-end ${p.ganancia_neta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_bruta)}</td>
+                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct)}%</td>
                 </tr>
               `).join('')}
             </tbody>

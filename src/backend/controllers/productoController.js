@@ -479,6 +479,196 @@ const productoController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  // GET /api/productos/:id/trazabilidad 
+  trazabilidad: async (req, res, next) => {
+    try {
+      const db = await getDb();
+      const { id } = req.params;
+
+      // Obtener datos del producto
+      const producto = await db.get(`
+        WITH stock_componentes AS (
+          SELECT r.producto_padre_id, MIN(pr.stock_actual / r.cantidad) as stock_efectivo
+          FROM recetas r
+          JOIN productos pr ON r.producto_hijo_id = pr.id
+          WHERE pr.activo = 1
+          GROUP BY r.producto_padre_id
+        )
+        SELECT p.nombre, p.tipo, p.requiere_preparacion,
+              CASE 
+                WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 0 
+                  THEN COALESCE(sc.stock_efectivo, 0)
+                ELSE p.stock_actual
+              END as stock_actual,
+              uv.abreviatura as unidad_abrev, uv.tipo as unidad_tipo
+        FROM productos p
+        JOIN unidades uv ON p.unidad_venta_id = uv.id
+        LEFT JOIN stock_componentes sc ON p.id = sc.producto_padre_id
+        WHERE p.id = ?
+      `, [id]);
+
+      if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
+
+      // Compras (entradas)
+      const compras = await db.all(`
+        SELECT 'compra' as tipo, c.fecha_compra as fecha, 
+                cd.cantidad * CASE 
+                  WHEN p.unidad_compra_id IS NOT NULL AND p.unidad_compra_id != p.unidad_venta_id
+                    THEN (uc.coeficiente / uv.coeficiente)
+                  ELSE 1
+                END as cantidad,
+                c.codigo_factura, prov.nombre as proveedor_nombre
+          FROM compra_detalles cd
+          JOIN compras c ON cd.compra_id = c.id
+          JOIN productos p ON cd.producto_id = p.id
+          LEFT JOIN unidades uc ON p.unidad_compra_id = uc.id
+          LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+          LEFT JOIN proveedores prov ON c.proveedor_id = prov.id
+          WHERE cd.producto_id = ? AND c.estado_inventario = 'completado'
+          ORDER BY c.fecha_compra DESC
+        `, [id]);
+
+      // Preparaciones (entradas para compuestos preparables)
+      const preparaciones = await db.all(`
+        SELECT 'preparacion' as tipo, m.created_at as fecha, m.cantidad, m.observaciones
+        FROM movimientos_stock m
+        WHERE m.producto_id = ? AND m.tipo = 'preparacion_entrada'
+        ORDER BY m.created_at DESC
+      `, [id]);
+
+      // Para compuestos no preparables, mostrar las entradas de sus componentes
+      const entradasComponentes = await db.all(`
+        SELECT 'entrada_componente' as tipo, 
+              SUM(m.cantidad) as cantidad, 
+              p.nombre as componente_nombre, 
+              uv.abreviatura as unidad_abrev,
+              uv.tipo as unidad_tipo,
+              p.id as producto_id
+        FROM movimientos_stock m
+        JOIN productos p ON m.producto_id = p.id
+        JOIN unidades uv ON p.unidad_venta_id = uv.id
+        WHERE m.tipo = 'compra' 
+          AND m.producto_id IN (SELECT producto_hijo_id FROM recetas WHERE producto_padre_id = ?)
+        GROUP BY p.id
+      `, [id]);
+
+      // Ventas (salidas) - incluyendo anuladas
+      const ventas = await db.all(`
+      SELECT 'venta' as tipo, v.created_at as fecha, 
+             CASE WHEN v.estado = 'anulada' THEN vd.cantidad ELSE -vd.cantidad END as cantidad,
+             v.id as venta_id, u.nombre_completo as vendedor_nombre, v.estado
+      FROM venta_detalles vd
+      JOIN ventas v ON vd.venta_id = v.id
+      LEFT JOIN usuarios u ON v.vendedor_id = u.id
+      WHERE vd.producto_id = ?
+      ORDER BY v.created_at DESC
+    `, [id]);
+
+      // Calcular totales
+      let totalEntradas = 0;
+      const ret = {
+        compras,
+        preparaciones,
+        entradasComponentes,
+        ventas
+      };
+
+      // Total salidas (ventas no anuladas)
+      const totalSalidas = ventas.filter(v => v.estado !== 'anulada').reduce((sum, v) => sum + Math.abs(v.cantidad), 0);
+      // Total ajustes. ajustes, mermas, devoluciones, donaciones y autoconsumo
+      let totalAjustes;
+
+      if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+        // Encontrar el componente con menor total de entradas (Pmin)
+        let pminComponente = null;
+        let pminTotal = Infinity;
+        let recetaCantidad = 1;
+
+        for (const c of entradasComponentes) {
+          const receta = await db.get(`SELECT cantidad FROM recetas WHERE producto_padre_id = ? AND producto_hijo_id = ?`, [id, c.producto_id]);
+
+          if (receta && receta.cantidad > 0) {
+            const disponible = c.cantidad / receta.cantidad;
+            if (disponible < pminTotal) {
+              pminTotal = c.cantidad;
+              pminComponente = c;
+              pminComponente.disponible = disponible;
+              console.log('=> ', pminComponente);
+              recetaCantidad = receta.cantidad;
+            }
+          }
+        }
+        const ajustes = await db.all(`
+          SELECT tipo, created_at as fecha, cantidad, 'producto: ${pminComponente?.componente_nombre}' as observaciones
+          FROM movimientos_stock
+          WHERE producto_id = ? 
+            AND tipo IN ('merma', 'ajuste', 'devolucion', 'donacion', 'autoconsumo')
+          ORDER BY created_at DESC
+        `, [pminComponente.producto_id]);
+
+        // Usar ajustes de Pmin
+        totalAjustes = ajustes.reduce((sum, a) => sum + a.cantidad, 0) / recetaCantidad;
+        console.log('=> ', { totalAjustes, recetaCantidad });
+
+        // Total entradas = cantidad del componente limitante (en su unidad)
+        totalEntradas = pminTotal;
+        // Stock esperado = PminTotal / cantidad en receta
+        const stockEsperado = pminComponente ? pminComponente.disponible : 0;
+        // Stock actual = stock_efectivo
+        const stockActual = producto.stock_actual;
+        // Diferencia = Stock actual - (Stock esperado - Total salidas)
+        const diferencia = stockActual - (stockEsperado - totalSalidas + totalAjustes);
+        // Guardar info adicional para mostrar
+        producto.pminComponente = pminComponente;
+        producto.pminTotal = pminTotal;
+        producto.stockEsperadoCalculado = stockEsperado;
+        producto.diferenciaCalculada = diferencia;
+        ret.ajustes = ajustes;
+        ret.totales = {
+          entradas: totalEntradas,
+          stockEsperado,
+          stockActual,
+          diferencia,
+          pminNombre: pminComponente?.componente_nombre,
+          pminUnidad: pminComponente?.unidad_abrev
+        };
+      } else {
+        const ajustes = await db.all(`
+          SELECT tipo, created_at as fecha, cantidad, observaciones
+          FROM movimientos_stock
+          WHERE producto_id = ? 
+            AND tipo IN ('merma', 'ajuste', 'devolucion', 'donacion', 'autoconsumo')
+          ORDER BY created_at DESC
+        `, [id]);
+        totalAjustes = ajustes.reduce((sum, a) => sum + a.cantidad, 0);
+
+        if (producto.tipo === 'compuesto' && producto.requiere_preparacion) {
+          // Preparables: sumar preparaciones
+          totalEntradas = preparaciones.reduce((sum, p) => sum + p.cantidad, 0);
+        } else {
+          // Simples: sumar compras (ya convertidas a unidad de venta)
+          totalEntradas = compras.reduce((sum, c) => sum + c.cantidad, 0);
+        }
+        // Stock esperado
+        const stockEsperado = totalEntradas - totalSalidas + totalAjustes;
+        ret.ajustes = ajustes;
+        ret.totales = {
+          entradas: totalEntradas,
+          stockEsperado,
+          stockActual: producto.stock_actual,
+          diferencia: producto.stock_actual - stockEsperado
+        };
+      }
+      ret.producto = producto;
+      ret.totales.salidas = totalSalidas;
+      ret.totales.ajustes = totalAjustes;
+      res.json(ret);
+
+    } catch (error) {
+      next(error);
+    }
   }
 };
 

@@ -14,10 +14,13 @@ INSERT INTO terminos_pago (nombre, dias) VALUES
 -- Categorías básicas
 INSERT INTO categorias (nombre, descripcion) VALUES 
     ('Bebidas', 'Jugos, refrescos, aguas'),
-    ('Alimentos', 'Frutas, verduras, víveres'),
+    ('Frescos', 'Frutas, verduras, pulpas'),
+    ('Elaborados', 'reposteria, cocinados, sandwishes'),
+    ('Secos', 'granos, deshidratados'),
+    ('Congelados', 'Alimentos congelados'),
+    ('Especias', 'sal, vinagre, especias'),
     ('Insumos', 'Materias primas y suministros'),
-    ('Empaques', 'Vasos, bolsas, envolturas'),
-    ('Lácteos', 'Leche, queso, yogurt');
+    ('Empaques', 'Vasos, bolsas, envolturas');
 
 -- Tipos de gasto
 INSERT INTO tipos_gasto (nombre, descripcion, porcentaje_default) VALUES 

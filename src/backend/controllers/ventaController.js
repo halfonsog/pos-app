@@ -417,7 +417,7 @@ const ventaController = {
 
       // Productos vendidos
       const productosVendidos = await db.all(`
-        SELECT p.nombre, SUM(vd.cantidad) as cantidad_total, uv.abreviatura, SUM(vd.total) as total_vendido, pc.costo_base,pc.gastos_fijos
+        SELECT p.nombre, SUM(vd.cantidad) as cantidad_total, uv.abreviatura as unidad_venta_abrev, uv.tipo as unidad_venta_tipo, SUM(vd.total) as total_vendido, pc.costo_base, pc.gastos_fijos
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
@@ -462,11 +462,11 @@ const ventaController = {
         costoBase: costoVentas.gastos_base,
         gastosFijos: costoVentas.gastos_fijos,
         margen: 0,
-        gananciaNeta: 0
+        gananciaBruta: 0
       };
 
       f.margen = f.ventaNeta - f.costoBase - f.gastosFijos;
-      f.gananciaNeta = f.margen + f.ajusteRedondeo;
+      f.gananciaBruta = f.margen + f.ajusteRedondeo;
 
       res.json({
         turno,

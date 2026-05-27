@@ -132,7 +132,8 @@ const API = {
     actualizarCosto: (id, data) => API.put(`/productos/${id}/costo`, data),
     obtenerReceta: (id) => API.get(`/productos/${id}/receta`),
     agregarComponente: (id, data) => API.post(`/productos/${id}/receta`, data),
-    eliminarComponente: (id, componenteId) => API.delete(`/productos/${id}/receta/${componenteId}`)
+    eliminarComponente: (id, componenteId) => API.delete(`/productos/${id}/receta/${componenteId}`),
+    trazabilidad: (id) => API.get(`/productos/${id}/trazabilidad`)
   },
 
   categorias: {

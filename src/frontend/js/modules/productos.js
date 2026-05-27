@@ -127,7 +127,7 @@ Productos.listado = async function (params) {
 
 Productos.renderListadoLayout = function (productos, params) {
   const user = State.getUser();
-  const filtro = params.filtro || 'todos';
+  const filtro = params.filtro || 'activos';
   return `
     <div class="app-wrapper">
       ${Sidebar.render(State.isAdmin() ? 'productos' : 'vendedor/stock')}
@@ -177,13 +177,14 @@ Productos.initDataTable = function (productos) {
   const tableData = productos.map(p => {
     const stockBajo = p.stock_efectivo <= p.stock_minimo;
     const sinCosto = !p.precio_venta || p.precio_venta === 0;
+
     return [
       p.foto ? `/uploads/productos/${p.foto}` : Utils.getProductPlaceholder(p, p.id, 40),
       p.codigo, p.nombre, p.categoria_nombre || '-',
       Productos.getTipoBadge(p),
       Utils.formatMoney(p.precio_venta),
-      `${p.unidad_venta_tipo === 'unidad' ? Math.floor(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 2)}  ${p.unidad_venta_abrev}`,
-      p.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>',
+      `${p.unidad_venta_tipo === 'unidad' ? Math.trunc(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 1)}  ${p.unidad_venta_abrev}`,
+      p.activo ? '<span class="badge bg-success">Activo.</span>' : '<span class="badge bg-secondary">Inactivo</span>',
       p.id, stockBajo ? 'true' : 'false', sinCosto ? 'true' : 'false',
       p.tipo,
       p.tiene_dependencias ? 'true' : 'false',
@@ -227,6 +228,7 @@ Productos.initDataTable = function (productos) {
       { data: 11, title: 'TipoFiltro', visible: false, searchable: true },
       { data: 12, title: 'TieneDependencias', visible: false }
     ],
+    search: { caseInsensitive: false },
     order: [[2, 'asc']],
     language: { decimal: ",", thousands: ".", processing: "Procesando...", lengthMenu: "Mostrar _MENU_ registros", zeroRecords: "No se encontraron resultados", emptyTable: "Ningún dato disponible", info: "Mostrando _START_ a _END_ de _TOTAL_ registros", search: "Buscar:", searchPlaceholder: "Buscar...", paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" } },
     pageLength: 25, responsive: true,
@@ -267,7 +269,7 @@ Productos.getTipoBadge = function (p) {
 
 Productos.bindListadoEvents = function (params) {
   const self = this;
-  const filtroInicial = params.filtro || 'activos';
+  const filtroInicial = params.filtro || 'todos';
 
   $('#btnNuevoProducto').on('click', () => ViewManager.navegar('productos/nuevo'));
 
@@ -278,9 +280,8 @@ Productos.bindListadoEvents = function (params) {
     $(this).addClass('active');
 
     self.dataTable.search('').columns().search('');
-
     if (filtro === 'activos') {
-      self.dataTable.column(7).search('Activo').draw();
+      self.dataTable.column(7).search('Activo.').draw();
     } else if (filtro === 'inactivos') {
       self.dataTable.column(7).search('Inactivo').draw();
     } else if (filtro === 'simples') {
@@ -296,6 +297,8 @@ Productos.bindListadoEvents = function (params) {
 
   if (filtroInicial !== 'todos') {
     $(`[data-filtro="${filtroInicial}"]`).trigger('click');
+  } else {
+    $('[data-filtro="activos"]').trigger('click');
   }
 
   $('#productosTable tbody').on('dblclick', 'tr', function () {
@@ -634,7 +637,7 @@ Productos.llenarFormulario = function (p) {
 
   $('#precioVenta').val(Utils.formatMoney(p.precio_venta));
   $('#stockMinimo').val(p.stock_minimo || 0);
-  $('#stockActual').val(`${Utils.formatNumber(p.stock_actual, 2)} ${p.unidad_venta_abrev || ''}`);
+  $('#stockActual').val(`${Utils.formatNumber(p.stock_actual, 1)} ${p.unidad_venta_abrev || ''}`);
   $('#productoActivo').prop('checked', p.activo === 1);
 
   // Foto
@@ -913,6 +916,9 @@ Productos.renderFichaLayout = async function (producto) {
               <button class="btn btn-info" id="btnFichaCosto">
                 <i class="fas fa-calculator me-1"></i>Ficha de Costo
               </button>
+              <button class="btn btn-outline-info" id="btnTrazabilidad">
+                <i class="fas fa-history me-1"></i>Trazabilidad
+              </button>
               <button class="btn btn-danger" id="btnEliminar" 
                 ${producto.tiene_dependencias ? 'disabled title="No se puede eliminar: tiene movimientos asociados"' : ''}>
                 <i class="fas fa-trash me-1"></i>Eliminar
@@ -1016,12 +1022,12 @@ Productos.renderFichaLayout = async function (producto) {
                     <div class="col-md-6">
                       <label class="text-muted small">Stock Actual</label>
                       <p class="${producto.stock_actual <= producto.stock_minimo ? 'text-warning fw-bold' : ''}">
-                        ${Utils.formatNumber(producto.stock_actual, 2)} ${producto.unidad_venta_abrev || ''}
+                        ${Utils.formatNumber(producto.stock_actual, 1)} ${producto.unidad_venta_abrev || ''}
                       </p>
                     </div>
                     <div class="col-md-6">
                       <label class="text-muted small">Stock Mínimo</label>
-                      <p>${Utils.formatNumber(producto.stock_minimo, 2)} ${producto.unidad_venta_abrev || ''}</p>
+                      <p>${Utils.formatNumber(producto.stock_minimo, 1)} ${producto.unidad_venta_abrev || ''}</p>
                     </div>
                     <div class="col-md-6">
                       <label class="text-muted small">Estado</label>
@@ -1085,6 +1091,10 @@ Productos.bindFichaEvents = function (producto) {
     $('#btnReceta').on('click', () => ViewManager.navegar('productos/receta/' + producto.id));
   }
 
+  $('#btnTrazabilidad').on('click', () => {
+    ViewManager.navegar('productos/trazabilidad/' + producto.id);
+  });
+
   $('#btnEliminar').on('click', async function () {
     console.log('🗑️ Intentando eliminar producto:', producto.id);
 
@@ -1126,6 +1136,226 @@ Productos.bindFichaEvents = function (producto) {
     }
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
+};
+
+Productos.trazabilidad = async function (params) {
+  const id = params.id;
+
+  try {
+    Utils.showLoading('Cargando trazabilidad...');
+    const data = await API.productos.trazabilidad(id);
+    Utils.hideLoading();
+
+    const layout = Productos.renderTrazabilidadLayout(data);
+    $('#app').html(layout);
+    Productos._bindCommon();
+
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+  }
+};
+
+Productos.renderTrazabilidadLayout = function (data) {
+  const { producto, compras, preparaciones, entradasComponentes, ventas, ajustes, totales } = data;
+  const user = State.getUser();
+
+  return `
+    <div class="app-wrapper">
+      ${Sidebar.render('productos')}
+      <main class="main-content">
+        ${Productos.renderNavbar(user)}
+        <div class="container-fluid p-4">
+          <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+              <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Productos</a></li>
+              <li class="breadcrumb-item"><a href="#productos/ver/${producto.id}">${producto.nombre}</a></li>
+              <li class="breadcrumb-item active">Trazabilidad</li>
+            </ol>
+          </nav>
+          
+          <div class="d-flex align-items-center mb-4">
+            <button class="btn btn-outline-secondary me-3" id="btnVolver">
+              <i class="fas fa-arrow-left me-1"></i>Volver
+            </button>
+            <h2 class="mb-0">
+              <i class="fas fa-history me-2"></i>Trazabilidad: ${producto.nombre}
+            </h2>
+          </div>         
+          <div class="row">
+            <div class="col-lg-8">
+              <!-- Entradas -->
+              <div class="card mb-4">
+                <div class="card-header bg-success bg-opacity-10">
+                  <h5 class="mb-0">
+                    ${producto.tipo === 'compuesto' && producto.requiere_preparacion
+      ? '<i class="fas fa-flask me-1"></i>🧪 PREPARACIONES'
+      : producto.tipo === 'compuesto'
+        ? '<i class="fas fa-cubes me-1"></i>📦 ENTRADAS DE COMPONENTES'
+        : '<i class="fas fa-truck me-1"></i>📦 COMPRAS'
+    }
+                    (${producto.tipo === 'compuesto' && producto.requiere_preparacion
+      ? preparaciones.length
+      : producto.tipo === 'compuesto'
+        ? entradasComponentes.length
+        : compras.length
+    })
+                  </h5>
+                </div>
+                <div class="card-body p-0">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-success">
+                      ${producto.tipo === 'compuesto' && producto.requiere_preparacion ? `
+                        <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Observaciones</th></tr>
+                      ` : producto.tipo === 'compuesto' ? `
+                        <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Componente</th><th>Observaciones</th></tr>
+                      ` : `
+                        <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Factura</th><th>Proveedor</th></tr>
+                      `}
+                    </thead>
+                    <tbody>
+                      ${producto.tipo === 'compuesto' && producto.requiere_preparacion ?
+      (preparaciones.length > 0 ? preparaciones.map(p => `
+                          <tr>
+                            <td>${Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha), 'datetime')}</td>
+                            <td class="text-end text-success">+${Utils.formatNumber(p.cantidad, 1)} ${producto.unidad_abrev}</td>
+                            <td>${p.observaciones || '-'}</td>
+                          </tr>
+                        `).join('') : '<tr><td colspan="3" class="text-muted text-center py-3">Sin preparaciones</td></tr>')
+      : producto.tipo === 'compuesto' ?
+        (entradasComponentes.length > 0 ? entradasComponentes.map(e => `
+                          <tr>
+                            <td>${Utils.formatearFecha(Utils.fechaISOToLocal(e.fecha), 'datetime')}</td>
+                            <td class="text-end text-success">+${Utils.formatNumber(e.cantidad, 1)} ${e.unidad_abrev}</td>
+                            <td>${e.componente_nombre || '-'}</td>
+                            <td>${e.observaciones || '-'}</td>
+                          </tr>
+                        `).join('') : '<tr><td colspan="4" class="text-muted text-center py-3">Sin entradas de componentes</td></tr>')
+        :
+        (compras.length > 0 ? compras.map(c => `
+                          <tr>
+                            <td>${Utils.formatearFecha(Utils.fechaISOToLocal(c.fecha), 'datetime')}</td>
+                            <td class="text-end text-success">+${Utils.formatNumber(c.cantidad, 1)} ${producto.unidad_abrev}</td>
+                            <td>${c.codigo_factura || '-'}</td>
+                            <td>${c.proveedor_nombre || '-'}</td>
+                          </tr>
+                        `).join('') : '<tr><td colspan="4" class="text-muted text-center py-3">Sin compras</td></tr>')
+    }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <!-- Ventas -->
+              <div class="card mb-4">
+                <div class="card-header bg-danger bg-opacity-10">
+                  <h5 class="mb-0"><i class="fas fa-arrow-up me-1"></i>💰 VENTAS (${ventas.length})</h5>
+                </div>
+                <div class="card-body p-0">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-danger">
+                      <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Venta</th><th>Vendedor</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>
+                      ${ventas.length > 0 ? ventas.map(v => `
+                        <tr class="${v.estado === 'anulada' ? 'text-muted' : ''}">
+                          <td>${Utils.formatearFecha(Utils.fechaISOToLocal(v.fecha), 'datetime')}</td>
+                          <td class="text-end ${v.estado === 'anulada' ? 'text-success' : 'text-danger'}">
+                            ${v.estado === 'anulada' ? '+' : '-'}${Utils.formatNumber(Math.abs(v.cantidad), 1)} ${producto.unidad_abrev}
+                          </td>
+                          <td>#${v.venta_id}</td>
+                          <td>${v.vendedor_nombre || '-'}</td>
+                          <td>${v.estado === 'anulada' ? '❌ Anulada' : '✅'}</td>
+                        </tr>
+                      `).join('') : '<tr><td colspan="5" class="text-muted text-center py-3">Sin ventas</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <!-- Ajustes -->
+              <div class="card mb-4">
+                <div class="card-header bg-warning bg-opacity-10">
+                  <h5 class="mb-0"><i class="fas fa-balance-scale me-1"></i>🔄 AJUSTES (${ajustes.length})</h5>
+                </div>
+                <div class="card-body p-0">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-warning">
+                      <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Tipo</th><th>Observaciones</th></tr>
+                    </thead>
+                    <tbody>
+                      ${ajustes.length > 0 ? ajustes.map(a => `
+                        <tr>
+                          <td>${Utils.formatearFecha(Utils.fechaISOToLocal(a.fecha), 'datetime')}</td>
+                          <td class="text-end ${a.cantidad > 0 ? 'text-success' : 'text-danger'}">
+                            ${a.cantidad > 0 ? '+' : ''}${Utils.formatNumber(a.cantidad, 1)} ${producto.tipo === 'compuesto' && !producto.requiere_preparacion ? totales.pminUnidad : producto.unidad_abrev}
+                          </td>
+                          <td>${a.tipo}</td>
+                          <td>${a.observaciones || '-'}</td>
+                        </tr>
+                      `).join('') : '<tr><td colspan="4" class="text-muted text-center py-3">Sin ajustes</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>            
+            <div class="col-lg-4">
+              <!-- Resumen -->
+              <div class="card">
+                <div class="card-header bg-primary text-white">
+                  <h5 class="mb-0">📊 RESUMEN</h5>
+                </div>
+                <div class="card-body">
+                ${producto.tipo === 'compuesto' && !producto.requiere_preparacion ? `
+                  <!-- Resumen para compuestos NO preparables -->
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Componente limitante:</span>
+                    <strong>${totales.pminNombre || '-'}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Total entradas:</span>
+                    <strong class="text-success">${Utils.formatNumber(totales.entradas, 1)} ${totales.pminUnidad || ''}</strong>
+                  </div>
+                ` : `
+                  <!-- Resumen para simples y compuestos preparables -->
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Total entradas:</span>
+                    <strong class="text-success">${Utils.formatNumber(totales.entradas, 1)} ${producto.unidad_abrev}</strong>
+                  </div>
+                `}
+                  <hr>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Stock esperado:</span>
+                    <strong>${producto.unidad_tipo == 'unidad' ? Math.trunc(totales.stockEsperado) : Utils.formatNumber(totales.stockEsperado, 1)} ${producto.unidad_abrev}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Total salidas:</span>
+                    <strong class="text-danger">${producto.unidad_tipo == 'unidad' ? Math.trunc(totales.salidas) : Utils.formatNumber(totales.salidas, 1)} ${producto.unidad_abrev}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Ajustes netos:</span>
+                    <strong>${producto.unidad_tipo == 'unidad' ? Math.trunc(totales.ajustes) : Utils.formatNumber(totales.ajustes, 1)} ${producto.unidad_abrev}</strong>
+                  </div>
+                  <hr>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span>Stock actual:</span>
+                    <strong>${producto.unidad_tipo == 'unidad' ? Math.trunc(totales.stockActual) : Utils.formatNumber(totales.stockActual, 1)} ${producto.unidad_abrev}</strong>
+                  </div>
+                  <hr>
+                  <div class="d-flex justify-content-between">
+                    <span>Diferencia:</span>
+                    <strong class="${totales.diferencia === 0 ? 'text-success' : 'text-danger'}">
+                      ${totales.diferencia > 0 ? '+' : ''}${producto.unidad_tipo == 'unidad' ? Math.trunc(totales.diferencia) : Utils.formatNumber(totales.diferencia, 1)} ${producto.unidad_abrev} ${totales.diferencia === 0 ? ' ✅' : ' ⚠️'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
 };
 
 // ============================================
@@ -1864,6 +2094,8 @@ Productos.bindIndexEvents = function () {
 
 Productos._bindCommon = function () {
   $('#toggleSidebar').on('click', () => $('#sidebar').toggleClass('show'));
+  $('#btnVolver').on('click', () => ViewManager.volver());
+  $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
   $('#sidebar .nav-link').on('click', function (e) {
     e.preventDefault();
     const h = $(this).attr('href');
