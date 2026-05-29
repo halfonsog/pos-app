@@ -13,7 +13,7 @@ const configuracionController = {
       const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
 
       if (!config) {
-        await db.run('INSERT INTO configuracion_general (id, ventas_proyectadas, margen_recomendado, impuesto_ventas) VALUES (1, 250000, 20, 15)');
+        await db.run('INSERT INTO configuracion_general (id, ventas_proyectadas, margen_recomendado, impuesto_ventas,impuesto_ganancia) VALUES (1, 250000, 20, 15, 35)');
         const nuevo = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
         return res.json(nuevo);
       }
@@ -43,14 +43,14 @@ const configuracionController = {
   actualizarGeneral: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta } = req.body;
+      const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta, impuesto_ganancia } = req.body;
 
       await db.run(`
       UPDATE configuracion_general 
       SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, 
-          redondeo_venta = ?, updated_at = CURRENT_TIMESTAMP
+          redondeo_venta = ?, impuesto_ganancia = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
-    `, [ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta || 5]);
+    `, [ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta || 5, impuesto_ganancia]);
 
       res.json({ message: 'Configuración actualizada correctamente' });
     } catch (error) {

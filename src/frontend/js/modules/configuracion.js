@@ -196,7 +196,8 @@ Configuracion._bindGeneralSubmit = function () {
       ventas_proyectadas: parseFloat($('#ventasProyectadas').val()),
       margen_recomendado: parseFloat($('#margenRecomendado').val()),
       impuesto_ventas: parseFloat($('#impuestoVentas').val()),
-      redondeo_venta: parseFloat($('#redondeoVenta').val())
+      redondeo_venta: parseFloat($('#redondeoVenta').val()),
+      impuesto_ganancia: parseFloat($('#impuestoGanancia').val())
     };
     try {
       Utils.showLoading('Guardando...');
