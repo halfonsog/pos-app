@@ -18,17 +18,16 @@
 
 // Lee configuración y calcula el % de gastos fijos (fracción).
 // Fórmula del propietario: %gastos = (Σ gastos activos + gasto financiero del mes) ÷ ventas_proyectadas
-// El gasto financiero sale de los vencimientos del mes en curso (préstamos/inversiones, m020).
+// El gasto financiero del mes = próximo vencimiento pendiente de préstamos/inversiones (m020).
 async function obtenerParametros(db) {
   const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
   const gastos = await db.get(
     'SELECT COALESCE(SUM(valor_mensual), 0) AS total FROM configuracion_gastos WHERE activo = 1'
   );
 
-  // Gasto financiero del mes en curso (préstamos e inversiones activos)
-  const ahora = new Date();
+  // Gasto financiero del mes (préstamos e inversiones activos; próximo vencimiento pendiente)
   const { gastoFinancieroMes } = require('../controllers/prestamoInversionController');
-  const gastoFinanciero = await gastoFinancieroMes(db, ahora.getFullYear(), ahora.getMonth() + 1);
+  const gastoFinanciero = await gastoFinancieroMes(db);
 
   const ventasProy = config?.ventas_proyectadas || 0;
   const totalGastos = gastos.total + gastoFinanciero;

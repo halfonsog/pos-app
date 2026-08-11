@@ -24,10 +24,9 @@ const configuracionController = {
       const ventas = config.ventas_proyectadas || 250000;
 
       // % de gastos = (Σ gastos activos + gasto financiero del mes) ÷ ventas_proyectadas
-      // (fórmula del propietario, D3; el gasto financiero sale de préstamos/inversiones, m020)
-      const ahora = new Date();
+      // (fórmula del propietario, D3; el gasto financiero = próximo vencimiento de préstamos/inversiones, m020)
       const { gastoFinancieroMes } = require('./prestamoInversionController');
-      const gastoFinanciero = await gastoFinancieroMes(db, ahora.getFullYear(), ahora.getMonth() + 1);
+      const gastoFinanciero = await gastoFinancieroMes(db);
 
       const porcentajeGastos = ventas > 0 ? ((gastosFijos + gastoFinanciero) / ventas) * 100 : 0;
 

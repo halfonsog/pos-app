@@ -2,33 +2,38 @@
 
 > **Snapshot compacto para abrir una sesión nueva sin re-explicar el proyecto.**
 > Leer esto + `AGENTS.md` basta para retomar el trabajo. Actualizar al cerrar cada jornada.
-> **Última actualización: 2026-08-07**
+> **Última actualización: 2026-08-11**
 
 ## Qué es esto
 POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/api` + SPA en `src/frontend`, JS vanilla + jQuery + Bootstrap). BD real en uso: `database/database.db` (**nunca reiniciar sin backup**; backups en `backups/`). Docs completas en `docs/` (módulos en `docs/modulos/`).
 
-## Hecho y verificado (155 tests, `npm test`)
-- **Sprint 0-1**: seguridad real (RBAC `requireRole`, matriz rol↔endpoint), CRUD usuarios+empleados (empleado-céntrico en Configuración), quick wins (límites, búsquedas insensibles, navegación).
-- **Sprint 2**: modelo de productos — subtipos elaborado/conformado (m017), anti-ciclos en recetas (CTE), `costo_base`/`precio_recomendado` persistidos con recálculo en cascada (`utils/costos.js`, **fórmula del propietario multiplicativa**: %gastos = Σgastos ÷ ventas_proyectadas; precio_neto = costo×(1+%g)×(1+margen); recomendado = neto×(1+imp)), campos editables restringidos, ingredientes = granel+elaborados.
-- **Sprint 3**: catálogo `tipos_movimiento` (m018), intercambio reventa→granel entre productos, subcategorías (anti-ciclos), ajustes completos.
-- **Sprint 4**: vector fiscal ONAE completo y **verificado contra el Excel del propietario** (`tests/vector-fiscal.test.js`), liquidación anual (0530222), Banco (saldos), alertas fiscales en Dashboard, préstamos/inversiones con vencimientos autogenerados (m020, Excel validado: mes 1 sin tarifa en inversiones).
-- **Sprint 5 (Mayoristas)**: clientes (módulo propio patrón Proveedores, admin+vendedor), precios por tramos por volumen, pedidos con vencimiento, facturación a `ventas` (tipo mayorista), pagos mixtos, cuentas por cobrar, **inventario separado** (`stock_mayorista`, transferencias, split en compras), **unidad mayorista = unidad de compra** (venta_detalles convierten a unidad de venta al facturar).
-- **Sprint 6 (Encargos)**: pedidos unificados con `tipo` minorista/mayorista (m024), encargos en Ventas con entregar-y-cobrar (crea venta con turno si hay).
-- **Fase 2 Mayoristas**: límite de crédito, backorder (stock negativo + alerta), facturación parcial por líneas (m028; tras parcial no se modifica, solo se completa o cancela).
-- **USD (m025-m027)**: moneda+tasa por operación (sin tasa general — la tasa cambia a diario, propietario), saldos por moneda (efectivo/banco × CUP/USD) + equivalente total con última tasa usada, cambio de divisas, servicios (pagos/cobros estiba/transporte), `usuarios.tipo_venta` (minorista/mayorista/ambas), exportar liquidaciones CSV para software certificado (Versat Sarasola).
-- **Contabilidad nueva (m030)**: **Porciento a declarar** escala ventas Y compras/gastos en todo lo fiscal (vector, libro diario, estados, cierre, DJ anual, CSV); **nóminas** (generadas al cerrar el mes, salario pagado por banco) y **bonos semanales en efectivo** (no se declaran como salarios; "Pagar Bonos" con ayuda de decisión por empleado y en pendientes del dashboard el día configurado `dia_pago_bonos`); **libro diario** (ventas/gastos por día reales y declarados); salarios editables en ficha de empleado; cierre de mes muestra pago a trabajadores.
-- **UI harmonizada**: todas las cards de todos los dashboards con el estilo del dashboard principal y sin decimales (`formatMoney(x, 0)` — formatMoney acepta decimales como 2º parámetro). Sidebar siempre "POS Manager".
+## Estado verificado (2026-08-11)
+- **160 tests verdes** (`npm test`, 12 suites) contra BD temporal desde migraciones.
+- **36 tablas de negocio** (+ `schema_migrations`), **30 migraciones** (001–030, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
+- Servidor en producción local en `PORT 3000` (`npm start` = `node server.js`).
+
+## Hecho y en producción
+- **Seguridad**: RBAC en backend (`requireRole`, matriz rol↔endpoint verificada por tests); auth en mantenimiento/reportes/dashboard; backup/restore endurecidos (VACUUM INTO + validación de cabecera SQLite e integrity_check).
+- **Catálogo y operación minorista**: productos (simples reventa/granel, compuestos elaborado/conformado, recetas con anti-ciclos, ficha de costo con la **fórmula del propietario** multiplicativa en `utils/costos.js`), unidades con coeficientes, proveedores con contactos y contrato, compras con cuentas por pagar e inventariar, inventario con preparación/mermas/ajustes/intercambio reventa→granel/transferencias, ventas con turnos de caja única y arqueo por denominaciones, redondeo configurable.
+- **Usuarios y empleados**: login JWT 24h, RBAC por roles, CRUD usuarios+empleados (empleado-céntrico, empleados 1—N usuarios), `tipo_venta` por usuario, «Mi perfil».
+- **Mayoristas**: clientes (patrón Proveedores, sin modales), precios por tramos de volumen, pedidos con vencimiento y cuentas por cobrar, facturación (incl. parcial) a `ventas` (tipo mayorista), pagos mixtos (efectivo→arqueo, tarjeta/transfer→banco), inventario separado (`stock_mayorista`), límite de crédito y backorder, **unidad mayorista = unidad de compra** (conversión a unidad de venta al consolidar).
+- **Encargos minoristas**: pedidos unificados (`tipo` mayorista/minorista), entregar-y-cobrar desde Ventas.
+- **Préstamos e Inversiones**: seguimiento con vencimientos autogenerados (fórmulas del propietario verificadas), gasto financiero mensual = Σ aportes del próximo vencimiento pendiente de registros activos integrado en el %gastos del costeo; desglose por prioridades en cierres.
+- **Contabilidad (ONAE)**: vector fiscal completo verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`); liquidación mensual/trimestral/anual (DJ 0530222), **porciento a declarar** en todo lo fiscal, libro diario, balance y estado de resultados, cierre de mes con desglose por prioridades + %gastos proyectado vs real + pago a trabajadores, banco por cuenta/moneda (CUP/USD) con cambio de divisas, **nóminas** (pago por banco) y **bonos semanales en efectivo** (no se declaran), servicios, exportar CSV para software certificado (Versat Sarasola).
+- **UI armonizada**: dashboards de todos los módulos con cards del estilo del principal y sin decimales; sidebar siempre "POS Manager"; módulo Clientes accesible a admin y vendedor.
 
 ## En curso / siguiente
-- **Sprint 7**: Promociones y campañas (último módulo nuevo).
-- **Fase II**: multi-caja, vendedores multi-caja, rol contable, venta online (pedidos ya unificados).
-- **Comercialización**: white-label (nombre/logo/colores), instaladores nativos Win/Linux/Android con Node embebido (D17).
-- **Contabilidad — pendiente menor**: tabla de gastos deducibles para la DJ anual (el propietario la aportará) y gestión de tasas de tributos desde Configuración.
+- **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista).
+- **Registro real del propietario**: registrar su préstamo/inversión real en Configuración → Inversiones y eliminar el concepto "Inversiones" (90 000) de los gastos fijos si correspondiera.
+- **Fase II**: multi-caja, vendedores multi-caja, rol contable, venta online (pedidos unificados). Decisión de motor MySQL/PostgreSQL.
+- **Comercialización**: white-label / Configuración de despliegue (nombre negocio, logo, colores) + instaladores nativos Win/Linux/Android con Node embebido (D17).
+- **Contabilidad — pendiente menor**: gestión de tasas de tributos desde Configuración, tabla de gastos deducibles DJ (la aportará el propietario), exportar PDF.
+- Ver lista completa en `00-pendientes.md`.
 
 ## Convenciones clave (resumen rápido)
-- Migraciones numeradas en `database/migrations/` (siguiente libre: **030**), probadas primero en copia de la BD real; backup antes de tocar esquema.
-- Backend: routers finos + controladores con SQL parametrizado; `requireRole('admin')` donde aplique; servicios compartidos en `src/backend/utils/`.
-- Frontend: módulos como objetos globales en `js/modules/`; vistas por ViewManager (`ViewManager.navegar`); **sin modales en módulos** (vistas completas); `Utils.confirm`, `Toast.*`, `Utils.fechaISOToLocal` antes de mostrar fechas (backend UTC).
-- Reglas de negocio y decisiones del propietario documentadas en `docs/modulos/*.md` y `docs/06-decisiones-y-roadmap.md`; el usuario comenta los docs con `>>` y yo proceso.
-- Tests: jest + supertest con BD temporal desde migraciones (`tests/`); ejecutar `npm test` antes de reiniciar el servidor tras cambios.
-- Al terminar cambios: reiniciar servidor (Stop-Process del puerto 3000 + `node server.js` oculto) + actualizar docs afectadas.
+- Migraciones numeradas en `database/migrations/` (siguiente libre: **031**); **nunca editar una migración aplicada**; backup antes de tocar esquema.
+- Backend: routers finos + controladores con SQL parametrizado (`?`); `requireRole('admin')` donde aplique; servicios compartidos en `src/backend/utils/` (costos.js, conversiones.js, logger.js).
+- Frontend: módulos como objetos globales en `js/modules/`; vistas por ViewManager (`ViewManager.navegar`); **sin modales en módulos** (vistas completas); `Utils.confirm`, `Toast.*`, `Utils.fechaISOToLocal` antes de mostrar fechas (backend UTC, frontend local).
+- Reglas de negocio y decisiones del propietario en `docs/modulos/*.md` y `docs/06-decisiones-y-roadmap.md`; temas abiertos en `00-pendientes.md`.
+- Tests: `npm test` antes de reiniciar el servidor tras cambios.
+- Al terminar cambios: reiniciar servidor (detener el proceso del puerto 3000 + `node server.js`) + actualizar docs afectadas.

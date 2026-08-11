@@ -21,4 +21,4 @@ Opera sobre **todas** (borrados físicos) y sobre el **fichero completo** de la 
 - **Logs**: archivo mensual `logs/sistema_YYYY_MM.log`; el visor lee el mes en curso.
 
 ## Problemas conocidos (../05-problemas-conocidos.md)
-~~S1~~ ✅ (Sprint 0) · ~~B17~~ ✅ (backup/restore endurecido). Quedan: B6 (`eliminar-anio` borra ese año **y todos los anteriores** — pendiente decidir si se restringe a un solo año), B7 (`eliminar-inactivos` sin transacción).
+B6 (`eliminar-anio` borra ese año **y todos los anteriores** — pendiente decidir si se restringe a un solo año), B7 (`eliminar-inactivos` falla por FK, sin transacción).

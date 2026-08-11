@@ -13,8 +13,9 @@ const { getDb } = require('../models/db');
  *      inversion: 0 en el mes 1 (aporte a la par); i × pago_capital desde el mes 2
  *   4. tarifa = tasa_mensual × capital_gravado · tasa_mensual = tasa_anual/100/12
  *   5. aporte = pago_capital + tarifa
- *   6. gasto financiero del mes = Σ aportes de vencimientos del mes en curso
- *      con estado pendiente/parcial de registros activos
+ *   6. gasto financiero del mes = Σ aportes del PRÓXIMO vencimiento pendiente de
+ *      cada registro activo (los precios del mes cubren el próximo pago; el
+ *      primer vencimiento cae el día 1 del mes siguiente a fecha_inicio)
  */
 
 // Genera los vencimientos calculados de un registro (día 1 de cada mes;
@@ -66,20 +67,24 @@ async function insertarVencimientos(db, registroId, vencimientos) {
   }
 }
 
-// Gasto financiero de un mes concreto (Σ aportes pendientes/parciales de registros activos)
-async function gastoFinancieroMes(db, anio, mes) {
+// Gasto financiero a repercutir en los precios del mes actual: Σ aportes del
+// PRÓXIMO vencimiento pendiente de cada registro activo. Si el próximo pago es el
+// 01/09, los precios del mes en curso deben cubrirlo (regla del propietario).
+async function gastoFinancieroMes(db) {
   const sql = `
     SELECT COALESCE(SUM(v.aporte), 0) AS total
     FROM vencimientos v
     JOIN prestamos_inversiones pi ON v.prestamo_inversion_id = pi.id
     WHERE pi.estado = 'activo'
       AND v.estado IN ('pendiente', 'parcial')
-      AND strftime('%Y', v.fecha_vencimiento) = ?
-      AND strftime('%m', v.fecha_vencimiento) = ?
+      AND v.fecha_vencimiento = (
+        SELECT MIN(v2.fecha_vencimiento)
+        FROM vencimientos v2
+        WHERE v2.prestamo_inversion_id = v.prestamo_inversion_id
+          AND v2.estado IN ('pendiente', 'parcial')
+      )
   `;
-  console.log('SQL: ');
-  console.log(sql);
-  const r = await db.get(sql, [String(anio), String(mes).padStart(2, '0')]);
+  const r = await db.get(sql);
   return r.total;
 }
 

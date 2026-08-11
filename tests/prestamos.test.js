@@ -155,22 +155,26 @@ describe('Inversiones: fórmulas y recálculo de cuotas', () => {
 });
 
 describe('Gasto financiero en el costeo', () => {
-  test('configuracion/general refleja solo registros activos del mes en curso', async () => {
-    // Crear préstamo con vencimiento ESTE mes (para que cuente en el gasto financiero)
+  test('gasto financiero = PRÓXIMO vencimiento pendiente (no los del mes en curso)', async () => {
+    // Aislar el escenario: cancelar los registros creados en la suite
+    const lista = await request.get('/api/config/prestamos-inversiones').set(auth());
+    for (const r of lista.body) {
+      await request.delete(`/api/config/prestamos-inversiones/${r.id}`).set(auth());
+    }
+
+    // Préstamo con fecha_inicio ESTE mes: su primer vencimiento cae el día 1 del MES SIGUIENTE
     const ahora = new Date();
-    const inicioMesPasado = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 15);
+    const inicioEsteMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
     const res = await request.post('/api/config/prestamos-inversiones').set(auth())
-      .send({
-        tipo: 'prestamo', descripcion: 'Del mes en curso', capital_total: 1000, plazo_meses: 1,
-        tasa_anual: 0, fecha_inicio: inicioMesPasado.toISOString().split('T')[0]
-      });
+      .send({ tipo: 'prestamo', descripcion: 'Precios cubren próximo vencimiento', capital_total: 1000, plazo_meses: 1, tasa_anual: 0, fecha_inicio: inicioEsteMes.toISOString().split('T')[0] });
     expect(res.status).toBe(201);
 
-    // El vencimiento único cae el día 1 de ESTE mes → aporte 1000
+    // Aunque el vencimiento NO cae este mes calendario (cae el día 1 del mes siguiente),
+    // alimenta el gasto financiero: los precios del mes actual lo cubren
     const { getDb } = require('../src/backend/models/db');
     const db = await getDb();
     const { gastoFinancieroMes } = require('../src/backend/controllers/prestamoInversionController');
-    const gasto = await gastoFinancieroMes(db, ahora.getFullYear(), ahora.getMonth() + 1);
+    const gasto = await gastoFinancieroMes(db);
     expect(gasto).toBeCloseTo(1000, 2);
   });
 });
