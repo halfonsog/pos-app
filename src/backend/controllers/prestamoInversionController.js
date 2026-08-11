@@ -68,7 +68,7 @@ async function insertarVencimientos(db, registroId, vencimientos) {
 
 // Gasto financiero de un mes concreto (Σ aportes pendientes/parciales de registros activos)
 async function gastoFinancieroMes(db, anio, mes) {
-  const r = await db.get(`
+  const sql = `
     SELECT COALESCE(SUM(v.aporte), 0) AS total
     FROM vencimientos v
     JOIN prestamos_inversiones pi ON v.prestamo_inversion_id = pi.id
@@ -76,7 +76,10 @@ async function gastoFinancieroMes(db, anio, mes) {
       AND v.estado IN ('pendiente', 'parcial')
       AND strftime('%Y', v.fecha_vencimiento) = ?
       AND strftime('%m', v.fecha_vencimiento) = ?
-  `, [String(anio), String(mes).padStart(2, '0')]);
+  `;
+  console.log('SQL: ');
+  console.log(sql);
+  const r = await db.get(sql, [String(anio), String(mes).padStart(2, '0')]);
   return r.total;
 }
 
@@ -205,7 +208,7 @@ const prestamoInversionController = {
               pago_capital = ?, fecha_inicio = ?, estado = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `, [nuevoTipo, descripcion ?? registro.descripcion, nuevoCapital, nuevoPlazo, nuevaTasa,
-            pagoCapitalBase, nuevaFecha, estado ?? registro.estado, id]);
+          pagoCapitalBase, nuevaFecha, estado ?? registro.estado, id]);
 
         await db.run('DELETE FROM vencimientos WHERE prestamo_inversion_id = ?', [id]);
         await insertarVencimientos(db, id, vencimientos);
@@ -322,7 +325,7 @@ const prestamoInversionController = {
                 INSERT INTO vencimientos (prestamo_inversion_id, ordinal, fecha_vencimiento, capital, pago_capital, tarifa, aporte)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
               `, [id, ordinalGlobal, fechaVenc.toISOString().split('T')[0],
-                  Math.round(capitalRestante * 100) / 100, pagoCapital, tarifa, aporte]);
+                Math.round(capitalRestante * 100) / 100, pagoCapital, tarifa, aporte]);
 
               capitalRestante = Math.round((capitalRestante - pagoCapital) * 100) / 100;
             }

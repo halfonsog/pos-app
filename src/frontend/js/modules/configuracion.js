@@ -190,6 +190,7 @@ Configuracion.general = async function () {
                         <label class="form-label">Límite de escala de retención ($)</label>
                         <input type="number" class="form-control" id="limiteEscala" 
                               value="${config.limite_escala_retencion ?? 15000}" step="1" min="0">
+                        <small class="text-muted">Retención a trabajadores para la seguridad social (tributo 0820232)</small>
                       </div>
                       <div class="row g-2 mb-3">
                         <div class="col-6">
@@ -1058,7 +1059,7 @@ Configuracion.empleadoFicha = async function (params) {
     const susUsuarios = usuarios.filter(u => u.empleado_id == empleado.id);
     const yoMismo = State.getUser()?.id;
 
-      const filasUsuarios = susUsuarios.length === 0
+    const filasUsuarios = susUsuarios.length === 0
       ? '<tr><td colspan="6" class="text-center text-muted py-3">Este empleado no tiene usuarios (sin acceso a la app)</td></tr>'
       : susUsuarios.map(u => `
         <tr class="${u.activo ? '' : 'text-muted'}">

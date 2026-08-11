@@ -5,7 +5,7 @@ Mantenimiento.index = async function () {
 
   const layout = `
     <div class="app-wrapper">
-      ${Sidebar.render('configuracion')}
+      ${Sidebar.render('mantenimiento')}
       <main class="main-content">
         ${Mantenimiento.renderNavbar(user)}
         <div class="container-fluid p-4">
@@ -269,7 +269,7 @@ Mantenimiento.logs = async function () {
 
     const layout = `
       <div class="app-wrapper">
-        ${Sidebar.render('configuracion')}
+        ${Sidebar.render('mantenimiento')}
         <main class="main-content">
           ${Mantenimiento.renderNavbar(State.getUser())}
           <div class="container-fluid p-4">
