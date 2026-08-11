@@ -19,18 +19,21 @@ const configuracionController = {
         return res.json(nuevo);
       }
 
-      const s = await db.get('SELECT SUM(valor_mensual) as total FROM configuracion_gastos WHERE activo = 1');
-      const gastosFijos = s?.total || 0;
+      const fnGastos = await costos.obtenerGastosFijos(db);
+      const gastosFijos = fnGastos.gastosFijos;
       const ventas = config.ventas_proyectadas || 250000;
 
-      // % de gastos = (Σ gastos activos + gasto financiero del mes) ÷ ventas_proyectadas
-      // (fórmula del propietario, D3; el gasto financiero = próximo vencimiento de préstamos/inversiones, m020)
+      // % de gastos = (gastos fijos + gasto financiero del mes) ÷ ventas_proyectadas
+      // (fórmula del propietario; gastos fijos = configuracion_gastos + salarios de empleados activos;
+      //  gasto financiero = próximo vencimiento de préstamos/inversiones)
       const { gastoFinancieroMes } = require('./prestamoInversionController');
       const gastoFinanciero = await gastoFinancieroMes(db);
 
       const porcentajeGastos = ventas > 0 ? ((gastosFijos + gastoFinanciero) / ventas) * 100 : 0;
 
       config.total_gastos_fijos = gastosFijos;
+      config.gastos_fijos_configurados = fnGastos.gastosConfigurados;
+      config.salarios_mes = fnGastos.salarios;
       config.gasto_financiero_mes = gastoFinanciero;
       config.porcentaje_gastos = Math.round(porcentajeGastos * 100) / 100; // Redondear a 2 decimales
 

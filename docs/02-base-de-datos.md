@@ -141,7 +141,7 @@ Tipos (D7): compra(+), venta(−), devolucion(+), preparacion_entrada(+), prepar
 **`vencimientos`** — generados al crear/editar (día 1 de cada mes; el primero = mes siguiente a fecha_inicio).
 `id` · `prestamo_inversion_id → CASCADE` · `ordinal` (1..plazo) · `fecha_vencimiento` · `capital` · `pago_capital` · `tarifa` (= tasa_mensual × capital_gravado) · `aporte` (= pago_capital + tarifa) · `monto_pagado` · `estado CHECK('pendiente','pagado','parcial')` · `fecha_pago` · `UNIQUE(prestamo_inversion_id, ordinal)`
 Fórmulas (por ordinal i): `capital = capital_total − (i−1) × pago_capital` · `capital_gravado = prestamo: capital − pago_capital · inversion: 0 en el mes 1 (aporte a la par) e i × pago_capital desde el mes 2` · `tasa_mensual = tasa_anual/100/12` · último vencimiento absorbe el redondeo. En inversiones, un pago de capital distinto al programado **reajusta el número de cuotas restantes** (pago_capital base fijo; la última absorbe).
-El **gasto financiero del mes** = Σ `aporte` del **próximo vencimiento pendiente** de cada registro activo (si vence el 01/09, los precios del mes actual lo cubren) → alimenta el %gastos del costeo.
+El **gasto financiero del mes** = Σ `aporte` del **próximo vencimiento pendiente** de cada registro activo (si vence el 01/09, los precios del mes actual lo cubren) → alimenta el %gastos del costeo, junto con los **gastos fijos** = Σ `configuracion_gastos` activos + Σ `empleados.salario_mensual` de activos (regla del propietario 2026-08-11).
 
 ### 2.5 Banco, divisas y servicios (m022, m025–m027, m029)
 

@@ -1,5 +1,6 @@
 // backend/controllers/contabilidadController.js
 const { getDb } = require('../models/db');
+const costos = require('../utils/costos');
 
 // Porciento a declarar (m030): factor que escala ventas Y compras/gastos en lo fiscal.
 // Devuelve 1 si no está configurado (= declarar el 100%).
@@ -430,12 +431,9 @@ const contabilidadController = {
                 AND estado = 'completada'
             `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
 
-      // Gastos fijos mensuales
-      const gastos = await db.get(`
-                SELECT COALESCE(SUM(valor_mensual), 0) as total_gastos
-                FROM configuracion_gastos
-                WHERE activo = 1
-            `);
+      // Gastos fijos mensuales (configuracion_gastos + salarios de empleados activos)
+      const { gastosFijos: gastosFijosBalance } = await costos.obtenerGastosFijos(db);
+      const gastos = { total_gastos: gastosFijosBalance };
 
       // Compras del período
       const compras = await db.get(`
@@ -504,11 +502,9 @@ const contabilidadController = {
                 AND v.estado = 'completada'
             `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
 
-      const gastosOperativos = await db.get(`
-                SELECT COALESCE(SUM(valor_mensual), 0) as total_gastos
-                FROM configuracion_gastos
-                WHERE activo = 1
-            `);
+      // Gastos operativos (configuracion_gastos + salarios de empleados activos)
+      const { gastosFijos: gastosFijosOperativos } = await costos.obtenerGastosFijos(db);
+      const gastosOperativos = { total_gastos: gastosFijosOperativos };
 
       const pd = await factorDeclaracion(db);
       const ventasDecl = (ventas?.ventas_netas || 0) * pd;
@@ -623,9 +619,9 @@ const contabilidadController = {
       `, [inicio, fin]))?.n || 0;
 
       // Gastos fijos (mensuales × meses con actividad) + gasto financiero del año
-      const gastosMes = (await db.get(
-        'SELECT COALESCE(SUM(valor_mensual), 0) AS total FROM configuracion_gastos WHERE activo = 1'
-      ))?.total || 0;
+      // Gastos fijos mensuales = configuracion_gastos + salarios de empleados activos
+      const { gastosFijos: gastosFijosAnuales } = await costos.obtenerGastosFijos(db);
+      const gastosMes = gastosFijosAnuales;
 
       const financieroAnio = (await db.get(`
         SELECT COALESCE(SUM(v.aporte), 0) AS total

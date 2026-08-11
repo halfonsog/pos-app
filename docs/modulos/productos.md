@@ -30,8 +30,8 @@ Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fic
 - **Conversiones**: `cantidad × coef_origen ÷ coef_destino`, solo entre unidades del mismo tipo. La unidad de compra y de venta deben ser del mismo tipo.
 - **Costeo FÓRMULA DEL PROPIETARIO (multiplicativa, `utils/costos.js`)**:
   ```
-  Σ gastos activos (fijos + financiero del próximo vencimiento pagadero)
-  %gastos (global) = Σ gastos activos ÷ ventas_proyectadas
+  gastos fijos (mensual) = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
+  %gastos (global) = (gastos fijos + financiero del próximo vencimiento pagadero) ÷ ventas_proyectadas
   precio_neto      = costo_base × (1 + %gastos) × (1 + margen_recomendado%)
   precio_recomendado = precio_neto × (1 + impuesto_ventas%)
   ```

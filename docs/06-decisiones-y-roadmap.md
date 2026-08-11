@@ -26,11 +26,13 @@ Ningún producto puede tener como ingrediente: a sí mismo ni otro producto que 
 - **costo_base = último costo de compra** (NO promedio ponderado).
 - **FÓRMULA DEL PROPIETARIO (multiplicativa)**:
   ```
-  %gastos            = Σ gastos activos ÷ ventas_proyectadas
+  %gastos            = (gastos fijos + gasto financiero del mes) ÷ ventas_proyectadas
+  gastos fijos       = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
+  gasto financiero   = Σ aporte del próximo vencimiento pendiente de préstamos/inversiones activos
   precio_neto        = costo_base × (1 + %gastos) × (1 + margen_recomendado)
   precio_recomendado = precio_neto × (1 + impuesto_ventas)
   ```
-  `%gastos` y `total_gastos_fijos` se calculan al vuelo en `obtenerGeneral` (no son columnas). El servicio `utils/costos.js` aplica esta fórmula en el recálculo de precios.
+  `%gastos`, `total_gastos_fijos`, `gastos_fijos_configurados`, `salarios_mes` y `gasto_financiero_mes` se calculan al vuelo en `obtenerGeneral` (no son columnas); los salarios entran en los gastos fijos por **regla del propietario (2026-08-11)**, tanto en el costeo de precios como en los reportes fiscales (balance, estado de resultados, DJ anual) vía `utils/costos.js` (`obtenerGastosFijos`). El servicio aplica esta fórmula en el recálculo de precios.
 - Triggers de recálculo: compra inventariada (cascada recursiva a compuestos contenedores), ficha de costo (simples), cambio de configuración general o de gastos fijos, agregar/quitar ingrediente.
 
 ### D4. Campos editables (matriz aprobada)

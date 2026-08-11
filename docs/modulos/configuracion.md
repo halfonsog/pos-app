@@ -31,11 +31,13 @@ Una vista SPA por sección, todas bajo el menú "Configuración" (`/configuracio
 ## Reglas de negocio
 - **Costo absorbente — FÓRMULA DEL PROPIETARIO (multiplicativa)**:
   ```
-  %gastos            = Σ gastos activos ÷ ventas_proyectadas
+  %gastos            = (gastos fijos + gasto financiero del mes) ÷ ventas_proyectadas
+  gastos fijos       = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
+  gasto financiero   = Σ aporte del próximo vencimiento pendiente de préstamos/inversiones activos
   precio_neto        = costo_base × (1 + %gastos) × (1 + margen_recomendado)
   precio_recomendado = precio_neto × (1 + impuesto_ventas)
   ```
-  `%gastos` y `total_gastos_fijos` se calculan al vuelo en `obtenerGeneral` (no son columnas). El servicio `utils/costos.js` aplica esta fórmula en el recálculo de precios.
+  `%gastos`, `total_gastos_fijos` (= configurados + salarios), `gastos_fijos_configurados`, `salarios_mes` y `gasto_financiero_mes` se calculan al vuelo en `obtenerGeneral` (no son columnas). Por **regla del propietario (2026-08-11)** los salarios entran en los gastos fijos también en los reportes fiscales (balance, estado de resultados, DJ anual). `utils/costos.js` (`obtenerGastosFijos`) aplica esta fórmula en el recálculo de precios.
 - **Unidades** (confirmado por el propietario): cada unidad no-base tiene unidad base de referencia implícita por su `tipo` (ud/l/lb/m) y un `coeficiente` de conversión respecto a esa base → la conversión entre unidades del mismo tipo es directa. **La unidad de compra y de venta de un producto deben ser del mismo tipo (misma base)** — validado al crear producto. Base (id≤4) bloqueadas; usuario crea desde id≥100; coeficiente debe ser > 0; **no se puede cambiar el `tipo` de una unidad en uso** por productos (rompería conversiones).
 - **Denominaciones**: toggle activo según billetes/monedas en circulación; alimentan el arqueo de caja (Ventas).
 - **Préstamos e Inversiones** (m020): registro de seguimiento con tabla de vencimientos autogenerada (fórmulas del propietario, ver ../02-base-de-datos.md §2.5). El **gasto financiero del mes** (Σ aportes del **próximo vencimiento pendiente** de registros activos — si paga el 01/09, los precios del mes actual lo cubren) se suma a los gastos fijos en el %gastos del costeo. En inversiones, un pago de capital distinto al programado reajusta el número de cuotas restantes. Cancelar un registro deja sin efecto sus vencimientos.

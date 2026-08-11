@@ -16,28 +16,47 @@
  *   · recalcularTodosLosPrecios(db)     — tras cambio en parametros_contables.
  */
 
-// Lee configuración y calcula el % de gastos fijos (fracción).
-// Fórmula del propietario: %gastos = (Σ gastos activos + gasto financiero del mes) ÷ ventas_proyectadas
-// El gasto financiero del mes = próximo vencimiento pendiente de préstamos/inversiones (m020).
-async function obtenerParametros(db) {
-  const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+/**
+ * Gastos fijos mensuales del negocio (regla del propietario, 2026-08-11):
+ *   Σ configuracion_gastos activos + Σ salario_mensual de empleados activos.
+ * Usado en el % de gastos a repercutir en los precios y en los reportes fiscales.
+ */
+async function obtenerGastosFijos(db) {
   const gastos = await db.get(
     'SELECT COALESCE(SUM(valor_mensual), 0) AS total FROM configuracion_gastos WHERE activo = 1'
   );
+  const salarios = await db.get(
+    'SELECT COALESCE(SUM(salario_mensual), 0) AS total FROM empleados WHERE activo = 1'
+  );
+  return {
+    gastosFijos: (gastos?.total || 0) + (salarios?.total || 0),
+    gastosConfigurados: gastos?.total || 0,
+    salarios: salarios?.total || 0
+  };
+}
+
+// Lee configuración y calcula el % de gastos fijos (fracción).
+// Fórmula del propietario: %gastos = (gastos fijos + gasto financiero del mes) ÷ ventas_proyectadas
+//   gastos fijos = Σ configuracion_gastos + Σ salarios de empleados activos
+//   gasto financiero del mes = próximo vencimiento pendiente de préstamos/inversiones (m020)
+async function obtenerParametros(db) {
+  const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+  const { gastosFijos } = await obtenerGastosFijos(db);
 
   // Gasto financiero del mes (préstamos e inversiones activos; próximo vencimiento pendiente)
   const { gastoFinancieroMes } = require('../controllers/prestamoInversionController');
   const gastoFinanciero = await gastoFinancieroMes(db);
 
   const ventasProy = config?.ventas_proyectadas || 0;
-  const totalGastos = gastos.total + gastoFinanciero;
+  const totalGastos = gastosFijos + gastoFinanciero;
   const pctGastos = ventasProy > 0 ? totalGastos / ventasProy : 0; // fracción
 
   return {
     pctGastos,
     margen: config?.margen_recomendado ?? 20,   // %
     impuesto: config?.impuesto_ventas ?? 15,    // %
-    gastoFinanciero                              // informativo (desglose)
+    gastosFijos,                                  // + salarios (regla del propietario)
+    gastoFinanciero                               // informativo (desglose)
   };
 }
 
@@ -253,6 +272,7 @@ async function desglosePrioridades(db, inicio, fin) {
 
 module.exports = {
   obtenerParametros,
+  obtenerGastosFijos,
   calcularPrecioRecomendado,
   calcularCostoCompuesto,
   recalcularProducto,

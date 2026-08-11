@@ -214,7 +214,8 @@ const reportesController = {
         // Impuesto a la ganancia desde configuración
         const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
         const impuestoGananciaPct = config?.impuesto_ganancia || 35;
-        const gastosMensuales = await db.get('SELECT SUM(valor_mensual) as total FROM configuracion_gastos WHERE activo = 1');
+        const { gastosFijos: gastosFijosMensuales } = await require('../utils/costos').obtenerGastosFijos(db);
+        const gastosMensuales = { total: gastosFijosMensuales };
 
         // Cálculos
         const ventaNeta = (ventasMes.venta_total || 0) - (ventasMes.impuesto_cobrado || 0);
