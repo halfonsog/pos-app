@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const compraController = require('../controllers/compraController');
 const authMiddleware = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
-// Proteger todas las rutas de ventas
-router.use(authMiddleware);
+// Gestión de compras: solo administradores
+router.use(authMiddleware, requireRole('admin'));
 
 router.get('/', compraController.listar);
 router.get('/:id', compraController.obtener);

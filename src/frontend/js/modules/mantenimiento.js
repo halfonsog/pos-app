@@ -44,14 +44,20 @@ Mantenimiento.index = async function () {
             <div class="card-body">
               <div class="row g-3">
                 <div class="col-md-4">
-                  <label class="form-label">Tipo de Entidad</label>
-                  <select class="form-select" id="tipoEntidad">
-                    <option value="">Seleccione...</option>
-                    <option value="producto">Producto</option>
-                    <option value="compra">Compra</option>
-                    <option value="proveedor">Proveedor</option>
-                    <option value="venta">Venta</option>
-                  </select>
+              <label class="form-label">Tipo de Entidad</label>
+              <select class="form-select" id="tipoEntidad">
+                <option value="">Seleccione...</option>
+                <option value="producto">Producto</option>
+                <option value="compra">Compra</option>
+                <option value="proveedor">Proveedor</option>
+                <option value="cliente">Cliente</option>
+                <option value="venta">Venta (minorista o mayorista)</option>
+                <option value="pedido">Pedido (mayorista o encargo)</option>
+                <option value="prestamo_inversion">Préstamo / Inversión</option>
+                <option value="servicio">Servicio</option>
+                <option value="nomina">Nómina</option>
+                <option value="bono">Bono</option>
+              </select>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">ID de la Entidad</label>

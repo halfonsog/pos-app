@@ -21,26 +21,22 @@ Reportes.index = async function () {
           
           <ul class="nav nav-tabs mb-4" id="reportesTabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="ventas-producto-tab" data-bs-toggle="tab" 
-                      data-bs-target="#ventas-producto" type="button">
+              <button class="nav-link active" id="ventas-producto-tab" data-bs-toggle="tab" data-bs-target="#ventas-producto" type="button">
                 <i class="fas fa-box me-1"></i>Ventas por Producto
               </button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link" id="tendencia-tab" data-bs-toggle="tab" 
-                      data-bs-target="#tendencia" type="button">
+              <button class="nav-link" id="tendencia-tab" data-bs-toggle="tab" data-bs-target="#tendencia" type="button">
                 <i class="fas fa-chart-line me-1"></i>Tendencia
               </button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link" id="rentabilidad-tab" data-bs-toggle="tab" 
-                      data-bs-target="#rentabilidad" type="button">
+              <button class="nav-link" id="rentabilidad-tab" data-bs-toggle="tab" data-bs-target="#rentabilidad" type="button">
                 <i class="fas fa-calculator me-1"></i>Rentabilidad
               </button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link" id="contables-tab" data-bs-toggle="tab" 
-                      data-bs-target="#contables" type="button">
+              <button class="nav-link" id="contables-tab" data-bs-toggle="tab" data-bs-target="#contables" type="button">
                 <i class="fas fa-file-invoice me-1"></i>Contables
               </button>
             </li>
@@ -309,6 +305,7 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
     Utils.hideLoading();
 
     let html = '';
+    console.log(datos);
 
     if (!datos.productos || datos.productos.length === 0) {
       html = '<p class="text-muted text-center py-4">No hay ventas en este período</p>';
@@ -334,7 +331,7 @@ Reportes.cargarVentasPorProducto = async function (inicio, fin) {
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end ${p.ganancia >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
+                  <td class="text-end ${p.margen_pct >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct, 1)}%</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -439,6 +436,27 @@ Reportes.cargarTendencia = async function (inicio, fin, agrupar) {
 };
 
 Reportes.cargarRentabilidad = async function (inicio, fin) {
+  let cantidad_vendida = total_vendido = costo_total = gastos_fijos = ganancia_bruta = 0;
+  function calcTotales(d) {
+    d.forEach(p => {
+      cantidad_vendida += p.cantidad_vendida;
+      total_vendido += p.total_vendido;
+      costo_total += p.costo_total;
+      gastos_fijos += p.gastos_fijos;
+      ganancia_bruta += ganancia_bruta;
+    });
+    return `
+      <tr>
+        <td><b>Totales</b></td>
+        <td class="text-end"></td>
+        <td class="text-end">${Utils.formatMoney(total_vendido)}</td>
+        <td class="text-end text-danger">${Utils.formatMoney(costo_total)}</td>
+        <td class="text-end text-danger">${Utils.formatMoney(gastos_fijos)}</td>
+        <td class="text-end ${ganancia_bruta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(ganancia_bruta)}</td>
+        <td class="text-end></td>
+      </tr>`
+  }
+
   try {
     Utils.showLoading('Cargando...');
     const datos = await API.reportes.rentabilidad(inicio, fin);
@@ -471,10 +489,11 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
                   <td class="text-end">${Utils.formatMoney(p.total_vendido)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.costo_total)}</td>
                   <td class="text-end text-danger">${Utils.formatMoney(p.gastos_fijos)}</td>
-                  <td class="text-end ${p.ganancia_neta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_neta)}</td>
-                  <td class="text-end ${p.margen_real >= 0 ? '' : 'text-danger'}">${p.margen_real.toFixed(1)}%</td>
+                  <td class="text-end ${p.ganancia_bruta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(p.ganancia_bruta)}</td>
+                  <td class="text-end ${p.margen_pct >= 0 ? '' : 'text-danger'}">${Utils.formatNumber(p.margen_pct, 1)}%</td>
                 </tr>
               `).join('')}
+              ${calcTotales(datos)}
             </tbody>
           </table>
         </div>

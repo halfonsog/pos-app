@@ -68,21 +68,8 @@ Inventario.renderIndexLayout = function (stats) {
             </div>
           </div>
           
-          <!-- Cards de Resumen -->
+          <!-- Cards de Resumen (propietario: bajo stock, compras pendientes, stock negativo, por preparar) -->
           <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-              <div class="summary-card border-danger clickable" data-route="inventario/stock?filtro=sin-costo" style="cursor: pointer;">
-                <div class="summary-content text-center">
-                  <h3 class="summary-number text-danger">${stats.sin_ficha_costo}</h3>
-                  <p class="summary-label">
-                    <i class="fas fa-calculator me-1"></i>Sin Ficha Costo
-                  </p>
-                </div>
-                <div class="summary-details">
-                  <small>No pueden venderse</small>
-                </div>
-              </div>
-            </div>
             <div class="col-6 col-md-3">
               <div class="summary-card border-warning clickable" data-route="inventario/stock?filtro=stock-bajo" style="cursor: pointer;">
                 <div class="summary-content text-center">
@@ -110,15 +97,28 @@ Inventario.renderIndexLayout = function (stats) {
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-card border-success clickable" data-route="inventario/stock?filtro=preparables" style="cursor: pointer;">
+              <div class="summary-card border-danger clickable" data-route="inventario/stock" style="cursor: pointer;">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-success">${stats.preparaciones_pendientes}</h3>
+                  <h3 class="summary-number text-danger">${stats.backorders_mayorista || 0}</h3>
                   <p class="summary-label">
-                    <i class="fas fa-flask me-1"></i>Preparables
+                    <i class="fas fa-arrow-trend-down me-1"></i>Stock Negativo
                   </p>
                 </div>
                 <div class="summary-details">
-                  <small>Listos para preparar</small>
+                  <small>Backorders mayoristas</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="summary-card border-success clickable" data-route="inventario/preparar" style="cursor: pointer;">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-success">${stats.preparaciones_pendientes}</h3>
+                  <p class="summary-label">
+                    <i class="fas fa-flask me-1"></i>Por Preparar
+                  </p>
+                </div>
+                <div class="summary-details">
+                  <small>Elaborados listos</small>
                 </div>
               </div>
             </div>
@@ -147,6 +147,10 @@ Inventario.renderIndexLayout = function (stats) {
                   <div class="quick-action-item clickable" data-route="inventario/merma" style="cursor: pointer;">
                     <i class="fas fa-trash-alt"></i>
                     <span>Registrar Merma</span>
+                  </div>
+                  <div class="quick-action-item clickable" data-route="inventario/intercambio" style="cursor: pointer;">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>Intercambio Reventa→Granel</span>
                   </div>
                 </div>
               </div>
@@ -447,11 +451,6 @@ Inventario.bindIndexEvents = function () {
     if (route) ViewManager.navegar(route);
   });
 
-  $('.clickable[data-route]').on('click', function () {
-    const route = $(this).data('route');
-    if (route) ViewManager.navegar(route);
-  });
-
   Inventario.bindCommonEvents();
 };
 
@@ -482,12 +481,17 @@ Inventario.movimientos = async function (params) {
   try {
     Utils.showLoading('Cargando movimientos...');
 
-    const movimientos = await API.inventario.movimientos();
-    const layout = Inventario.renderMovimientosLayout(movimientos, params);
+    const [movimientos, tipos] = await Promise.all([
+      API.inventario.movimientos(),
+      API.inventario.tiposMovimiento()
+    ]);
+    Inventario._tiposMovimiento = tipos;
+
+    const layout = Inventario.renderMovimientosLayout(movimientos, params, tipos);
 
     $('#app').html(layout);
 
-    Inventario.initMovimientosTable(movimientos);
+    Inventario.initMovimientosTable(movimientos, tipos);
     Inventario.bindMovimientosEvents(params);
 
     Utils.hideLoading();
@@ -498,9 +502,16 @@ Inventario.movimientos = async function (params) {
   }
 };
 
-Inventario.renderMovimientosLayout = function (movimientos, params) {
+Inventario.renderMovimientosLayout = function (movimientos, params, tipos = []) {
   const user = State.getUser();
   const filtro = params.filtro || 'todos';
+
+  // Botones de filtro generados desde el catálogo de tipos (D7)
+  const botonesFiltro = tipos.map(t => `
+    <button class="btn btn-outline-secondary ${filtro === t.codigo ? 'active' : ''}" data-filtro="${t.codigo}">
+      ${t.nombre}
+    </button>
+  `).join('');
 
   return `
     <div class="app-wrapper">
@@ -522,27 +533,13 @@ Inventario.renderMovimientosLayout = function (movimientos, params) {
             <a href="#inventario" class="btn btn-outline-secondary me-2"><i class="fas fa-th-large me-1"></i>Vista Cards</a>
           </div>
           
-          <!-- Filtros -->
+          <!-- Filtros (desde catálogo tipos_movimiento, D7) -->
           <div class="mb-3">
-            <div class="btn-group">
+            <div class="btn-group flex-wrap">
               <button class="btn btn-outline-primary ${filtro === 'todos' ? 'active' : ''}" data-filtro="todos">
                 <i class="fas fa-list me-1"></i>Todos
               </button>
-              <button class="btn btn-outline-success ${filtro === 'compra' ? 'active' : ''}" data-filtro="compra">
-                <i class="fas fa-shopping-cart me-1"></i>Compras
-              </button>
-              <button class="btn btn-outline-info ${filtro === 'venta' ? 'active' : ''}" data-filtro="venta">
-                <i class="fas fa-cash-register me-1"></i>Ventas
-              </button>
-              <button class="btn btn-outline-warning ${filtro === 'preparacion' ? 'active' : ''}" data-filtro="preparacion">
-                <i class="fas fa-flask me-1"></i>Preparaciones
-              </button>
-              <button class="btn btn-outline-danger ${filtro === 'merma' ? 'active' : ''}" data-filtro="merma">
-                <i class="fas fa-trash-alt me-1"></i>Mermas
-              </button>
-              <button class="btn btn-outline-secondary ${filtro === 'ajuste' ? 'active' : ''}" data-filtro="ajuste">
-                <i class="fas fa-balance-scale me-1"></i>Ajustes
-              </button>
+              ${botonesFiltro}
             </div>
           </div>
           
@@ -567,7 +564,7 @@ Inventario.renderMovimientosLayout = function (movimientos, params) {
   `;
 };
 
-Inventario.initMovimientosTable = function (movimientos) {
+Inventario.initMovimientosTable = function (movimientos, tipos = []) {
   const self = this;
 
   if (this.dataTable) {
@@ -576,19 +573,15 @@ Inventario.initMovimientosTable = function (movimientos) {
 
   $.fn.dataTable.ext.errMode = 'none';
 
+  // Badges desde el catálogo (D7): color por signo
+  const badgePorTipo = {};
+  tipos.forEach(t => {
+    const color = t.signo === '+' ? 'success' : t.signo === '-' ? 'danger' : 'secondary';
+    badgePorTipo[t.codigo] = `<span class="badge bg-${color}">${t.nombre}</span>`;
+  });
+
   const tableData = movimientos.map(m => {
-    let tipoBadge = '';
-    switch (m.tipo) {
-      case 'compra': tipoBadge = '<span class="badge bg-success">Compra</span>'; break;
-      case 'venta': tipoBadge = '<span class="badge bg-info">Venta</span>'; break;
-      case 'preparacion_entrada': tipoBadge = '<span class="badge bg-primary">Prep. Entrada</span>'; break;
-      case 'preparacion_salida': tipoBadge = '<span class="badge bg-warning">Prep. Salida</span>'; break;
-      case 'merma': tipoBadge = '<span class="badge bg-danger">Merma</span>'; break;
-      case 'ajuste': tipoBadge = '<span class="badge bg-secondary">Ajuste</span>'; break;
-      case 'donacion': tipoBadge = '<span class="badge bg-warning">Donación</span>'; break;
-      case 'autoconsumo': tipoBadge = '<span class="badge bg-secondary">Autoconsumo</span>'; break;
-      default: tipoBadge = `<span class="badge bg-secondary">${m.tipo}</span>`;
-    }
+    const tipoBadge = badgePorTipo[m.tipo] || `<span class="badge bg-secondary">${m.tipo}</span>`;
 
     const cantidadClass = m.cantidad > 0 ? 'text-success' : 'text-danger';
     const cantidadSigno = m.cantidad > 0 ? '+' : '';
@@ -672,16 +665,10 @@ Inventario.bindMovimientosEvents = function (params) {
 
     if (filtro === 'todos') {
       self.dataTable.draw();
-    } else if (filtro === 'compra') {
-      self.dataTable.column(6).search('compra', true, false).draw();
-    } else if (filtro === 'venta') {
-      self.dataTable.column(6).search('venta', true, false).draw();
-    } else if (filtro === 'preparacion') {
-      self.dataTable.column(6).search('preparacion', true, false).draw();
-    } else if (filtro === 'merma') {
-      self.dataTable.column(6).search('merma', true, false).draw();
-    } else if (filtro === 'ajuste' || filtro === 'donacion' || filtro === 'autoconsumo') {
-      self.dataTable.column(6).search('ajuste', true, false).draw();
+    } else {
+      // Filtro genérico por código de tipo (catálogo D7); 'preparacion' agrupa entrada+salida
+      const patron = filtro === 'preparacion' ? 'preparacion' : `^${filtro}$`;
+      self.dataTable.column(6).search(patron, true, false).draw();
     }
   });
 
@@ -888,7 +875,7 @@ Inventario.ajuste = async function (params) {
 
     Inventario.selProduct = null;
     const productos = await API.productos.listar();
-    const productosAjustables = productos.filter(p => p.activo && (p.tipo === 'simple' || (p.tipo === 'compuesto' && p.requiere_preparacion)));
+    const productosAjustables = productos.filter(p => p.activo && (p.tipo === 'simple' || (p.tipo === 'compuesto' && p.sub_tipo === 'elaborado')));
     const layout = Inventario.renderAjusteLayout(productosAjustables, productoId, tipoInicial);
 
     $('#app').html(layout);
@@ -968,9 +955,10 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoI
                       <label class="form-label">Tipo de Ajuste <span class="text-danger">*</span></label>
                       <select class="form-select" id="tipoAjuste" required>
                         <option value="">Seleccione tipo...</option>
-                        <option value="merma" ${tipoInicial === 'merma' ? 'selected' : ''}>🗑️ Merma (pérdida)</option>
-                        <option value="donacion" ${tipoInicial === 'donacion' ? 'selected' : ''}>🎁 Donación (salida sin venta)</option>
-                        <option value="autoconsumo" ${tipoInicial === 'autoconsumo' ? 'selected' : ''}>🍽️ Autoconsumo</option>
+                        <option value="merma" ${tipoInicial === 'merma' ? 'selected' : ''}>🗑️ Merma (salida por pérdida)</option>
+                        <option value="donacion_salida" ${tipoInicial === 'donacion_salida' ? 'selected' : ''}>🎁 Donación entregada (salida)</option>
+                        <option value="donacion_entrada" ${tipoInicial === 'donacion_entrada' ? 'selected' : ''}>🎁 Donación recibida (entrada)</option>
+                        <option value="autoconsumo" ${tipoInicial === 'autoconsumo' ? 'selected' : ''}>🍽️ Autoconsumo (salida)</option>
                         <option value="ajuste" ${tipoInicial === 'ajuste' ? 'selected' : ''}>⚖️ Ajuste Manual (+/-)</option>
                       </select>
                     </div>
@@ -1009,9 +997,11 @@ Inventario.renderAjusteLayout = function (productos, productoSeleccionado, tipoI
                 <div class="card-body">
                   <ul class="mb-0">
                     <li class="mb-2"><strong>Merma:</strong> Pérdida de producto por deterioro, caducidad, etc. (descuenta stock)</li>
-                    <li class="mb-2"><strong>Donación:</strong> Salida de producto sin contraprestación económica (descuenta stock)</li>
+                    <li class="mb-2"><strong>Donación entregada:</strong> Salida de producto sin contraprestación (descuenta stock)</li>
+                    <li class="mb-2"><strong>Donación recibida:</strong> Entrada de producto sin contraprestación (incrementa stock)</li>
                     <li class="mb-2"><strong>Autoconsumo:</strong> Uso interno del producto (descuenta stock)</li>
                     <li class="mb-2"><strong>Ajuste Manual:</strong> Corrección de inventario. Puede ser positivo (entrada) o negativo (salida)</li>
+                    <li class="mb-2"><strong>Intercambio (reventa→granel):</strong> desde la acción "Intercambio" en Inventario</li>
                   </ul>
                 </div>
               </div>
@@ -1116,8 +1106,8 @@ Inventario.validarAjuste = function () {
   let esValido = true;
   let mensaje = '';
 
-  // Para merma, donación, autoconsumo: la cantidad no puede superar el stock
-  if (['merma', 'donacion', 'autoconsumo'].includes(tipo)) {
+  // Salidas (merma, donación entregada, autoconsumo): la cantidad no puede superar el stock
+  if (['merma', 'donacion_salida', 'autoconsumo'].includes(tipo)) {
     if (cantidad > stockActual) {
       esValido = false;
       mensaje = `Stock insuficiente. Stock actual: ${stockActual}`;
@@ -1125,6 +1115,11 @@ Inventario.validarAjuste = function () {
       const stk = stockActual - cantidad;
       mensaje = `Se descontarán ${cantidad} ${p.unidad_venta_abrev} del stock. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stk) : Utils.formatNumber(stk, 1)} ${p.unidad_venta_abrev}`;
     }
+  }
+
+  // Entradas (donación recibida): siempre válidas
+  if (tipo === 'donacion_entrada') {
+    mensaje = `Se incrementará el stock en ${cantidad} ${p.unidad_venta_abrev}. Stock resultante: ${p.unidad_venta_tipo === 'unidad' ? Math.floor(stockActual + cantidad) : Utils.formatNumber(stockActual + cantidad, 1)} ${p.unidad_venta_abrev}`;
   }
 
   // Para ajuste manual: advertir si se descuenta más del stock
@@ -1149,6 +1144,161 @@ Inventario.validarAjuste = function () {
   }
 
   return esValido;
+};
+
+// ============================================
+// VISTA INTERCAMBIO (D6): conversión reventa → granel
+// El usuario define las cantidades equivalentes y es responsable de ellas.
+// ============================================
+Inventario.intercambio = async function (params) {
+  console.log('🔄 Cargando intercambio reventa→granel');
+
+  try {
+    Utils.showLoading('Cargando...');
+
+    const productos = await API.productos.listar();
+    const origenes = productos.filter(p => p.activo && p.tipo === 'simple' && p.sub_tipo === 'reventa' && p.stock_actual > 0);
+    const destinos = productos.filter(p => p.activo && p.tipo === 'simple' && p.sub_tipo === 'granel');
+
+    const opciones = (lista, conStock) => lista.map(p =>
+      `<option value="${p.id}">${p.nombre} (${p.codigo})${conStock ? ` — stock: ${Utils.formatNumber(p.stock_actual, 1)} ${p.unidad_venta_abrev || ''}` : ''}</option>`
+    ).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('inventario')}
+        <main class="main-content">
+          ${Inventario.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#inventario">Inventario</a></li>
+                <li class="breadcrumb-item active">Intercambio</li>
+              </ol>
+            </nav>
+            <div class="d-flex align-items-center mb-4">
+              <button class="btn btn-outline-secondary me-3" id="btnVolver"><i class="fas fa-arrow-left me-1"></i>Volver</button>
+              <h2 class="mb-0"><i class="fas fa-exchange-alt me-2"></i>Intercambio: Reventa → Granel</h2>
+            </div>
+
+            <div class="row">
+              <div class="col-lg-7">
+                <div class="card">
+                  <div class="card-body">
+                    <div class="alert alert-danger">
+                      <i class="fas fa-exclamation-triangle me-2"></i>
+                      <strong>Atención:</strong> tú defines las cantidades equivalentes y el sistema no puede validarlas.
+                      <strong>Eres el único responsable</strong> de la corrección del inventario de ambos productos tras esta operación.
+                    </div>
+                    <form id="intercambioForm">
+                      <div class="row g-3">
+                        <div class="col-12">
+                          <label class="form-label">Producto origen (reventa) <span class="text-danger">*</span></label>
+                          <select class="form-select" id="intercambioOrigen" required>
+                            <option value="">Seleccione...</option>${opciones(origenes, true)}
+                          </select>
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Cantidad que sale (ud. reventa) <span class="text-danger">*</span></label>
+                          <input type="number" class="form-control" id="intercambioCantOrigen" step="0.01" min="0.01" required>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label">Producto destino (a granel) <span class="text-danger">*</span></label>
+                          <select class="form-select" id="intercambioDestino" required>
+                            <option value="">Seleccione...</option>${opciones(destinos, false)}
+                          </select>
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Cantidad que entra (ud. granel) <span class="text-danger">*</span></label>
+                          <input type="number" class="form-control" id="intercambioCantDestino" step="0.01" min="0.01" required>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label">Observaciones</label>
+                          <textarea class="form-control" id="intercambioObs" rows="2" placeholder="Ej: 1 botella de aceite 1L → 0.94 kg a granel..."></textarea>
+                        </div>
+                        <div class="col-12 d-grid">
+                          <button type="submit" class="btn btn-danger"><i class="fas fa-exchange-alt me-1"></i>Registrar Intercambio</button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-5">
+                <div class="card">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>¿Cómo funciona?</h5></div>
+                  <div class="card-body">
+                    <p>Convierte stock de un producto de <strong>reventa</strong> en stock de un producto <strong>a granel</strong> ya existente (para poder usarlo como ingrediente, por ejemplo).</p>
+                    <ul>
+                      <li>Se descuenta la cantidad del producto reventa (movimiento <em>intercambio_salida</em>).</li>
+                      <li>Se incrementa la cantidad del producto a granel (movimiento <em>intercambio_entrada</em>).</li>
+                      <li>Ambos movimientos quedan enlazados en el historial.</li>
+                    </ul>
+                    <p class="text-muted mb-0">Si el producto a granel aún no existe, créalo primero en Productos.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+
+    $('#btnVolver').on('click', () => ViewManager.volver());
+
+    $('#intercambioForm').on('submit', async function (e) {
+      e.preventDefault();
+
+      const origenId = parseInt($('#intercambioOrigen').val());
+      const destinoId = parseInt($('#intercambioDestino').val());
+      const cantOrigen = parseFloat($('#intercambioCantOrigen').val());
+      const cantDestino = parseFloat($('#intercambioCantDestino').val());
+      const obs = $('#intercambioObs').val().trim();
+
+      if (!origenId || !destinoId || !cantOrigen || !cantDestino) {
+        return Toast.warning('Completa productos y cantidades');
+      }
+      if (origenId === destinoId) {
+        return Toast.warning('El origen y el destino deben ser productos distintos');
+      }
+
+      const nombreOrigen = $('#intercambioOrigen option:selected').text();
+      const nombreDestino = $('#intercambioDestino option:selected').text();
+      const confirmado = await Utils.confirm(
+        `¿Confirmas el intercambio?\n\n−${cantOrigen} × ${nombreOrigen}\n+${cantDestino} × ${nombreDestino}\n\nRecuerda: las cantidades equivalentes son tu responsabilidad.`,
+        'Confirmar intercambio'
+      );
+      if (!confirmado) return;
+
+      try {
+        Utils.showLoading('Registrando intercambio...');
+        await API.inventario.intercambio({
+          producto_origen_id: origenId,
+          producto_destino_id: destinoId,
+          cantidad_origen: cantOrigen,
+          cantidad_destino: cantDestino,
+          observaciones: obs || null
+        });
+        State.invalidateCache('productos');
+        Utils.hideLoading();
+        Toast.success('Intercambio registrado correctamente');
+        ViewManager.navegar('inventario/movimientos?filtro=intercambio_salida');
+      } catch (error) {
+        Utils.hideLoading();
+        Toast.error(error.message || 'Error al registrar el intercambio');
+      }
+    });
+
+    Inventario.bindCommonEvents();
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+    Toast.error('Error al cargar el intercambio');
+  }
 };
 
 // ============================================

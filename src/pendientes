@@ -1,12 +1,17 @@
 Todos:
-- aplicar el view manager en los dropdown menues
-
-
-Compras
-- definir e implementar la edicion!
+- busquedas en datatables con case-insensitive
+Fase II
+- varias cajas
+- Modulo de instalacion personalizada para los clientes
 
 Producto
-- No se muestra la descripcion de preparacion
+- Analizar si el actual campo "necesita preparacion" debe ser un subtipo para productos compuestos. 
+Los subtipo serian 
+* Elaborados. necesitan preparacion.
+* Conformados. No necesitan elaboracion, pues se conforman en el momento de la venta segun la reseta
+
+Compras
+- cactualizar los campos costo_base y precio_recomendado de los productos q contienen al producto comprado como ingrediente
 
 Ventas
 - ventaController: Obtener id id del usario a partir del token. Esto quiza haya q hacerlo en otros modulos tambien

@@ -28,7 +28,10 @@ SelectorProductos.index = async function (params) {
     if (config.origen === 'compra') {
       productos = productos.filter(p => p.activo && p.tipo === 'simple');
     } else if (config.origen === 'receta') {
-      productos = productos.filter(p => p.activo && p.tipo === 'simple');
+      // D5: solo productos a granel o compuestos elaborados pueden ser ingredientes
+      productos = productos.filter(p => p.activo &&
+        ((p.tipo === 'simple' && p.sub_tipo === 'granel') ||
+          (p.tipo === 'compuesto' && p.sub_tipo === 'elaborado')));
       if (config.productoYaSeleccionado) {
         productos = productos.filter(p => p.id != config.productoYaSeleccionado);
       }

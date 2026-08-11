@@ -5,7 +5,18 @@ Categorias.formulario = async function (params) {
   const id = params.id || null;
   const nombreInicial = params.nombre || '';
   const descripcionInicial = params.descripcion || '';
+  const padreInicial = params.padre_id || '';
   const isEdit = !!id;
+
+  // Cargar categorías para el selector de padre (D8). Al editar, excluir la propia.
+  let opcionesPadre = '';
+  try {
+    const categorias = await API.categorias.listar();
+    opcionesPadre = categorias
+      .filter(c => c.activo && c.id != id && !c.padre_id) // solo raíces como padres (2 niveles)
+      .map(c => `<option value="${c.id}" ${String(c.id) === String(padreInicial) ? 'selected' : ''}>${c.nombre}</option>`)
+      .join('');
+  } catch (e) { /* sin padres disponibles */ }
 
   const layout = `
     <div class="app-wrapper">
@@ -39,6 +50,13 @@ Categorias.formulario = async function (params) {
                              value="${nombreInicial}" required autofocus>
                     </div>
                     <div class="mb-3">
+                      <label class="form-label">Categoría padre <small class="text-muted">(opcional — convierte esta categoría en subcategoría)</small></label>
+                      <select class="form-select" id="categoriaPadre">
+                        <option value="">— Sin padre (categoría raíz) —</option>
+                        ${opcionesPadre}
+                      </select>
+                    </div>
+                    <div class="mb-3">
                       <label class="form-label">Descripción</label>
                       <textarea class="form-control" id="categoriaDescripcion" rows="2">${descripcionInicial}</textarea>
                     </div>
@@ -68,7 +86,8 @@ Categorias.formulario = async function (params) {
 
     const data = {
       nombre,
-      descripcion: $('#categoriaDescripcion').val().trim() || null
+      descripcion: $('#categoriaDescripcion').val().trim() || null,
+      padre_id: $('#categoriaPadre').val() || null
     };
 
     try {
@@ -132,17 +151,18 @@ Categorias.listado = async function () {
                   <div class="card-body p-0">
                     <table class="table table-hover mb-0">
                       <thead class="table-light">
-                        <tr><th>Nombre</th><th>Descripción</th><th class="text-center">Activo</th><th class="text-center">Acciones</th></tr>
+                        <tr><th>Nombre</th><th>Categoría padre</th><th>Descripción</th><th class="text-center">Activo</th><th class="text-center">Acciones</th></tr>
                       </thead>
                       <tbody>
                         ${categorias.map(c => `
                           <tr class="${c.activo ? '' : 'text-muted'}">
-                            <td>${c.nombre}</td>
+                            <td>${c.padre_id ? '<span class="text-muted ms-2">└─</span> ' : '<i class="fas fa-folder text-warning me-1"></i> '}${c.nombre}</td>
+                            <td>${c.padre_nombre || '<span class="text-muted">—</span>'}</td>
                             <td>${c.descripcion || '-'}</td>
                             <td class="text-center">${c.activo ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
                             <td class="text-center">
                               <button class="btn btn-sm btn-outline-primary editar-categoria" 
-                                data-id="${c.id}" data-nombre="${c.nombre}" data-descripcion="${c.descripcion || ''}">
+                                data-id="${c.id}" data-nombre="${c.nombre}" data-descripcion="${c.descripcion || ''}" data-padre="${c.padre_id || ''}">
                                 <i class="fas fa-edit"></i>
                               </button>
                             </td>
@@ -181,10 +201,11 @@ Categorias.bindListadoEvents = function () {
     const id = $(this).data('id');
     const nombre = $(this).data('nombre');
     const descripcion = $(this).data('descripcion');
+    const padre_id = $(this).data('padre');
     // Abrir formulario de edición (puede ser el mismo que nuevo)
     ViewManager.navegar('categorias/nuevo', {
       retorno: 'configuracion/categorias',
-      id, nombre, descripcion
+      id, nombre, descripcion, padre_id
     });
   });
 

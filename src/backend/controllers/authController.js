@@ -1,8 +1,8 @@
 const { getDb } = require('../models/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro_cambiar_en_produccion';
 const JWT_EXPIRES = '24h';
 
 const authController = {

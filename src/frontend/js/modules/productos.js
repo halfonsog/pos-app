@@ -31,14 +31,19 @@ Productos.obtenerEstadisticas = async function () {
     const compuestos = activos.filter(p => p.tipo === 'compuesto');
     const simples = activos.filter(p => p.tipo === 'simple');
     const sinCosto = activos.filter(p => !p.precio_venta || p.precio_venta === 0);
+    // Dashboard cards (propietario): Activos, En venta, Reventa, Preparables
+    const enVenta = activos.filter(p => p.precio_venta > 0 && p.stock_efectivo > 0);
+    const reventa = activos.filter(p => p.tipo === 'simple' && p.sub_tipo === 'reventa');
+    const preparables = activos.filter(p => p.tipo === 'compuesto' && p.sub_tipo === 'elaborado');
     return {
       total: productos.length, activos: activos.length, stockBajo: stockBajo.length,
       compuestos: compuestos.length, simples: simples.length, sinCosto: sinCosto.length,
+      enVenta: enVenta.length, reventa: reventa.length, preparables: preparables.length,
       productosDestacados: stockBajo.slice(0, 5),
       ultimosAgregados: productos.slice(-5).reverse()
     };
   } catch (error) {
-    return { total: 0, activos: 0, stockBajo: 0, compuestos: 0, simples: 0, sinCosto: 0, productosDestacados: [], ultimosAgregados: [] };
+    return { total: 0, activos: 0, stockBajo: 0, compuestos: 0, simples: 0, sinCosto: 0, enVenta: 0, reventa: 0, preparables: 0, productosDestacados: [], ultimosAgregados: [] };
   }
 };
 
@@ -61,12 +66,42 @@ Productos.renderIndexLayout = function (stats) {
             </div>
           </div>
           <div class="row g-3 mb-4">
-            <div class="col-6 col-md-2"><div class="summary-mini-card"><h4>${stats.total}</h4><p>Total</p></div></div>
-            <div class="col-6 col-md-2"><div class="summary-mini-card text-success"><h4>${stats.activos}</h4><p>Activos</p></div></div>
-            <div class="col-6 col-md-2"><div class="summary-mini-card text-warning"><h4>${stats.stockBajo}</h4><p>Stock Bajo</p></div></div>
-            <div class="col-6 col-md-2"><div class="summary-mini-card text-danger"><h4>${stats.sinCosto}</h4><p>Sin Ficha Costo</p></div></div>
-            <div class="col-6 col-md-2"><div class="summary-mini-card text-info"><h4>${stats.compuestos}</h4><p>Compuestos</p></div></div>
-            <div class="col-6 col-md-2"><div class="summary-mini-card text-secondary"><h4>${stats.simples}</h4><p>Simples</p></div></div>
+            <div class="col-6 col-md-3">
+              <div class="summary-card border-success clickable" data-route="productos/listado?filtro=activos" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-success">${stats.activos}</h3>
+                  <p class="summary-label"><i class="fas fa-check-circle me-1"></i>Activos</p>
+                </div>
+                <div class="summary-details"><small>de ${stats.total} registrados</small></div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="summary-card border-primary clickable" data-route="productos/listado?filtro=activos" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-primary">${stats.enVenta}</h3>
+                  <p class="summary-label"><i class="fas fa-dollar-sign me-1"></i>En Venta</p>
+                </div>
+                <div class="summary-details"><small>con precio y stock</small></div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="summary-card border-info clickable" data-route="productos/listado" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-info">${stats.reventa}</h3>
+                  <p class="summary-label"><i class="fas fa-box me-1"></i>Reventa</p>
+                </div>
+                <div class="summary-details"><small>se compran y venden</small></div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="summary-card border-warning clickable" data-route="inventario/preparar" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-warning">${stats.preparables}</h3>
+                  <p class="summary-label"><i class="fas fa-flask me-1"></i>Preparables</p>
+                </div>
+                <div class="summary-details"><small>elaborados</small></div>
+              </div>
+            </div>
           </div>
           <div class="row g-4">
             <div class="col-lg-6">
@@ -228,7 +263,7 @@ Productos.initDataTable = function (productos) {
       { data: 11, title: 'TipoFiltro', visible: false, searchable: true },
       { data: 12, title: 'TieneDependencias', visible: false }
     ],
-    search: { caseInsensitive: false },
+    search: { caseInsensitive: true },
     order: [[2, 'asc']],
     language: { decimal: ",", thousands: ".", processing: "Procesando...", lengthMenu: "Mostrar _MENU_ registros", zeroRecords: "No se encontraron resultados", emptyTable: "Ningún dato disponible", info: "Mostrando _START_ a _END_ de _TOTAL_ registros", search: "Buscar:", searchPlaceholder: "Buscar...", paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" } },
     pageLength: 25, responsive: true,
@@ -264,7 +299,7 @@ Productos.initDataTable = function (productos) {
 
 Productos.getTipoBadge = function (p) {
   if (p.tipo === 'simple') return `<span class="badge bg-info">${p.sub_tipo === 'granel' ? 'A Granel' : 'Reventa'}</span>`;
-  return `<span class="badge bg-primary">Compuesto${p.requiere_preparacion ? ' • Prep' : ''}</span>`;
+  return `<span class="badge bg-primary">Compuesto ${p.sub_tipo === 'elaborado' ? '· Elaborado' : '· Conformado'}</span>`;
 };
 
 Productos.bindListadoEvents = function (params) {
@@ -388,30 +423,22 @@ Productos.bindListadoEvents = function (params) {
 // FORMULARIO (NUEVO/EDITAR)
 // ============================================
 /**
- * Deshabilita campos críticos para productos con dependencias
- * Solo permite editar: código, nombre, categoría, stock mínimo, foto
+ * D4: los campos estructurales (tipo, subtipo, unidades, stock, costo) nunca se editan
+ * directamente. Solo se permite: nombre, categoría, stock mínimo, precio y foto.
  */
 Productos._aplicarRestriccionesDependencias = function () {
-  // Deshabilitar campos críticos
+  // Deshabilitar campos estructurales
   $('#tipo').prop('disabled', true);
   $('#subTipo').prop('disabled', true);
   $('#unidadVentaId').prop('disabled', true);
   $('#unidadCompraId').prop('disabled', true);
 
-  // Si hay checkbox de requiere_preparacion, deshabilitarlo
-  if ($('#requierePreparacion').length) {
-    $('#requierePreparacion').prop('disabled', true);
-  }
-
-  // Deshabilitar pestaña de receta
-  $('#receta-tab').addClass('disabled').css('pointer-events', 'none');
-
   // Mostrar aviso visual
   const aviso = `
     <div class="alert alert-warning alert-sm mb-3">
       <i class="fas fa-info-circle me-1"></i>
-      <strong>Edición restringida:</strong> Solo puedes modificar código, nombre, categoría, stock mínimo y foto.
-      Los demás campos están bloqueados porque el producto tiene movimientos asociados.
+      <strong>Edición restringida:</strong> Solo puedes modificar nombre, categoría, stock mínimo y foto.
+      El producto tiene movimientos asociados.
     </div>
   `;
 
@@ -455,6 +482,13 @@ Productos.formulario = async function (params) {
     $('#app').html(Productos.renderFormularioLayout(producto, tipoInicial, { catHtml, uniVentaHtml, uniCompraHtml }));
     if (producto) Productos.llenarFormulario(producto);
     else { $('#placeholderFoto').hide(); $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder('Nuevo', 1, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`); }
+
+    // D4: en edición los campos estructurales NUNCA se editan (tipo, subtipo, unidades)
+    if (isEdit) {
+      $('#subTipo').prop('disabled', true);
+      $('#unidadVentaId').prop('disabled', true);
+      $('#unidadCompraId').prop('disabled', true);
+    }
 
     // ✅ Aplicar restricciones si tiene dependencias
     if (producto && producto.tiene_dependencias) {
@@ -594,22 +628,36 @@ Productos._initTabs = function () {
 
 Productos.configurarVisibilidadCampos = function () {
   const tipo = $('#tipo').val();
-  const subTipo = $('#subTipo').val();
+  const actual = $('#subTipo').val();
 
   if (tipo === 'simple') {
+    // Subtipos de simple: reventa / granel
+    $('#subTipo').html(`
+      <option value="reventa">Reventa</option>
+      <option value="granel">A Granel</option>
+    `);
+    if (['reventa', 'granel'].includes(actual)) $('#subTipo').val(actual);
+
     $('#rowSubTipo').show();
     $('#receta-tab').hide();
 
+    const subTipo = $('#subTipo').val();
     if (subTipo === 'reventa') {
       $('#rowUnidadCompra').hide();
-      // Disparar cambio para filtrar unidades
       $('#subTipo').trigger('change');
     } else if (subTipo === 'granel') {
       $('#rowUnidadCompra').show();
       $('#subTipo').trigger('change');
     }
   } else {
-    $('#rowSubTipo').hide();
+    // Subtipos de compuesto (D1): elaborado / conformado
+    $('#subTipo').html(`
+      <option value="elaborado">Elaborado (requiere preparación previa)</option>
+      <option value="conformado">Conformado (se arma en el momento de la venta)</option>
+    `);
+    if (['elaborado', 'conformado'].includes(actual)) $('#subTipo').val(actual);
+
+    $('#rowSubTipo').show();
     $('#receta-tab').show();
     $('#rowUnidadCompra').hide();
   }
@@ -622,8 +670,10 @@ Productos.llenarFormulario = function (p) {
   // Solo cambiar tipo si no está deshabilitado
   if (!$('#tipo').prop('disabled')) {
     $('#tipo').val(p.tipo);
-    if (p.tipo === 'simple') $('#subTipo').val(p.sub_tipo || 'reventa');
   }
+  // Reconstruir opciones de subtipo según el tipo y luego seleccionar la guardada
+  Productos.configurarVisibilidadCampos();
+  $('#subTipo').val(p.sub_tipo || (p.tipo === 'simple' ? 'reventa' : 'conformado'));
 
   $('#categoriaId').val(p.categoria_id || '');
 
@@ -738,7 +788,7 @@ Productos.bindFormularioEvents = function (id, params) {
   });
 
   $('#btnNuevaCategoria').on('click', () => {
-    sessionStorage.setItem('productoFormTemp', JSON.stringify(Productos.recopilarDatosFormulario()));
+    sessionStorage.setItem('productoFormTemp', JSON.stringify(Productos.recopilarDatosFormulario(!!id)));
     ViewManager.navegar('categorias/nuevo', { retorno: id ? `productos/editar/${id}` : 'productos/nuevo', origen, retornoParams });
   });
 
@@ -748,7 +798,7 @@ Productos.bindFormularioEvents = function (id, params) {
   $('#productoForm').on('submit', async function (e) {
     e.preventDefault();
     if (!Productos.validarFormulario()) return;
-    const data = Productos.recopilarDatosFormulario();
+    const data = Productos.recopilarDatosFormulario(!!id);
     const fd = new FormData();
     Object.keys(data).forEach(k => {
       if (data[k] !== null && data[k] !== undefined)
@@ -833,17 +883,25 @@ Productos.validarFormulario = function () {
   return true;
 };
 
-Productos.recopilarDatosFormulario = function () {
-  const tipo = $('#tipo').val(), sub = $('#subTipo').val();
-  return {
-    codigo: $('#codigo').val().trim(), nombre: $('#nombre').val().trim(), tipo,
-    sub_tipo: tipo === 'simple' ? sub : null,
-    requiere_preparacion: tipo === 'compuesto' ? $('#requierePreparacion').is(':checked') : false,
-    categoria_id: $('#categoriaId').val() || null, unidad_venta_id: parseInt($('#unidadVentaId').val()),
-    unidad_compra_id: (tipo === 'simple' && sub === 'granel') ? parseInt($('#unidadCompraId').val()) : null,
+Productos.recopilarDatosFormulario = function (isEdit) {
+  const data = {
+    nombre: $('#nombre').val().trim(),
+    categoria_id: $('#categoriaId').val() || null,
     stock_minimo: parseFloat($('#stockMinimo').val()) || 0,
     activo: $('#productoActivo').is(':checked')
   };
+
+  if (!isEdit) {
+    // D4: los campos estructurales solo se definen al CREAR
+    const tipo = $('#tipo').val(), sub = $('#subTipo').val();
+    data.codigo = $('#codigo').val().trim();
+    data.tipo = tipo;
+    data.sub_tipo = sub;
+    data.unidad_venta_id = parseInt($('#unidadVentaId').val());
+    data.unidad_compra_id = (tipo === 'simple' && sub === 'granel') ? parseInt($('#unidadCompraId').val()) : null;
+  }
+
+  return data;
 };
 
 // ============================================
@@ -996,7 +1054,7 @@ Productos.renderFichaLayout = async function (producto) {
                       <p>
                         ${producto.tipo === 'simple'
       ? `<span class="badge bg-info">Simple · ${producto.sub_tipo === 'granel' ? 'A Granel' : 'Reventa'}</span>`
-      : `<span class="badge bg-primary">Compuesto${producto.requiere_preparacion ? ' · Requiere preparación' : ' · Venta directa'}</span>`
+      : `<span class="badge bg-primary">Compuesto · ${producto.sub_tipo === 'elaborado' ? 'Elaborado (requiere preparación)' : 'Conformado (se arma en la venta)'}</span>`
     }
                       </p>
                     </div>
@@ -1045,8 +1103,8 @@ Productos.renderFichaLayout = async function (producto) {
                 <div class="card">
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Receta</h5>
-                    <span class="badge ${producto.requiere_preparacion ? 'bg-warning' : 'bg-info'}">
-                      ${producto.requiere_preparacion ? 'Requiere preparación' : 'Se descuenta en venta'}
+                    <span class="badge ${producto.sub_tipo === 'elaborado' ? 'bg-warning' : 'bg-info'}">
+                      ${producto.sub_tipo === 'elaborado' ? 'Elaborado: requiere preparación' : 'Conformado: se descuenta en venta'}
                     </span>
                   </div>
                   <div class="card-body">
@@ -1189,13 +1247,13 @@ Productos.renderTrazabilidadLayout = function (data) {
               <div class="card mb-4">
                 <div class="card-header bg-success bg-opacity-10">
                   <h5 class="mb-0">
-                    ${producto.tipo === 'compuesto' && producto.requiere_preparacion
+                    ${producto.tipo === 'compuesto' && producto.sub_tipo === 'elaborado'
       ? '<i class="fas fa-flask me-1"></i>🧪 PREPARACIONES'
       : producto.tipo === 'compuesto'
         ? '<i class="fas fa-cubes me-1"></i>📦 ENTRADAS DE COMPONENTES'
         : '<i class="fas fa-truck me-1"></i>📦 COMPRAS'
     }
-                    (${producto.tipo === 'compuesto' && producto.requiere_preparacion
+                    (${producto.tipo === 'compuesto' && producto.sub_tipo === 'elaborado'
       ? preparaciones.length
       : producto.tipo === 'compuesto'
         ? entradasComponentes.length
@@ -1206,7 +1264,7 @@ Productos.renderTrazabilidadLayout = function (data) {
                 <div class="card-body p-0">
                   <table class="table table-sm table-hover mb-0">
                     <thead class="table-success">
-                      ${producto.tipo === 'compuesto' && producto.requiere_preparacion ? `
+                      ${producto.tipo === 'compuesto' && producto.sub_tipo === 'elaborado' ? `
                         <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Observaciones</th></tr>
                       ` : producto.tipo === 'compuesto' ? `
                         <tr><th>Fecha</th><th class="text-end">Cantidad</th><th>Componente</th><th>Observaciones</th></tr>
@@ -1215,7 +1273,7 @@ Productos.renderTrazabilidadLayout = function (data) {
                       `}
                     </thead>
                     <tbody>
-                      ${producto.tipo === 'compuesto' && producto.requiere_preparacion ?
+                      ${producto.tipo === 'compuesto' && producto.sub_tipo === 'elaborado' ?
       (preparaciones.length > 0 ? preparaciones.map(p => `
                           <tr>
                             <td>${Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha), 'datetime')}</td>
@@ -1288,7 +1346,7 @@ Productos.renderTrazabilidadLayout = function (data) {
                         <tr>
                           <td>${Utils.formatearFecha(Utils.fechaISOToLocal(a.fecha), 'datetime')}</td>
                           <td class="text-end ${a.cantidad > 0 ? 'text-success' : 'text-danger'}">
-                            ${a.cantidad > 0 ? '+' : ''}${Utils.formatNumber(a.cantidad, 1)} ${producto.tipo === 'compuesto' && !producto.requiere_preparacion ? totales.pminUnidad : producto.unidad_abrev}
+                            ${a.cantidad > 0 ? '+' : ''}${Utils.formatNumber(a.cantidad, 1)} ${producto.tipo === 'compuesto' && producto.sub_tipo === 'conformado' ? totales.pminUnidad : producto.unidad_abrev}
                           </td>
                           <td>${a.tipo}</td>
                           <td>${a.observaciones || '-'}</td>
@@ -1306,7 +1364,7 @@ Productos.renderTrazabilidadLayout = function (data) {
                   <h5 class="mb-0">📊 RESUMEN</h5>
                 </div>
                 <div class="card-body">
-                ${producto.tipo === 'compuesto' && !producto.requiere_preparacion ? `
+                ${producto.tipo === 'compuesto' && producto.sub_tipo === 'conformado' ? `
                   <!-- Resumen para compuestos NO preparables -->
                   <div class="d-flex justify-content-between mb-2">
                     <span>Componente limitante:</span>
@@ -1393,33 +1451,28 @@ Productos.renderCostoLayout = async function (producto) {
   }
   const margenMaxRate = (config.margen_recomendado || 20) / 100;
   const impuestoDefRate = (config.impuesto_ventas || 15) / 100;
-  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
+  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  // % gastos fijos global
   const costoBase = producto.costo_base || 0;
 
-  // Cálculos para Precio Recomendado (con margen maximo recomendado)
-  let margenRate = margenMaxRate, gastosFijosRate = gastosDefRate;
+  // Desglose con la fórmula del propietario (multiplicativa):
+  // precio_neto = costo × (1 + %gastos) × (1 + margen) · recomendado = neto × (1 + impuesto)
+  let gastosFijosRate = gastosDefRate;
+  let margenRate = margenMaxRate;
+  let gastosFijosMonto = costoBase * gastosFijosRate;
+  let precioBase = costoBase + gastosFijosMonto;   // costo + gastos
+  let margenMonto = precioBase * margenRate;
+  let precioNeto = precioBase + margenMonto;
+  let impuestoMonto = precioNeto * impuestoDefRate;
+  const precioRecomendado = precioNeto + impuestoMonto;
 
-  let precioBase = costoBase / (1 - gastosFijosRate);
-  let gastosFijosMonto = precioBase * gastosFijosRate;
-  let precioNeto = precioBase / (1 - margenRate);
-  let margen, margenMonto = precioNeto * margenRate;
-  const precioRecomendado = precioNeto / (1 - impuestoDefRate);
-  let impuestoMonto = precioRecomendado * impuestoDefRate;
-  console.log('Cálculos iniciales:', { costoBase, precioBase, gastosFijosRate, gastosFijosMonto, precioNeto, margenRate, margenMonto, precioRecomendado, impuestoMonto });
-
-  // Cálculo del precio actual
+  // Desglose del precio actual (si tiene): descomponer multiplicativamente
   if (producto.precio_venta) {
-    impuestoMonto = producto.precio_venta * impuestoDefRate;
-    precioNeto = producto.precio_venta - impuestoMonto;
-    const diffRate = (precioNeto - precioBase) / precioNeto;
-    margenMonto = (diffRate < margenMaxRate) ? precioNeto * diffRate : precioNeto * margenMaxRate;
-    margenRate = margenMonto / precioNeto;
-    const diffMonto = (precioNeto - precioBase) - (precioNeto * margenMaxRate);
-    precioBase = (diffMonto > 0) ? precioBase + diffMonto : precioBase;
+    precioNeto = producto.precio_venta / (1 + impuestoDefRate);
+    impuestoMonto = producto.precio_venta - precioNeto;
+    precioBase = costoBase * (1 + gastosFijosRate);
     gastosFijosMonto = precioBase - costoBase;
-    gastosFijosRate = gastosFijosMonto / precioBase;
-
-    console.log('Cálculos ajustados al precio actual:', { precioNeto, impuestoMonto, diffRate, margenMonto, margenRate, diffMonto, precioBase, gastosFijosMonto, gastosFijosRate });
+    margenMonto = precioNeto - precioBase;
+    margenRate = precioBase > 0 ? margenMonto / precioBase : 0;
   }
 
   return `
@@ -1597,35 +1650,34 @@ Productos.bindCostoEvents = async function (producto) {
   const margenMaxRate = (config.margen_recomendado || 20) / 100; //margenMaximo
   const impuestoDefRate = (config.impuesto_ventas || 15) / 100; //  impuestoPct
   const costoBase = producto.costo_base || 0;
-  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  //gastos fijos
-  const precioBaseDef = costoBase / (1 - gastosDefRate);
+  const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  // % gastos fijos global
 
-  // Actualizar desglose visual
+  // Actualizar desglose visual (fórmula del propietario, multiplicativa)
   const actualizarDesglose = function (precioVenta) {
-    const impuestoMonto = precioVenta * impuestoDefRate;
-    const precioNeto = precioVenta - impuestoMonto;
+    // impuesto incluido en el precio
+    const precioNeto = precioVenta / (1 + impuestoDefRate);
+    const impuestoMonto = precioVenta - precioNeto;
 
-    const diffRate = (precioNeto - precioBaseDef) / precioNeto;
-    const margenMonto = (diffRate < margenMaxRate) ? precioNeto * diffRate : precioNeto * margenMaxRate;
-    const margenRate = margenMonto / precioNeto;
-    const diffMonto = (precioNeto - precioBaseDef) - (precioNeto * margenMaxRate);
-    const precioBase = (diffMonto > 0) ? precioBaseDef + diffMonto : precioBaseDef;
-
+    // costo + gastos (fijo, del % global)
+    const precioBase = costoBase * (1 + gastosDefRate);
     const gastosFijosMonto = precioBase - costoBase;
-    const gastosFijosRate = gastosFijosMonto / precioBase;
+
+    // el margen es la diferencia resultante
+    const margenMonto = precioNeto - precioBase;
+    const margenRate = precioBase > 0 ? margenMonto / precioBase : 0;
 
     // Actualizar UI
     $('#costoBaseDisplay').text(Utils.formatMoney(costoBase));
     $('#precioBaseDisplay').text(Utils.formatMoney(precioBase));
     $('#gastosDisplay').text(Utils.formatMoney(gastosFijosMonto));
-    $('#gastosPctDisplay').text(Utils.formatNumber(gastosFijosRate * 100));
+    $('#gastosPctDisplay').text(Utils.formatNumber(gastosDefRate * 100));
     $('#precioNetoDisplay').text(Utils.formatMoney(precioNeto));
     $('#margenValor').text(Utils.formatNumber(margenRate * 100));
     $('#margenDisplay').text(Utils.formatMoney(margenMonto));
     $('#impuestoDisplay').text(Utils.formatMoney(impuestoMonto));
     $('#precioFinalDisplay').text(Utils.formatMoney(precioVenta));
 
-    return { gastosFijosRate, margenRate };
+    return { gastosFijosRate: gastosDefRate, margenRate };
   };
 
   $('#btnVolver').on('click', () => ViewManager.volver());
@@ -1821,12 +1873,14 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
                               rows="3">${producto.descripcion_preparacion || ''}</textarea>
                   </div>
                   
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="requierePreparacionReceta" 
-                           ${producto.requiere_preparacion ? 'checked' : ''}>
-                    <label class="form-check-label">
-                      <i class="fas fa-flask me-1"></i>Requiere elaboración previa
-                    </label>
+                  <div class="mb-3">
+                    <label class="form-label">Tipo de compuesto</label>
+                    <p>
+                      <span class="badge ${producto.sub_tipo === 'elaborado' ? 'bg-warning' : 'bg-info'} fs-6">
+                        ${producto.sub_tipo === 'elaborado' ? 'Elaborado (requiere preparación previa)' : 'Conformado (se arma en la venta)'}
+                      </span>
+                    </p>
+                    <small class="text-muted">El subtipo solo se define al crear el producto.</small>
                   </div>
                   
                   <button class="btn btn-outline-primary w-100 mt-3" id="btnGuardarPreparacion">
@@ -1971,15 +2025,12 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
     }
   });
 
-  // Guardar configuración de preparación
+  // Guardar descripción de preparación (el subtipo elaborado/conformado solo se define al crear — D4)
   $('#btnGuardarPreparacion').on('click', async function () {
     try {
       const data = {
-        descripcion_preparacion: $('#descripcionPreparacionReceta').val(),
-        requiere_preparacion: $('#requierePreparacionReceta').is(':checked')
+        descripcion_preparacion: $('#descripcionPreparacionReceta').val()
       };
-
-      console.log('Guardando configuración de preparación:', data);
 
       Utils.showLoading('Guardando...');
       await API.productos.actualizarSimple(producto.id, data);
@@ -2075,17 +2126,14 @@ Productos._filtrarProductosParaReceta = function (todosProductos, productoPadreI
     if (!p.activo) return false;
     if (p.id == productoPadreId) return false;
     if (idsExistentes.includes(p.id)) return false;
+    // D5: solo granel o compuestos elaborados pueden ser ingredientes
     const esGranel = p.tipo === 'simple' && p.sub_tipo === 'granel';
-    const esCompuestoPreparable = p.tipo === 'compuesto' && p.requiere_preparacion;
-    return esGranel || esCompuestoPreparable;
+    const esCompuestoElaborado = p.tipo === 'compuesto' && p.sub_tipo === 'elaborado';
+    return esGranel || esCompuestoElaborado;
   });
 };
 
 Productos.bindIndexEvents = function () {
-  $('.clickable[data-route]').on('click', function () {
-    const r = $(this).data('route');
-    if (r) ViewManager.navegar(r);
-  });
   $('[data-route]').on('click', function () {
     const route = $(this).data('route');
     if (route) ViewManager.navegar(route);

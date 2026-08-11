@@ -56,6 +56,7 @@ ViewManager.routes = [
   { pattern: 'inventario/preparar', module: 'Inventario', action: 'preparar' },
   { pattern: 'inventario/preparar/:id', module: 'Inventario', action: 'preparar' },
   { pattern: 'inventario/ajuste', module: 'Inventario', action: 'ajuste' },
+{ pattern: 'inventario/intercambio', module: 'Inventario', action: 'intercambio' },
   { pattern: 'inventario/ajuste/:id', module: 'Inventario', action: 'ajuste' },
   { pattern: 'inventario/merma', module: 'Inventario', action: 'merma' },
 
@@ -71,14 +72,41 @@ ViewManager.routes = [
   { pattern: 'configuracion/gastos', module: 'Configuracion', action: 'gastos' },
   { pattern: 'configuracion/unidades', module: 'Configuracion', action: 'unidades' },
   { pattern: 'configuracion/categorias', module: 'Configuracion', action: 'categorias' },
-  { pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' },
-  { pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
+{ pattern: 'configuracion/terminos', module: 'Configuracion', action: 'terminos' },
+{ pattern: 'configuracion/denominaciones', module: 'Configuracion', action: 'denominaciones' },
+{ pattern: 'configuracion/usuarios', module: 'Configuracion', action: 'usuarios' },
+{ pattern: 'configuracion/empleados/:id', module: 'Configuracion', action: 'empleadoFicha' },
+{ pattern: 'configuracion/prestamos', module: 'Configuracion', action: 'prestamos' },
+{ pattern: 'configuracion/prestamos/:id', module: 'Configuracion', action: 'prestamoFicha' },
+
+// Mayoristas
+{ pattern: 'mayoristas', module: 'Mayoristas', action: 'index' },
+{ pattern: 'mayoristas/clientes', module: 'Clientes', action: 'index' },
+{ pattern: 'mayoristas/pedidos', module: 'Mayoristas', action: 'pedidos' },
+{ pattern: 'mayoristas/nuevo', module: 'Mayoristas', action: 'nuevo' },
+{ pattern: 'mayoristas/pedidos/:id', module: 'Mayoristas', action: 'pedidoFicha' },
+{ pattern: 'mayoristas/tramos', module: 'Mayoristas', action: 'tramos' },
+
+// Clientes (módulo propio, patrón Proveedores)
+{ pattern: 'clientes', module: 'Clientes', action: 'index' },
+{ pattern: 'clientes/listado', module: 'Clientes', action: 'listado' },
+{ pattern: 'clientes/nuevo', module: 'Clientes', action: 'formulario' },
+{ pattern: 'clientes/editar/:id', module: 'Clientes', action: 'formulario' },
+{ pattern: 'clientes/ver/:id', module: 'Clientes', action: 'ficha' },
+
+// Encargos (pedidos minoristas, en el módulo Ventas)
+{ pattern: 'ventas/encargos', module: 'Ventas', action: 'encargos' },
+{ pattern: 'ventas/encargos/nuevo', module: 'Ventas', action: 'encargoNuevo' },
+{ pattern: 'ventas/encargos/:id', module: 'Ventas', action: 'encargoFicha' },
 
   // Mantenimiento
   { pattern: 'mantenimiento', module: 'Mantenimiento', action: 'index' },
 
   // Reportes
   { pattern: 'reportes', module: 'Reportes', action: 'index' },
+
+  // Contabilidad
+  { pattern: 'contabilidad', module: 'Contabilidad', action: 'index' },
 
   // Vendedor
   { pattern: 'vendedor', module: 'Vendedor', action: 'index' },
@@ -223,6 +251,20 @@ window.addEventListener('popstate', async function (e) {
   }
 
   await ViewManager._cargarVista(ruta, params);
+});
+
+
+// Los enlaces directos <a href="#ruta"> (dropdowns, breadcrumbs, cards) cambian el hash
+// sin pasar por navegar(). Este listener los convierte en navegación real (F2).
+// Nota: history.pushState/replaceState NO disparan 'hashchange', así que navegar() no entra aquí.
+window.addEventListener('hashchange', function () {
+  const ruta = window.location.hash.substring(1);
+  if (!ruta || ruta === ViewManager.currentView) return;
+
+  ViewManager._historyCount++;
+  // El anchor ya creó la entrada de historial: solo le añadimos el estado
+  history.replaceState(ViewManager._buildState(ruta, {}), '', '#' + ruta);
+  ViewManager._cargarVista(ruta, {});
 });
 
 

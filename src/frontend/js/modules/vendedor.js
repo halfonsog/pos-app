@@ -47,7 +47,7 @@ Vendedor.renderDashboard = function (t) {
             <div class="col-6">
               <div class="summary-card border-primary">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-primary">${Utils.formatMoney(t.ventas?.total || 0)}</h3>
+                  <h3 class="summary-number text-primary">${Utils.formatMoney(t.ventas?.total || 0, 0)}</h3>
                   <p class="summary-label"><i class="fas fa-dollar-sign me-1"></i>Ventas del Turno</p>
                 </div>
                 <div class="summary-details"><small>${t.ventas?.total_ventas || 0} ventas</small></div>
@@ -56,7 +56,7 @@ Vendedor.renderDashboard = function (t) {
             <div class="col-6">
               <div class="summary-card border-info">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-info">${t.abierto ? Utils.formatMoney(t.turno.monto_apertura) : '-'}</h3>
+                  <h3 class="summary-number text-info">${t.abierto ? Utils.formatMoney(t.turno.monto_apertura, 0) : '-'}</h3>
                   <p class="summary-label"><i class="fas fa-clock me-1"></i>Apertura</p>
                 </div>
                 <div class="summary-details"><small>${t.abierto ? 'Turno activo' : 'Sin turno'}</small></div>
@@ -186,7 +186,7 @@ Vendedor.perfil = async function () {
 
   const layout = `
     <div class="app-wrapper">
-      ${Vendedor.renderSidebar('perfil')}
+      ${Sidebar.render('perfil')}
       <main class="main-content">
         <nav class="navbar navbar-light bg-white border-bottom px-3">
           <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
@@ -206,7 +206,7 @@ Vendedor.perfil = async function () {
               </div>
               <div class="mb-3">
                 <label class="text-muted small">Rol</label>
-                <p><span class="badge bg-info">Vendedor</span></p>
+                <p><span class="badge bg-${user.rol === 'admin' ? 'danger' : 'info'}">${user.rol === 'admin' ? 'Administrador' : 'Vendedor'}</span></p>
               </div>
             </div>
           </div>

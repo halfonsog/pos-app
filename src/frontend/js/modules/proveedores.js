@@ -84,27 +84,39 @@ Proveedores.renderIndexLayout = function (stats) {
           
           <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card">
-                <h4>${stats.total}</h4>
-                <p>Total Proveedores</p>
+              <div class="summary-card border-primary clickable" data-route="proveedores/listado" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-primary">${stats.total}</h3>
+                  <p class="summary-label"><i class="fas fa-truck me-1"></i>Total Proveedores</p>
+                </div>
+                <div class="summary-details"><small>Registrados</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-success">
-                <h4>${stats.activos}</h4>
-                <p>Activos</p>
+              <div class="summary-card border-success clickable" data-route="proveedores/listado?filtro=activos" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-success">${stats.activos}</h3>
+                  <p class="summary-label"><i class="fas fa-check-circle me-1"></i>Activos</p>
+                </div>
+                <div class="summary-details"><small>Pueden vender</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-warning">
-                <h4>${stats.conDeuda}</h4>
-                <p>Con Deuda</p>
+              <div class="summary-card border-warning clickable" data-route="proveedores/listado?filtro=con-deuda" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-warning">${stats.conDeuda}</h3>
+                  <p class="summary-label"><i class="fas fa-exclamation-circle me-1"></i>Con Deuda</p>
+                </div>
+                <div class="summary-details"><small>Por pagar</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-danger">
-                <h4>${Utils.formatMoney(stats.totalDeuda)}</h4>
-                <p>Total Deuda</p>
+              <div class="summary-card border-danger clickable" data-route="proveedores/listado?filtro=con-deuda" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-danger">${Utils.formatMoney(stats.totalDeuda, 0)}</h3>
+                  <p class="summary-label"><i class="fas fa-money-bill me-1"></i>Deuda Total</p>
+                </div>
+                <div class="summary-details"><small>Cuentas por pagar</small></div>
               </div>
             </div>
           </div>
@@ -576,6 +588,11 @@ Proveedores.renderFormularioLayout = function (proveedor, terminosPago) {
                       </div>
                       
                       <div class="col-md-6">
+                        <label class="form-label">Nº de Contrato <small class="text-muted">(si existe)</small></label>
+                        <input type="text" class="form-control" id="contrato" placeholder="Ej: CT-2026-001">
+                      </div>
+                      
+                      <div class="col-md-6">
                         <label class="form-label">Estado</label>
                         <div class="form-check form-switch mt-2">
                           <input class="form-check-input" type="checkbox" id="activo" checked>
@@ -623,6 +640,7 @@ Proveedores.llenarFormulario = function (proveedor) {
   $('#telefono').val(proveedor.telefono || '');
   $('#direccion').val(proveedor.direccion || '');
   $('#terminoPagoId').val(proveedor.termino_pago_id || '');
+  $('#contrato').val(proveedor.contrato || '');
   $('#activo').prop('checked', proveedor.activo === 1);
 };
 
@@ -691,6 +709,7 @@ Proveedores.recopilarDatosFormulario = function () {
     telefono: $('#telefono').val().trim() || null,
     direccion: $('#direccion').val().trim() || null,
     termino_pago_id: $('#terminoPagoId').val() || null,
+    contrato: $('#contrato').val().trim() || null,
     activo: $('#activo').is(':checked')
   };
 };
@@ -784,6 +803,10 @@ Proveedores.renderFichaLayout = function (proveedor) {
                   <div class="mb-3">
                     <label class="text-muted small">Término de Pago</label>
                     <p>${proveedor.termino_pago_nombre || 'No especificado'}</p>
+                  </div>
+                  <div class="mb-3">
+                    <label class="text-muted small">Nº de Contrato</label>
+                    <p><i class="fas fa-file-signature me-1"></i>${proveedor.contrato || '-'}</p>
                   </div>
                   <div class="col-md-6">
                     <label class="text-muted small">ID del Proveedor</label>

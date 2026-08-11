@@ -51,47 +51,41 @@ Dashboard.renderLayout = function (d) {
             <div class="col-6 col-md-3">
               <div class="summary-card border-primary clickable" data-route="ventas" style="cursor:pointer">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-primary">${Utils.formatMoney(d.ventasHoy?.total || 0)}</h3>
+                  <h3 class="summary-number text-primary">${Utils.formatMoney(d.ventasHoy?.total || 0, 0)}</h3>
                   <p class="summary-label"><i class="fas fa-dollar-sign me-1"></i>Ventas Hoy</p>
                 </div>
                 <div class="summary-details"><small>${d.ventasHoy?.total_ventas || 0} ventas</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-card border-warning clickable" data-route="inventario/stock?filtro=stock-bajo" style="cursor:pointer">
+              <div class="summary-card border-warning clickable" data-route="inventario" style="cursor:pointer">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-warning">${d.stockBajo}</h3>
-                  <p class="summary-label"><i class="fas fa-box me-1"></i>Stock Bajo</p>
+                  <h3 class="summary-number text-warning">${d.pendientesInventario || 0}</h3>
+                  <p class="summary-label"><i class="fas fa-warehouse me-1"></i>Pendiente Inventario</p>
                 </div>
-                <div class="summary-details"><small>Por debajo del mínimo</small></div>
+                <div class="summary-details"><small>Alertas de stock por atender</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-card border-danger clickable" data-route="inventario" style="cursor:pointer">
+              <div class="summary-card border-info clickable" data-route="ventas/encargos" style="cursor:pointer">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-danger">${d.totalPendientes}</h3>
-                  <p class="summary-label"><i class="fas fa-exclamation-triangle me-1"></i>Pendientes</p>
+                  <h3 class="summary-number text-info">${d.encargosHoy || 0}</h3>
+                  <p class="summary-label"><i class="fas fa-bookmark me-1"></i>Encargos Hoy</p>
                 </div>
-                <div class="summary-details"><small>Requieren atención</small></div>
+                <div class="summary-details"><small>A entregar hoy</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-card border-info" style="cursor:default">
+              <div class="summary-card border-${d.impuestos?.pendientes > 0 ? (d.impuestos.dias !== null && d.impuestos.dias <= 5 ? 'danger' : 'warning') : 'success'} clickable" data-route="contabilidad" style="cursor:pointer">
                 <div class="summary-content text-center">
-                  <h3 class="summary-number text-info">${d.promocionesActivas}</h3>
-                  <p class="summary-label"><i class="fas fa-tags me-1"></i>Promociones</p>
+                  <h3 class="summary-number text-${d.impuestos?.pendientes > 0 ? (d.impuestos.dias !== null && d.impuestos.dias <= 5 ? 'danger' : 'warning') : 'success'}">${Utils.formatMoney(d.impuestos?.monto || 0, 0)}</h3>
+                  <p class="summary-label"><i class="fas fa-file-invoice-dollar me-1"></i>Impuestos</p>
                 </div>
-                <div class="summary-details"><small>Activas hoy</small></div>
+                <div class="summary-details"><small>${d.impuestos?.pendientes > 0
+                    ? `${d.impuestos.pendientes} pendientes · vence en ${d.impuestos.dias ?? '—'} días`
+                    : 'Al día ✓'}</small></div>
               </div>
             </div>
-          </div>
-          
-          <!-- Acciones rápidas -->
-          <div class="quick-actions-bar mb-4">
-            <button class="btn btn-primary" data-route="ventas/pos"><i class="fas fa-cash-register me-1"></i>Nueva Venta</button>
-            <button class="btn btn-outline-primary" data-route="compras/nuevo"><i class="fas fa-shopping-cart me-1"></i>Nueva Compra</button>
-            <button class="btn btn-outline-primary" data-route="inventario/preparar"><i class="fas fa-flask me-1"></i>Preparar</button>
-            <button class="btn btn-outline-primary" data-route="inventario/ajuste"><i class="fas fa-balance-scale me-1"></i>Ajuste Inventario</button>
           </div>
           
           <div class="row g-4">
@@ -148,26 +142,48 @@ Dashboard.renderLayout = function (d) {
                       <div class="pending-info"><h6>Compras sin stock</h6><p>${d.comprasPendientesStock} pendientes de inventariar</p></div>
                       <i class="fas fa-chevron-right text-muted"></i>
                     </a>` : ''}
-                  ${d.totalPendientes === 0 ? '<p class="text-muted text-center py-3">✅ ¡Todo al día!</p>' : ''}
+                  ${d.stockBajo > 0 ? `
+                    <a href="#inventario/stock?filtro=stock-bajo" class="pending-card">
+                      <div class="pending-icon bg-danger bg-opacity-10 text-danger"><i class="fas fa-box-open"></i></div>
+                      <div class="pending-info"><h6>Stock bajo</h6><p>${d.stockBajo} productos por debajo del mínimo</p></div>
+                      <i class="fas fa-chevron-right text-muted"></i>
+                    </a>` : ''}
+                  ${d.preparacionesPendientes > 0 ? `
+                    <a href="#inventario/preparar" class="pending-card">
+                      <div class="pending-icon bg-success bg-opacity-10 text-success"><i class="fas fa-flask"></i></div>
+                      <div class="pending-info"><h6>Por preparar</h6><p>${d.preparacionesPendientes} elaborados con ingredientes listos</p></div>
+                      <i class="fas fa-chevron-right text-muted"></i>
+                    </a>` : ''}
+                  ${d.bonos?.es_dia && d.bonos.empleados > 0 ? `
+                    <a href="#contabilidad" class="pending-card">
+                      <div class="pending-icon bg-primary bg-opacity-10 text-primary"><i class="fas fa-hand-holding-usd"></i></div>
+                      <div class="pending-info"><h6>Pagar bonos</h6><p>Hoy es día de bonos · ${d.bonos.empleados} empleado(s)</p></div>
+                      <i class="fas fa-chevron-right text-muted"></i>
+                    </a>` : ''}
+                  ${(d.pendientesInventario || 0) + (d.comprasPendientesPago || 0) + (d.sinFichaCosto || 0) === 0 ? '<p class="text-muted text-center py-3">✅ ¡Todo al día!</p>' : ''}
                 </div>
               </div>
             </div>
             
-            <!-- Últimas actividades -->
+            <!-- Pedidos y encargos activos (en vez de últimas actividades) -->
             <div class="col-lg-6">
               <div class="dashboard-card">
-                <div class="card-header-custom"><h5><i class="fas fa-clock me-2"></i>Últimas Actividades</h5></div>
-                <div class="activity-list">
-                  ${d.ultimasActividades && d.ultimasActividades.length > 0 ? d.ultimasActividades.map(a => `
-                    <div class="activity-item">
-                      <i class="fas ${a.tipo === 'venta' ? 'fa-cash-register text-success' : 'fa-shopping-cart text-primary'} activity-icon"></i>
-                      <div class="activity-content">
-                        <span class="activity-text">${a.tipo === 'venta' ? 'Venta' : 'Compra'} #${a.id} - ${a.usuario || 'N/A'}</span>
-                        <span class="activity-time">${Utils.formatearFecha(Utils.fechaISOToLocal(a.created_at), 'datetime')}</span>
+                <div class="card-header-custom"><h5><i class="fas fa-file-invoice me-2"></i>Pedidos y Encargos Activos</h5></div>
+                <div class="top-products-list">
+                  ${d.pedidosActivos && d.pedidosActivos.length > 0 ? d.pedidosActivos.map(p => `
+                    <div class="top-product-item clickable" data-route="${p.tipo === 'minorista' ? 'ventas/encargos/' + p.id : 'mayoristas/pedidos/' + p.id}">
+                      <div class="product-info">
+                        <span class="product-name">
+                          <span class="badge bg-${p.tipo === 'minorista' ? 'light text-dark border' : 'warning text-dark'} me-1">${p.tipo === 'minorista' ? 'Encargo' : 'Mayorista'}</span>
+                          #${p.id} · ${p.cliente_nombre || '—'}
+                        </span>
+                        <span class="product-sales">
+                          ${Utils.formatMoney(p.total)} · ${p.estado_pago !== 'pagado' ? `<span class="text-danger">debe ${Utils.formatMoney(p.total - p.pagado)}</span>` : 'pagado'}
+                          ${p.vencido ? ' · <span class="text-danger fw-bold">VENCIDO</span>' : ''}
+                        </span>
                       </div>
-                      <span class="activity-amount">${Utils.formatMoney(a.total)}</span>
                     </div>
-                  `).join('') : '<p class="text-muted text-center py-3">Sin actividad reciente</p>'}
+                  `).join('') : '<p class="text-muted text-center py-3 mb-0">Sin pedidos activos</p>'}
                 </div>
               </div>
             </div>
@@ -215,11 +231,6 @@ Dashboard.initCharts = function (d) {
 
 Dashboard.bindEvents = function () {
   $('[data-route]').on('click', function () {
-    const route = $(this).data('route');
-    if (route) ViewManager.navegar(route);
-  });
-
-  $('.clickable[data-route]').on('click', function () {
     const route = $(this).data('route');
     if (route) ViewManager.navegar(route);
   });

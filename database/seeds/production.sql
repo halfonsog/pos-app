@@ -29,9 +29,12 @@ INSERT INTO tipos_gasto (nombre, descripcion, porcentaje_default) VALUES
     ('Gastos fijos', 'Electricidad, agua, alquiler', 15.0),
     ('Merma', 'Pérdida estimada por deterioro', 5.0);
 
+-- Empleado del propietario (todo usuario pertenece a un empleado — D18)
+INSERT INTO empleados (nombre, cargo, salario_mensual) VALUES ('Administrador', 'administrador', 0);
+
 -- Usuario administrador (contraseña se hashea después: admin123)
-INSERT INTO usuarios (username, password_hash, nombre_completo, rol) VALUES 
-    ('admin', 'temp_hash_admin', 'Administrador', 'admin');
+INSERT INTO usuarios (username, password_hash, nombre_completo, rol, empleado_id) VALUES 
+    ('admin', 'temp_hash_admin', 'Administrador', 'admin', 1);
 
 --Especial para Jas --------------------------------------------------------------------
 -- Proveedores

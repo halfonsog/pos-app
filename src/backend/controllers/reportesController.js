@@ -14,12 +14,11 @@ const reportesController = {
           SUM(vd.cantidad) as cantidad_vendida,
           SUM(vd.total) as total_vendido,
           COUNT(DISTINCT v.id) as num_ventas,
-          COALESCE(pc.costo_base, 0) as costo_unitario,
-          COALESCE(pc.margen, 0) as margen_pct
+          COALESCE(p.costo_base, 0) as costo_unitario,
+          (SELECT margen_recomendado FROM parametros_contables WHERE id = 1) as margen_pct
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
-        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
         WHERE v.estado = 'completada'
           AND v.created_at >= ? AND v.created_at <= ?
         GROUP BY p.id
@@ -99,15 +98,13 @@ const reportesController = {
       const productos = await db.all(`
       SELECT 
         p.id, p.nombre, p.codigo, p.precio_venta,
-        COALESCE(pc.costo_base, 0) as costo_base,
-        COALESCE(pc.margen, 0) as margen_pct,
-        COALESCE(pc.gastos_fijos, 0) as gastos_fijos_pct,
+        COALESCE(p.costo_base, 0) as costo_base,
+        (SELECT margen_recomendado FROM parametros_contables WHERE id = 1) as margen_pct,
         SUM(vd.cantidad) as cantidad_vendida,
         SUM(vd.total) as total_vendido
       FROM venta_detalles vd
       JOIN ventas v ON vd.venta_id = v.id
       JOIN productos p ON vd.producto_id = p.id
-      LEFT JOIN producto_costos pc ON p.id = pc.producto_id
       WHERE v.estado = 'completada'
         AND v.created_at >= ? AND v.created_at <= ?
       GROUP BY p.id
@@ -118,7 +115,6 @@ const reportesController = {
       for (const p of productos) {
         p.costo_total = p.costo_base * p.cantidad_vendida;
         p.ganancia_bruta = p.total_vendido * p.margen_pct / 100;
-        p.margen_real = p.total_vendido > 0 ? (p.ganancia_bruta / p.total_vendido) * 100 : 0;
 
         // Gastos fijos asignados
         //const gastos_pct = (p.gastos_fijos_pct || 0) / 100;
@@ -198,11 +194,10 @@ const reportesController = {
       if (tipo === 'rentabilidad' || tipo === 'todas') {
         // Costo de ventas
         const costoVentas = await db.get(`
-        SELECT SUM(COALESCE(pc.costo_base, 0) * vd.cantidad) as total
+        SELECT SUM(COALESCE(p.costo_base, 0) * vd.cantidad) as total
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
-        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
         WHERE v.estado = 'completada'
           AND v.created_at >= ? AND v.created_at <= ?
       `, [inicio, fin]);
@@ -217,7 +212,7 @@ const reportesController = {
         const totalCompras = await db.get(`SELECT SUM(total) as total FROM compras WHERE fecha_compra >= ? AND fecha_compra <= ?`, [inicio, fin]);
 
         // Impuesto a la ganancia desde configuración
-        const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+        const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
         const impuestoGananciaPct = config?.impuesto_ganancia || 35;
         const gastosMensuales = await db.get('SELECT SUM(valor_mensual) as total FROM configuracion_gastos WHERE activo = 1');
 

@@ -85,16 +85,16 @@ const proveedorController = {
   crear: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { nombre, id_fiscal, direccion, telefono, termino_pago_id, activo } = req.body;
+      const { nombre, id_fiscal, direccion, telefono, termino_pago_id, contrato, activo } = req.body;
 
       if (!nombre) {
         return res.status(400).json({ error: 'El nombre es requerido' });
       }
 
       const result = await db.run(`
-        INSERT INTO proveedores (nombre, id_fiscal, direccion, telefono, termino_pago_id, activo)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, activo !== false ? 1 : 0]);
+        INSERT INTO proveedores (nombre, id_fiscal, direccion, telefono, termino_pago_id, contrato, activo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, contrato || null, activo !== false ? 1 : 0]);
 
       res.status(201).json({
         id: result.lastID,
@@ -111,14 +111,14 @@ const proveedorController = {
     try {
       const db = await getDb();
       const { id } = req.params;
-      const { nombre, id_fiscal, direccion, telefono, termino_pago_id, activo } = req.body;
+      const { nombre, id_fiscal, direccion, telefono, termino_pago_id, contrato, activo } = req.body;
 
       await db.run(`
         UPDATE proveedores 
         SET nombre = ?, id_fiscal = ?, direccion = ?, telefono = ?, 
-            termino_pago_id = ?, activo = ?, updated_at = CURRENT_TIMESTAMP
+            termino_pago_id = ?, contrato = ?, activo = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, activo !== false ? 1 : 0, id]);
+      `, [nombre, id_fiscal || null, direccion || null, telefono || null, termino_pago_id || null, contrato || null, activo !== false ? 1 : 0, id]);
 
       res.json({ message: 'Proveedor actualizado exitosamente' });
     } catch (error) {

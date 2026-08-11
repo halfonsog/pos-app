@@ -1,4 +1,5 @@
 const { getDb } = require('../models/db');
+const costos = require('../utils/costos');
 
 const compraController = {
 
@@ -78,6 +79,7 @@ const compraController = {
     try {
       const db = await getDb();
       const { fecha_compra, codigo_factura, proveedor_id, pagado, detalles } = req.body;
+      const usuario_id = req.usuario.id; // quién registra la compra (auditoría)
 
       await db.run('BEGIN TRANSACTION');
 
@@ -96,8 +98,8 @@ const compraController = {
         // Insertar compra
         const result = await db.run(`
           INSERT INTO compras (fecha_compra, codigo_factura, proveedor_id, total, pagado, estado_pago, estado_inventario, usuario_id)
-          VALUES (?, ?, ?, ?, ?, ?, 'pendiente', 1)
-        `, [fecha_compra, codigo_factura, proveedor_id, total, pagado || 0, estado_pago]);
+          VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?)
+        `, [fecha_compra, codigo_factura, proveedor_id, total, pagado || 0, estado_pago, usuario_id]);
 
         const compraId = result.lastID;
 
@@ -200,6 +202,10 @@ const compraController = {
       const db = await getDb();
       const { id } = req.params;
 
+      // Split opcional entre inventarios (propietario): { distribuciones: { producto_id: cantidad_para_mayorista } }
+      // Lo no asignado va al inventario minorista (stock_actual), como siempre.
+      const distribuciones = req.body?.distribuciones || {};
+
       const detalles = await db.all(`
       SELECT producto_id, cantidad, precio_unitario
       FROM compra_detalles 
@@ -207,6 +213,9 @@ const compraController = {
     `, [id]);
 
       await db.run('BEGIN TRANSACTION');
+
+      // Productos cuyo costo cambia en esta compra (para recálculo en cascada D3)
+      const productosActualizados = new Set();
 
       try {
         for (const d of detalles) {
@@ -220,38 +229,60 @@ const compraController = {
           WHERE p.id = ?
         `, [d.producto_id]);
 
-          let cantidadConvertida = d.cantidad;
+          let cantidadVentaTotal = d.cantidad;
 
           if (producto.unidad_compra_id && producto.unidad_venta_id &&
             producto.unidad_compra_id !== producto.unidad_venta_id &&
             producto.coef_compra && producto.coef_venta) {
             const factor = producto.coef_compra / producto.coef_venta;
-            cantidadConvertida = d.cantidad * factor;
+            cantidadVentaTotal = d.cantidad * factor;
           }
 
-          await db.run(
-            'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
-            [cantidadConvertida, d.producto_id]
-          );
+          // Split entre inventarios (por defecto todo a minorista).
+          // Mayorista trabaja en unidad de COMPRA (propietario); minorista en unidad de VENTA.
+          const factorVenta = cantidadVentaTotal / d.cantidad; // cuántas unidades de venta por unidad de compra
+          let cantMayorista = Math.min(parseFloat(distribuciones[d.producto_id]) || 0, d.cantidad); // en unidad de compra
+          const cantMinoristaCompra = d.cantidad - cantMayorista; // resto en unidad de compra
+          const cantMinoristaVenta = cantMinoristaCompra * factorVenta; // a unidad de venta
 
-          await db.run(`
-          INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id)
-          VALUES (?, 'compra', ?, ?, 1)
-        `, [d.producto_id, cantidadConvertida, id]);
+          if (cantMinoristaVenta > 0) {
+            await db.run(
+              'UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?',
+              [cantMinoristaVenta, d.producto_id]
+            );
+            await db.run(`
+            INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, inventario)
+            VALUES (?, 'compra', ?, ?, ?, 'minorista')
+          `, [d.producto_id, cantMinoristaVenta, id, req.usuario.id]);
+          }
 
-          // Actualizar costo del producto
+          if (cantMayorista > 0) {
+            await db.run(
+              'UPDATE productos SET stock_mayorista = stock_mayorista + ? WHERE id = ?',
+              [cantMayorista, d.producto_id]
+            );
+            await db.run(`
+            INSERT INTO movimientos_stock (producto_id, tipo, cantidad, referencia_id, usuario_id, inventario)
+            VALUES (?, 'compra', ?, ?, ?, 'mayorista')
+          `, [d.producto_id, cantMayorista, id, req.usuario.id]);
+          }
+
+          // Actualizar costo del producto (D3: último costo vive en productos.costo_base)
           const precioUnitarioVenta = producto.unidad_compra_id !== producto.unidad_venta_id && producto.coef_compra && producto.coef_venta
             ? d.precio_unitario / (producto.coef_compra / producto.coef_venta)
             : d.precio_unitario;
 
-          await db.run(`
-          INSERT INTO producto_costos (producto_id, costo_base) VALUES (?, ?) 
-          ON CONFLICT(producto_id) DO UPDATE SET costo_base = excluded.costo_base
-        `, [d.producto_id, precioUnitarioVenta]);
+          await db.run('UPDATE productos SET costo_base = ? WHERE id = ?', [precioUnitarioVenta, d.producto_id]);
+          productosActualizados.add(d.producto_id);
         }
 
         await db.run('UPDATE compras SET estado_inventario = ? WHERE id = ?', ['completado', id]);
         await db.run('COMMIT');
+
+        // Recálculo en cascada: compuestos que usan estos ingredientes (D3)
+        for (const pid of productosActualizados) {
+          await costos.recalcularPorIngrediente(db, pid);
+        }
 
         res.json({ message: 'Compra llevada a stock exitosamente' });
 
@@ -273,6 +304,12 @@ const compraController = {
       const { id } = req.params;
       const { monto, metodo_pago, referencia } = req.body;
 
+      // Validaciones (B13)
+      const montoNum = parseFloat(monto);
+      if (!montoNum || montoNum <= 0) {
+        return res.status(400).json({ error: 'El monto debe ser mayor que cero' });
+      }
+
       // Obtener compra actual
       const compra = await db.get('SELECT total, pagado FROM compras WHERE id = ?', [id]);
 
@@ -280,7 +317,12 @@ const compraController = {
         return res.status(404).json({ error: 'Compra no encontrada' });
       }
 
-      const nuevoPagado = (compra.pagado || 0) + monto;
+      const pendiente = compra.total - (compra.pagado || 0);
+      if (montoNum > pendiente + 0.009) {
+        return res.status(400).json({ error: `El monto excede lo pendiente (${pendiente.toFixed(2)})` });
+      }
+
+      const nuevoPagado = (compra.pagado || 0) + montoNum;
       let estado_pago = 'parcial';
       if (nuevoPagado >= compra.total) {
         estado_pago = 'pagado';
@@ -291,7 +333,19 @@ const compraController = {
         [nuevoPagado, estado_pago, id]
       );
 
-      // Aquí podrías registrar el pago en una tabla de pagos
+      // Si el pago es por transferencia → sale del banco (movimiento bancario)
+      if (metodo_pago === 'transferencia') {
+        const { moneda, tasa_cambio } = req.body;
+        const mon = moneda === 'USD' ? 'USD' : 'CUP';
+        const tasa = parseFloat(tasa_cambio) || 0;
+        if (mon === 'USD' && tasa <= 0) {
+          return res.status(400).json({ error: 'Indica la tasa de cambio acordada para el pago en USD' });
+        }
+        await db.run(`
+          INSERT INTO movimientos_bancarios (tipo, monto, fecha, descripcion, cuenta, moneda, tasa_cambio, referencia, usuario_id)
+          VALUES ('compra_transferencia', ?, date('now', 'localtime'), ?, 'banco', ?, ?, ?, ?)
+        `, [montoNum, `Pago compra #${id}`, mon, mon === 'USD' ? tasa : 1, referencia || null, req.usuario.id]);
+      }
 
       res.json({ message: 'Pago registrado exitosamente' });
 

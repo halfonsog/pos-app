@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const proveedorController = require('../controllers/proveedorController');
 const authMiddleware = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
-// Proteger todas las rutas de ventas
-router.use(authMiddleware);
+// Gestión de proveedores: solo administradores
+router.use(authMiddleware, requireRole('admin'));
 
 // GET /api/proveedores
 router.get('/', proveedorController.listar);

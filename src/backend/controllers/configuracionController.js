@@ -1,4 +1,5 @@
 const { getDb } = require('../models/db');
+const costos = require('../utils/costos');
 
 const configuracionController = {
 
@@ -10,27 +11,28 @@ const configuracionController = {
   obtenerGeneral: async (req, res, next) => {
     try {
       const db = await getDb();
-      const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+      const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
 
       if (!config) {
-        await db.run('INSERT INTO configuracion_general (id, ventas_proyectadas, margen_recomendado, impuesto_ventas,impuesto_ganancia) VALUES (1, 250000, 20, 15, 35)');
-        const nuevo = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+        await db.run('INSERT INTO parametros_contables (id, ventas_proyectadas, margen_recomendado, impuesto_ventas,impuesto_ganancia) VALUES (1, 250000, 20, 15, 35)');
+        const nuevo = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
         return res.json(nuevo);
       }
 
       const s = await db.get('SELECT SUM(valor_mensual) as total FROM configuracion_gastos WHERE activo = 1');
       const gastosFijos = s?.total || 0;
       const ventas = config.ventas_proyectadas || 250000;
-      const margenRec = (config.margen_recomendado || 20) / 100;
-      const impuesto = (config.impuesto_ventas || 15) / 100;
 
-      // v = volumen de ventas - (impuesto + margen) * volumen de ventas
-      const v = ventas - (impuesto + margenRec) * ventas;
+      // % de gastos = (Σ gastos activos + gasto financiero del mes) ÷ ventas_proyectadas
+      // (fórmula del propietario, D3; el gasto financiero sale de préstamos/inversiones, m020)
+      const ahora = new Date();
+      const { gastoFinancieroMes } = require('./prestamoInversionController');
+      const gastoFinanciero = await gastoFinancieroMes(db, ahora.getFullYear(), ahora.getMonth() + 1);
 
-      // % de gastos fijos = s / v * 100
-      const porcentajeGastos = v > 0 ? (gastosFijos / v) * 100 : 0;
+      const porcentajeGastos = ventas > 0 ? ((gastosFijos + gastoFinanciero) / ventas) * 100 : 0;
 
       config.total_gastos_fijos = gastosFijos;
+      config.gasto_financiero_mes = gastoFinanciero;
       config.porcentaje_gastos = Math.round(porcentajeGastos * 100) / 100; // Redondear a 2 decimales
 
       res.json(config);
@@ -43,14 +45,36 @@ const configuracionController = {
   actualizarGeneral: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta, impuesto_ganancia } = req.body;
+      const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta, impuesto_ganancia,
+              salario_minimo, base_contribucion_especial, limite_escala_retencion,
+              porciento_declarar, dia_pago_bonos } = req.body;
+
+      // Leer actuales para no pisar con undefined los campos no enviados
+      const actual = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
 
       await db.run(`
-      UPDATE configuracion_general 
+      UPDATE parametros_contables 
       SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, 
-          redondeo_venta = ?, impuesto_ganancia = ?, updated_at = CURRENT_TIMESTAMP
+          redondeo_venta = ?, impuesto_ganancia = ?,
+          salario_minimo = ?, base_contribucion_especial = ?, limite_escala_retencion = ?,
+          porciento_declarar = ?, dia_pago_bonos = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
-    `, [ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta || 5, impuesto_ganancia]);
+    `, [
+        ventas_proyectadas ?? actual.ventas_proyectadas,
+        margen_recomendado ?? actual.margen_recomendado,
+        impuesto_ventas ?? actual.impuesto_ventas,
+        redondeo_venta ?? actual.redondeo_venta ?? 5,
+        impuesto_ganancia ?? actual.impuesto_ganancia,
+        salario_minimo ?? actual.salario_minimo,
+        base_contribucion_especial ?? actual.base_contribucion_especial,
+        limite_escala_retencion ?? actual.limite_escala_retencion,
+        porciento_declarar ?? actual.porciento_declarar ?? 100,
+        dia_pago_bonos ?? actual.dia_pago_bonos ?? 5
+      ]);
+
+      // D3: cambio de parámetros → recalcular precio_recomendado de todos los productos
+      await costos.recalcularTodosLosPrecios(db);
 
       res.json({ message: 'Configuración actualizada correctamente' });
     } catch (error) {
@@ -95,6 +119,9 @@ const configuracionController = {
         [concepto, valor_mensual]
       );
 
+      // D3: los gastos fijos alimentan el % de absorción → recalcular precios recomendados
+      await costos.recalcularTodosLosPrecios(db);
+
       res.status(201).json({
         id: result.lastID,
         message: 'Gasto creado correctamente'
@@ -117,6 +144,8 @@ const configuracionController = {
         WHERE id = ?
       `, [concepto, valor_mensual, activo ? 1 : 0, id]);
 
+      await costos.recalcularTodosLosPrecios(db);
+
       res.json({ message: 'Gasto actualizado correctamente' });
     } catch (error) {
       next(error);
@@ -130,6 +159,8 @@ const configuracionController = {
       const { id } = req.params;
 
       await db.run('DELETE FROM configuracion_gastos WHERE id = ?', [id]);
+
+      await costos.recalcularTodosLosPrecios(db);
 
       res.json({ message: 'Gasto eliminado correctamente' });
     } catch (error) {
@@ -184,7 +215,12 @@ const configuracionController = {
   listarCategorias: async (req, res, next) => {
     try {
       const db = await getDb();
-      const categorias = await db.all('SELECT * FROM categorias ORDER BY nombre');
+      const categorias = await db.all(`
+        SELECT c.*, p.nombre AS padre_nombre
+        FROM categorias c
+        LEFT JOIN categorias p ON c.padre_id = p.id
+        ORDER BY COALESCE(c.padre_id, c.id), c.padre_id IS NOT NULL, c.nombre
+      `);
       res.json(categorias);
     } catch (error) {
       next(error);
@@ -195,10 +231,16 @@ const configuracionController = {
   crearCategoria: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { nombre, descripcion } = req.body;
+      const { nombre, descripcion, padre_id } = req.body;
       if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
 
-      const result = await db.run('INSERT INTO categorias (nombre, descripcion) VALUES (?, ?)', [nombre, descripcion || null]);
+      if (padre_id) {
+        const padre = await db.get('SELECT id FROM categorias WHERE id = ?', [padre_id]);
+        if (!padre) return res.status(400).json({ error: 'La categoría padre no existe' });
+      }
+
+      const result = await db.run('INSERT INTO categorias (nombre, descripcion, padre_id) VALUES (?, ?, ?)',
+        [nombre, descripcion || null, padre_id || null]);
       res.status(201).json({ id: result.lastID, message: 'Categoría creada' });
     } catch (error) {
       next(error);
@@ -210,8 +252,30 @@ const configuracionController = {
     try {
       const db = await getDb();
       const { id } = req.params;
-      const { nombre, descripcion } = req.body;
-      await db.run('UPDATE categorias SET nombre = ?, descripcion = ? WHERE id = ?', [nombre, descripcion || null, id]);
+      const { nombre, descripcion, padre_id } = req.body;
+
+      if (padre_id !== undefined && padre_id !== null && padre_id !== '') {
+        // Anti-ciclo: el padre no puede ser la propia categoría ni una descendiente (D8)
+        if (parseInt(padre_id) === parseInt(id)) {
+          return res.status(400).json({ error: 'Una categoría no puede ser su propia padre' });
+        }
+        const ciclo = await db.get(`
+          WITH RECURSIVE ancestros(aid) AS (
+            SELECT padre_id AS aid FROM categorias WHERE id = ?
+            UNION
+            SELECT c.padre_id FROM categorias c
+            JOIN ancestros a ON c.id = a.aid
+            WHERE c.padre_id IS NOT NULL
+          )
+          SELECT aid FROM ancestros WHERE aid = ? LIMIT 1
+        `, [padre_id, id]);
+        if (ciclo) {
+          return res.status(400).json({ error: 'No se puede: se formaría un ciclo en las categorías' });
+        }
+      }
+
+      await db.run('UPDATE categorias SET nombre = ?, descripcion = ?, padre_id = ? WHERE id = ?',
+        [nombre, descripcion || null, (padre_id === '' || padre_id === undefined) ? null : padre_id, id]);
       res.json({ message: 'Categoría actualizada' });
     } catch (error) {
       next(error);
@@ -252,6 +316,10 @@ const configuracionController = {
         return res.status(400).json({ error: 'Tipo inválido' });
       }
 
+      if (parseFloat(coeficiente) <= 0) {
+        return res.status(400).json({ error: 'El coeficiente de conversión respecto a la unidad base debe ser mayor que cero' });
+      }
+
       const result = await db.run(
         'INSERT INTO unidades (tipo, nombre, abreviatura, coeficiente) VALUES (?, ?, ?, ?)',
         [tipo, nombre, abreviatura, coeficiente]
@@ -276,9 +344,31 @@ const configuracionController = {
 
       const { tipo, nombre, abreviatura, coeficiente, activo } = req.body;
 
+      if (coeficiente !== undefined && parseFloat(coeficiente) <= 0) {
+        return res.status(400).json({ error: 'El coeficiente debe ser mayor que cero' });
+      }
+
+      // Si la unidad está en uso por productos, NO se puede cambiar el tipo
+      // (rompería las conversiones compra↔venta de esos productos)
+      const actual = await db.get('SELECT tipo FROM unidades WHERE id = ?', [id]);
+      if (!actual) {
+        return res.status(404).json({ error: 'Unidad no encontrada' });
+      }
+      if (tipo !== undefined && tipo !== actual.tipo) {
+        const enUso = await db.get(
+          'SELECT COUNT(*) as count FROM productos WHERE unidad_venta_id = ? OR unidad_compra_id = ?',
+          [id, id]
+        );
+        if (enUso.count > 0) {
+          return res.status(400).json({
+            error: 'No se puede cambiar el tipo: hay productos usando esta unidad. Crea una unidad nueva del tipo deseado.'
+          });
+        }
+      }
+
       await db.run(
         'UPDATE unidades SET tipo = ?, nombre = ?, abreviatura = ?, coeficiente = ?, activo = ? WHERE id = ?',
-        [tipo, nombre, abreviatura, coeficiente, activo ? 1 : 0, id]
+        [tipo || actual.tipo, nombre, abreviatura, coeficiente, activo ? 1 : 0, id]
       );
 
       res.json({ message: 'Unidad actualizada' });

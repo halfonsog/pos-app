@@ -4,8 +4,12 @@ const { open } = require('sqlite');
 const path = require('path');
 const fs = require('fs');
 
-// Forzar ruta absoluta
-const dbPath = path.resolve(__dirname, '../../../database/database.db');
+// Ruta de la BD: respeta DB_PATH (.env) si existe; si no, la ubicación por defecto.
+// Las rutas relativas de DB_PATH se resuelven contra la raíz del proyecto.
+const envPath = process.env.DB_PATH;
+const dbPath = envPath
+  ? (path.isAbsolute(envPath) ? envPath : path.resolve(__dirname, '../../../', envPath))
+  : path.resolve(__dirname, '../../../database/database.db');
 
 console.log('📁 Ruta absoluta de BD:', dbPath);
 

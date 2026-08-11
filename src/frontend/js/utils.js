@@ -61,12 +61,12 @@ const Utils = {
   * @param {string} currency - Símbolo de moneda (no se usa, solo para compatibilidad)
   * @returns {string} Monto formateado
   */
-  formatMoney: function (amount, currency = '') {
+  formatMoney: function (amount, decimals = 2, currency = '') {
     if (amount === null || amount === undefined || isNaN(amount)) {
       amount = 0;
     }
 
-    const formatted = Utils.formatNumber(amount, 2);
+    const formatted = Utils.formatNumber(amount, decimals);
 
     // Si se especifica moneda, añadirla (opcional)
     if (currency) {

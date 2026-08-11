@@ -34,9 +34,12 @@ Compras.obtenerEstadisticas = async function () {
     const pendientesStock = compras.filter(c => c.estado_inventario === 'pendiente');
     const totalCompras = compras.reduce((sum, c) => sum + c.total, 0);
     const totalPagado = compras.reduce((sum, c) => sum + (c.pagado || 0), 0);
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const comprasDelMes = compras.filter(c => (c.fecha_compra || c.created_at || '').slice(0, 7) === mesActual);
 
     return {
       total: compras.length,
+      comprasDelMes: comprasDelMes.length,
       pendientesPago: pendientesPago.length,
       pendientesStock: pendientesStock.length,
       totalCompras: totalCompras,
@@ -89,30 +92,42 @@ Compras.renderIndexLayout = function (stats) {
             </div>
           </div>
           
-          <!-- Cards de Resumen -->
+          <!-- Cards de Resumen (estilo dashboard principal) -->
           <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card">
-                <h4>${stats.total}</h4>
-                <p>Total Compras</p>
+              <div class="summary-card border-primary clickable" data-route="compras/listado" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-primary">${stats.comprasDelMes ?? stats.total}</h3>
+                  <p class="summary-label"><i class="fas fa-shopping-cart me-1"></i>Compras del Mes</p>
+                </div>
+                <div class="summary-details"><small>este mes</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-warning">
-                <h4>${stats.pendientesPago}</h4>
-                <p>Pendientes Pago</p>
+              <div class="summary-card border-info clickable" data-route="compras/listado?filtro=stock-pendiente" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-info">${stats.pendientesStock}</h3>
+                  <p class="summary-label"><i class="fas fa-warehouse me-1"></i>Pendientes Stock</p>
+                </div>
+                <div class="summary-details"><small>sin inventariar</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-info">
-                <h4>${stats.pendientesStock}</h4>
-                <p>Pendientes Stock</p>
+              <div class="summary-card border-warning clickable" data-route="compras/listado?filtro=pago-pendiente" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-warning">${stats.pendientesPago}</h3>
+                  <p class="summary-label"><i class="fas fa-money-bill me-1"></i>Pendientes Pago</p>
+                </div>
+                <div class="summary-details"><small>por pagar</small></div>
               </div>
             </div>
             <div class="col-6 col-md-3">
-              <div class="summary-mini-card text-danger">
-                <h4>${Utils.formatMoney(stats.saldoPendiente)}</h4>
-                <p>Saldo Pendiente</p>
+              <div class="summary-card border-danger clickable" data-route="compras/listado?filtro=pago-pendiente" style="cursor:pointer">
+                <div class="summary-content text-center">
+                  <h3 class="summary-number text-danger">${Utils.formatMoney(stats.saldoPendiente, 0)}</h3>
+                  <p class="summary-label"><i class="fas fa-exclamation-circle me-1"></i>Saldo Pendiente</p>
+                </div>
+                <div class="summary-details"><small>cuentas por pagar</small></div>
               </div>
             </div>
           </div>
@@ -1529,7 +1544,21 @@ Compras.renderPagarLayout = function (compra) {
                         <option value="transferencia">Transferencia</option>
                       </select>
                     </div>
-                    
+
+                    <div class="row g-2 mb-3">
+                      <div class="col-6">
+                        <label class="form-label">Moneda</label>
+                        <select class="form-select" id="monedaPago">
+                          <option value="CUP">CUP (pesos)</option>
+                          <option value="USD">USD (dólares)</option>
+                        </select>
+                      </div>
+                      <div class="col-6" id="tasaPagoWrap" style="display:none">
+                        <label class="form-label">Tasa acordada (CUP por 1 USD)</label>
+                        <input type="number" class="form-control" id="tasaPago" step="0.01" min="0.01">
+                      </div>
+                    </div>
+
                     <div class="mb-3">
                       <label class="form-label">Referencia (opcional)</label>
                       <input type="text" class="form-control" id="referenciaPago">
@@ -1557,6 +1586,11 @@ Compras.bindPagarEvents = function (compra) {
   $('#btnVolver').on('click', () => ViewManager.volver());
   $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
 
+  // Mostrar tasa solo si el pago es en USD
+  $('#monedaPago').on('change', function () {
+    $('#tasaPagoWrap').toggle($(this).val() === 'USD');
+  });
+
   $('#pagoForm').on('submit', async function (e) {
     e.preventDefault();
 
@@ -1572,10 +1606,22 @@ Compras.bindPagarEvents = function (compra) {
       return;
     }
 
+    const moneda = $('#monedaPago').val();
+    let tasa = 1;
+    if (moneda === 'USD') {
+      tasa = parseFloat($('#tasaPago').val());
+      if (!tasa || tasa <= 0) {
+        Toast.warning('Indica la tasa de cambio acordada para el pago en USD');
+        return;
+      }
+    }
+
     const data = {
       monto: monto,
       metodo_pago: $('#metodoPagoPagar').val(),
-      referencia: $('#referenciaPago').val() || null
+      referencia: $('#referenciaPago').val() || null,
+      moneda: moneda,
+      tasa_cambio: tasa
     };
 
     try {
@@ -1645,11 +1691,6 @@ Compras.renderNavbar = function (user) {
 
 Compras.bindIndexEvents = function () {
   $('[data-route]').on('click', function () {
-    const route = $(this).data('route');
-    if (route) ViewManager.navegar(route);
-  });
-
-  $('.clickable[data-route]').on('click', function () {
     const route = $(this).data('route');
     if (route) ViewManager.navegar(route);
   });

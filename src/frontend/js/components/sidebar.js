@@ -10,12 +10,14 @@ Sidebar.render = function (activeModule) {
   const adminModules = [
     { id: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
     { id: 'proveedores', icon: 'fa-truck', label: 'Proveedores' },
+    { id: 'clientes', icon: 'fa-users', label: 'Clientes' },
     { id: 'productos', icon: 'fa-box', label: 'Productos' },
     { id: 'compras', icon: 'fa-shopping-cart', label: 'Compras' },
     { id: 'inventario', icon: 'fa-warehouse', label: 'Inventario' },
     { id: 'ventas', icon: 'fa-cash-register', label: 'Ventas' },
+    { id: 'mayoristas', icon: 'fa-handshake', label: 'Mayoristas' },
     { id: 'reportes', icon: 'fa-chart-bar', label: 'Reportes' },
-    { id: 'promociones', icon: 'fa-tags', label: 'Promociones' },
+    { id: 'contabilidad', icon: 'fa-calculator', label: 'Contabilidad' },
     { id: 'configuracion', icon: 'fa-cog', label: 'Configuración' },
     { id: 'mantenimiento', icon: 'fa-tools', label: 'Mantenimiento' }
   ];
@@ -24,7 +26,8 @@ Sidebar.render = function (activeModule) {
     { id: 'vendedor', icon: 'fa-home', label: 'Inicio' },
     { id: 'ventas/pos', icon: 'fa-cash-register', label: 'Nueva Venta' },
     { id: 'ventas/listado', icon: 'fa-list', label: 'Mis Ventas' },
-    { id: 'vendedor/stock', icon: 'fa-boxes', label: 'Consultar Stock' }
+    { id: 'vendedor/stock', icon: 'fa-boxes', label: 'Consultar Stock' },
+    { id: 'clientes', icon: 'fa-users', label: 'Clientes' }
   ];
 
   const modules = isAdmin ? adminModules : vendedorModules;
@@ -41,7 +44,7 @@ Sidebar.render = function (activeModule) {
   return `
     <nav class="sidebar bg-dark text-white p-3" id="sidebar">
       <h4 class="text-white mb-4">
-        <i class="fas fa-store me-2"></i>${isAdmin ? 'POS Admin' : 'POS Vendedor'}
+        <i class="fas fa-store me-2"></i>POS Manager
       </h4>
       <div class="nav flex-column">
         ${items}

@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const mantenimientoController = require('../controllers/mantenimientoController');
 const uploadBackup = require('../middleware/uploadBackup');
+const authMiddleware = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
+
+// Operaciones de alto riesgo: solo administradores autenticados
+router.use(authMiddleware, requireRole('admin'));
 
 router.post('/eliminar-inactivos', mantenimientoController.eliminarInactivos);
 router.post('/eliminar-anio', mantenimientoController.eliminarAnio);

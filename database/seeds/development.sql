@@ -28,10 +28,15 @@ INSERT INTO tipos_gasto (nombre, descripcion, porcentaje_default) VALUES
     ('Gastos fijos', 'Electricidad, agua, alquiler', 15.0),
     ('Merma', 'Pérdida estimada por deterioro', 5.0);
 
+-- Empleados (antes que usuarios: todo usuario pertenece a un empleado — D18)
+INSERT INTO empleados (nombre, cargo, salario_mensual) VALUES
+    ('Administrador del Sistema', 'administrador', 0),
+    ('Juan Pérez', 'vendedor', 0);
+
 -- Usuarios (contraseñas se hashean después)
-INSERT INTO usuarios (username, password_hash, nombre_completo, rol) VALUES 
-    ('admin', 'temp_hash_admin', 'Administrador del Sistema', 'admin'),
-    ('vendedor', 'temp_hash_vendedor', 'Juan Pérez', 'vendedor');
+INSERT INTO usuarios (username, password_hash, nombre_completo, rol, empleado_id) VALUES 
+    ('admin', 'temp_hash_admin', 'Administrador del Sistema', 'admin', 1),
+    ('vendedor', 'temp_hash_vendedor', 'Juan Pérez', 'vendedor', 2);
 
 -- Proveedores
 INSERT INTO proveedores (nombre, id_fiscal, direccion, telefono, termino_pago_id) VALUES 

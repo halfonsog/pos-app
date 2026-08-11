@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const ventaController = require('../controllers/ventaController');
 const authMiddleware = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
-// Proteger todas las rutas de ventas
+// Todas las rutas de ventas requieren autenticación (cualquier rol puede vender)
 router.use(authMiddleware);
 
 // Turnos
@@ -17,6 +18,8 @@ router.get('/mi-turno', ventaController.miTurno);
 router.get('/', ventaController.listarVentas);
 router.get('/:id', ventaController.obtenerVenta);
 router.post('/', ventaController.crearVenta);
-router.post('/:id/anular', ventaController.anularVenta);
+
+// Anular una venta (revierte stock): solo admin
+router.post('/:id/anular', requireRole('admin'), ventaController.anularVenta);
 
 module.exports = router;

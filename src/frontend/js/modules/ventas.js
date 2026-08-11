@@ -18,6 +18,14 @@ Ventas.index = async function () {
     const turno = await API.ventas.turnoActual();
     const ventasHoy = turno.abierto ? turno.ventas : { total_ventas: 0, total_general: 0 };
 
+    // Si el turno está abierto, cargar los productos vendidos (como en el cierre de turno)
+    let resumenTurno = null;
+    if (turno.abierto) {
+      try {
+        resumenTurno = await API.ventas.resumenTurno(turno.id);
+      } catch (e) { resumenTurno = null; }
+    }
+
     const layout = `
       <div class="app-wrapper">
         ${Sidebar.render('ventas')}
@@ -41,21 +49,30 @@ Ventas.index = async function () {
                 </div>
               </div>
               <div class="col-md-3">
-                <div class="summary-mini-card">
-                  <h4>${ventasHoy.total_ventas || 0}</h4>
-                  <p>Ventas Hoy</p>
+                <div class="summary-card border-primary clickable" data-route="ventas/listado" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-primary">${ventasHoy.total_ventas || 0}</h3>
+                    <p class="summary-label"><i class="fas fa-receipt me-1"></i>Ventas Hoy</p>
+                  </div>
+                  <div class="summary-details"><small>transacciones</small></div>
                 </div>
               </div>
               <div class="col-md-3">
-                <div class="summary-mini-card text-success">
-                  <h4>${Utils.formatMoney(ventasHoy.total_general || 0)}</h4>
-                  <p>Total Facturado</p>
+                <div class="summary-card border-success clickable" data-route="ventas/listado" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-success">${Utils.formatMoney(ventasHoy.total_general || 0, 0)}</h3>
+                    <p class="summary-label"><i class="fas fa-dollar-sign me-1"></i>Total Facturado</p>
+                  </div>
+                  <div class="summary-details"><small>hoy</small></div>
                 </div>
               </div>
               <div class="col-md-3">
-                <div class="summary-mini-card text-primary">
-                  <h4>${Utils.formatMoney(turno.monto_apertura || 0)}</h4>
-                  <p>Monto Apertura</p>
+                <div class="summary-card border-info" style="cursor:default">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-info">${Utils.formatMoney(turno.monto_apertura || 0, 0)}</h3>
+                    <p class="summary-label"><i class="fas fa-unlock me-1"></i>Monto Apertura</p>
+                  </div>
+                  <div class="summary-details"><small>fondo de caja</small></div>
                 </div>
               </div>
             </div>
@@ -83,7 +100,37 @@ Ventas.index = async function () {
                   <i class="fas fa-list me-1"></i>Historial
                 </button>
               </div>
+              <div class="col-6 col-md-3">
+                <button class="btn btn-outline-info w-100" data-route="ventas/encargos">
+                  <i class="fas fa-bookmark me-1"></i>Encargos
+                </button>
+              </div>
             </div>
+
+            ${turno.abierto && resumenTurno?.productosVendidos?.length > 0 ? `
+            <!-- Productos vendidos en el turno abierto (como en el cierre de turno) -->
+            <div class="row g-4">
+              <div class="col-12">
+                <div class="dashboard-card">
+                  <div class="card-header-custom"><h5><i class="fas fa-shopping-bag me-2"></i>Productos Vendidos (turno actual)</h5></div>
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                      <thead class="table-light"><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Total</th></tr></thead>
+                      <tbody>
+                        ${resumenTurno.productosVendidos.map(p => `
+                          <tr>
+                            <td>${p.nombre}</td>
+                            <td class="text-end">${Utils.formatNumber(p.cantidad_total, 1)} ${p.unidad_venta_abrev || ''}</td>
+                            <td class="text-end">${Utils.formatMoney(p.total_vendido, 0)}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            ` : ''}
           </div>
         </main>
       </div>
@@ -236,7 +283,7 @@ Ventas.cerrarTurno = async function () {
                       <span>${Utils.formatMoney(f.ventaTotal)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                      <span>(-) Impuestos (${Utils.formatMoney(f.impuestos / f.ventaTotal) * 100}):</span>
+                      <span>(-) Impuestos (${(f.impuestos / f.ventaTotal * 100).toFixed(1)}%):</span>
                       <span>${Utils.formatMoney(f.impuestos)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 fw-bold">
@@ -245,15 +292,15 @@ Ventas.cerrarTurno = async function () {
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Costo base (${Utils.formatMoney(f.costoBase / f.ventaNeta) * 100}):</span>
+                      <span>(-) Costo base (${(f.costoBase / f.ventaNeta * 100).toFixed(1)}%):</span>
                       <span>${Utils.formatMoney(f.costoBase)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Gastos fijos (${Utils.formatMoney(f.gastosFijos / f.ventaNeta) * 100}):</span>
+                      <span>(-) Gastos fijos (${(f.gastosFijos / f.ventaNeta * 100).toFixed(1)}%):</span>
                       <span>${Utils.formatMoney(f.gastosFijos)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Margen (${Utils.formatMoney(f.margen / f.ventaNeta) * 100}):</span>
+                      <span>(=) Margen (${(f.margen / f.ventaNeta * 100).toFixed(1)}%):</span>
                       <span class="text-success">${Utils.formatMoney(f.margen)}</span>
                     </div>
                     <hr>
@@ -267,6 +314,40 @@ Ventas.cerrarTurno = async function () {
                     </div>
                   </div>
                 </div>
+
+                ${resumen.desglose_prioridades ? `
+                <!-- Desglose del recaudado por prioridades + % gastos proyectado vs real -->
+                <div class="card mb-4">
+                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Desglose por Prioridades</h5></div>
+                  <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                      <thead class="table-light"><tr><th class="text-center">#</th><th>Prioridad</th><th class="text-end">Monto</th></tr></thead>
+                      <tbody>
+                        ${resumen.desglose_prioridades.prioridades.map(p => `
+                          <tr>
+                            <td class="text-center">${p.orden}</td>
+                            <td>${p.concepto}</td>
+                            <td class="text-end">${Utils.formatMoney(p.monto)}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                      <tfoot class="table-light">
+                        <tr><th colspan="2">Recaudado del turno</th><th class="text-end">${Utils.formatMoney(resumen.desglose_prioridades.recaudado)}</th></tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div class="card-footer d-flex justify-content-around text-center">
+                    <div>
+                      <small class="text-muted">% gastos proyectado</small>
+                      <h5 class="mb-0">${resumen.desglose_prioridades.comparacion_gastos.proyectado_pct}%</h5>
+                    </div>
+                    <div>
+                      <small class="text-muted">% gastos real del turno</small>
+                      <h5 class="mb-0 ${resumen.desglose_prioridades.comparacion_gastos.real_pct > resumen.desglose_prioridades.comparacion_gastos.proyectado_pct ? 'text-danger' : 'text-success'}">${resumen.desglose_prioridades.comparacion_gastos.real_pct}%</h5>
+                    </div>
+                  </div>
+                </div>
+                ` : ''}
               </div>
               
               <div class="col-lg-6">
@@ -565,11 +646,20 @@ Ventas.bindPosEvents = function () {
     Ventas.renderProductosGrid(filtrados);
   });
 
-  // Filtros
+  // Filtros (D8: filtrar por categoría padre incluye las subcategorías)
   $('#filtrosCategoria').on('click', '[data-filtro-cat]', function () {
     const cat = $(this).data('filtro-cat');
 
-    const filtrados = (cat === 'todas') ? Ventas._productosEnVenta : Ventas._productosEnVenta.filter(p => p.categoria_nombre === cat);
+    let filtrados;
+    if (cat === 'todas') {
+      filtrados = Ventas._productosEnVenta;
+    } else {
+      const catId = parseInt(cat);
+      const cats = Ventas._categoriasCache || [];
+      // Incluir la categoría seleccionada y sus subcategorías directas
+      const incluidas = new Set([catId, ...cats.filter(c => c.padre_id === catId).map(c => c.id)]);
+      filtrados = Ventas._productosEnVenta.filter(p => incluidas.has(p.categoria_id));
+    }
 
     $('#filtrosCategoria button').removeClass('active');
     $(this).addClass('active');
@@ -641,17 +731,23 @@ Ventas.cargarProductos = async function () {
   }
 };
 
-Ventas.cargaFiltrosCategorias = function () {
-  const categorias = [...new Set(Ventas._productosEnVenta.map(p => p.categoria_nombre).filter(Boolean))];
+Ventas.cargaFiltrosCategorias = async function () {
+  // Cargar categorías (con jerarquía, D8) si no están en caché
+  let cats = State.getCache('categorias');
+  if (!cats) {
+    try { cats = await API.categorias.listar(); State.setCache('categorias', cats); } catch (e) { cats = []; }
+  }
+  Ventas._categoriasCache = cats;
+
+  const idsEnVenta = new Set(Ventas._productosEnVenta.map(p => p.categoria_id).filter(Boolean));
+  // Mostrar categorías con productos propios o con productos en sus subcategorías
+  const visibles = cats.filter(c => c.activo && (idsEnVenta.has(c.id) || cats.some(h => h.padre_id === c.id && idsEnVenta.has(h.id))));
+
   $('#filtrosCategoria').html('<button class="btn btn-outline-secondary active" data-filtro-cat="todas"><b>Todas</b></button>');
   const botonesFiltro = [];
-  for (let i = 0; i < categorias.length; i++) {
-    const cat = categorias[i];
-    botonesFiltro.push(`<button class="btn btn-outline-secondary" data-filtro-cat="${cat}"><b>${cat}</b></button>`);
-    // limitadas categorias podran ser filtradas
-    if (i > 6) {
-      break;
-    }
+  for (let i = 0; i < visibles.length && i < 8; i++) {
+    const cat = visibles[i];
+    botonesFiltro.push(`<button class="btn btn-outline-secondary" data-filtro-cat="${cat.id}"><b>${cat.nombre}</b></button>`);
   }
   $('#filtrosCategoria').append(botonesFiltro.join(''));
 }
@@ -1028,9 +1124,13 @@ Ventas.initDataTable = function (ventas) {
   $.fn.dataTable.ext.errMode = 'none';
 
   const tableData = ventas.map(v => {
+    const tipoBadge = v.tipo_venta === 'mayorista'
+      ? `<span class="badge bg-warning text-dark">Mayorista</span>${v.cliente_nombre ? ` <small class="text-muted">${v.cliente_nombre}</small>` : ''}`
+      : '<span class="badge bg-light text-dark border">Minorista</span>';
     return [
       `#${v.id}`,
       Utils.formatearFecha(Utils.fechaISOToLocal(v.created_at), 'corto'),
+      tipoBadge,
       v.vendedor_nombre || '-',
       v.metodo_pago === 'efectivo' ? '<span class="badge bg-success">Efectivo</span>' : '<span class="badge bg-info">Tarjeta</span>',
       Utils.formatMoney(v.total),
@@ -1059,14 +1159,15 @@ Ventas.initDataTable = function (ventas) {
     columns: [
       { data: 0, title: 'ID' },
       { data: 1, title: 'Fecha' },
-      { data: 2, title: 'Vendedor' },
-      { data: 3, title: 'Método' },
-      { data: 4, title: 'Total', className: 'text-end' },
-      { data: 5, title: '', orderable: false, className: 'text-center' },
-      { data: 6, title: 'ID', visible: false },
-      { data: 7, title: 'TurnoID', visible: false }
+      { data: 2, title: 'Tipo' },
+      { data: 3, title: 'Vendedor' },
+      { data: 4, title: 'Método' },
+      { data: 5, title: 'Total', className: 'text-end' },
+      { data: 6, title: '', orderable: false, className: 'text-center' },
+      { data: 7, title: 'ID', visible: false },
+      { data: 8, title: 'TurnoID', visible: false }
     ],
-    order: [[6, 'desc']],
+    order: [[7, 'desc']],
     language: {
       decimal: ",", thousands: ".",
       processing: "Procesando...",
@@ -1333,6 +1434,7 @@ Ventas.renderListadoLayout = function (ventas, params) {
                 <tr>
                   <th>ID</th>
                   <th>Fecha</th>
+                  <th>Tipo</th>
                   <th>Vendedor</th>
                   <th>Método</th>
                   <th class="text-end">Total</th>
@@ -1617,15 +1719,15 @@ Ventas.verTurno = function (resumen) {
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Costo base (${Utils.formatMoney(f.costoBase / f.ventaNeta) * 100}):</span>
+                      <span>(-) Costo base (${f.ventaNeta > 0 ? (f.costoBase / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
                       <span>${Utils.formatMoney(f.costoBase)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Gastos fijos (${Utils.formatMoney(f.gastosFijos / f.ventaNeta) * 100}):</span>
+                      <span>(-) Gastos fijos (${f.ventaNeta > 0 ? (f.gastosFijos / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
                       <span>${Utils.formatMoney(f.gastosFijos)}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Margen (${Utils.formatMoney(f.margen / f.ventaNeta) * 100}):</span>
+                      <span>(=) Margen (${f.ventaNeta > 0 ? (f.margen / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
                       <span class="text-success">${Utils.formatMoney(f.margen)}</span>
                     </div>
                     <hr>
@@ -1639,6 +1741,40 @@ Ventas.verTurno = function (resumen) {
                     </div>
                 </div>
               </div>
+
+              ${resumen.desglose_prioridades ? `
+              <!-- Desglose del recaudado por prioridades + % gastos proyectado vs real -->
+              <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Desglose por Prioridades</h5></div>
+                <div class="card-body p-0">
+                  <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th class="text-center">#</th><th>Prioridad</th><th class="text-end">Monto</th></tr></thead>
+                    <tbody>
+                      ${resumen.desglose_prioridades.prioridades.map(p => `
+                        <tr>
+                          <td class="text-center">${p.orden}</td>
+                          <td>${p.concepto}</td>
+                          <td class="text-end">${Utils.formatMoney(p.monto)}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                    <tfoot class="table-light">
+                      <tr><th colspan="2">Recaudado del turno</th><th class="text-end">${Utils.formatMoney(resumen.desglose_prioridades.recaudado)}</th></tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div class="card-footer d-flex justify-content-around text-center">
+                  <div>
+                    <small class="text-muted">% gastos proyectado</small>
+                    <h5 class="mb-0">${resumen.desglose_prioridades.comparacion_gastos.proyectado_pct}%</h5>
+                  </div>
+                  <div>
+                    <small class="text-muted">% gastos real del turno</small>
+                    <h5 class="mb-0 ${resumen.desglose_prioridades.comparacion_gastos.real_pct > resumen.desglose_prioridades.comparacion_gastos.proyectado_pct ? 'text-danger' : 'text-success'}">${resumen.desglose_prioridades.comparacion_gastos.real_pct}%</h5>
+                  </div>
+                </div>
+              </div>
+              ` : ''}
             </div>
             
             <div class="col-lg-6">
@@ -1727,6 +1863,331 @@ Ventas.bindCommonEvents = function () {
     if ($(window).width() < 768) $('#sidebar').removeClass('show');
   });
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
+};
+
+// ============================================
+// ENCARGOS (pedidos minoristas, Sprint 6)
+// ============================================
+Ventas.encargos = async function (params) {
+  try {
+    Utils.showLoading('Cargando encargos...');
+    const pedidos = await API.mayoristas.listarPedidos('?tipo=minorista');
+
+    const estadoBadge = {
+      pendiente: '<span class="badge bg-warning text-dark">Pendiente</span>',
+      entregado: '<span class="badge bg-success">Entregado</span>',
+      cancelado: '<span class="badge bg-secondary">Cancelado</span>'
+    };
+
+    const filas = pedidos.map(p => `
+      <tr class="${p.vencido ? 'table-danger' : ''}" style="cursor:pointer" onclick="ViewManager.navegar('ventas/encargos/${p.id}')">
+        <td><strong>#${p.id}</strong>${p.vencido ? ' <span class="badge bg-danger">VENCIDO</span>' : ''}</td>
+        <td>${p.cliente_nombre || '—'}</td>
+        <td>${Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha), 'fecha')}</td>
+        <td>${p.fecha_vencimiento ? Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha_vencimiento), 'fecha') : '—'}</td>
+        <td class="text-center">${estadoBadge[p.estado] || p.estado}</td>
+        <td class="text-end fw-bold">${Utils.formatMoney(p.total)}</td>
+      </tr>
+    `).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          <nav class="navbar navbar-light bg-white border-bottom px-3">
+            <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+            <div class="d-flex align-items-center ms-auto">
+              <span class="me-3"><i class="fas fa-user me-1"></i>${State.getUser()?.nombre_completo || ''}</span>
+            </div>
+          </nav>
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#ventas">Ventas</a></li>
+              <li class="breadcrumb-item active">Encargos</li>
+            </ol></nav>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <h2 class="mb-0"><i class="fas fa-bookmark me-2"></i>Encargos</h2>
+              <button class="btn btn-primary" data-route="ventas/encargos/nuevo"><i class="fas fa-plus me-1"></i>Nuevo Encargo</button>
+            </div>
+            <div class="card"><div class="card-body p-0">
+              <table class="table table-hover mb-0">
+                <thead class="table-light">
+                  <tr><th>#</th><th>Cliente</th><th>Fecha</th><th>Vence</th><th class="text-center">Estado</th><th class="text-end">Total</th></tr>
+                </thead>
+                <tbody>${filas || '<tr><td colspan="6" class="text-center text-muted py-4">No hay encargos</td></tr>'}</tbody>
+              </table>
+            </div></div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindCommonEvents();
+    $('[data-route]').on('click', function () { const r = $(this).data('route'); if (r) ViewManager.navegar(r); });
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+    Toast.error('Error al cargar encargos');
+  }
+};
+
+Ventas.encargoNuevo = async function () {
+  try {
+    Utils.showLoading('Cargando...');
+    const productos = await API.productos.listar();
+    const validos = productos.filter(p => p.activo && p.precio_venta > 0);
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          <nav class="navbar navbar-light bg-white border-bottom px-3">
+            <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+            <div class="d-flex align-items-center ms-auto">
+              <span class="me-3"><i class="fas fa-user me-1"></i>${State.getUser()?.nombre_completo || ''}</span>
+            </div>
+          </nav>
+          <div class="container-fluid p-4">
+            <div class="d-flex align-items-center mb-4">
+              <button class="btn btn-outline-secondary me-3" id="btnVolver"><i class="fas fa-arrow-left me-1"></i>Volver</button>
+              <h2 class="mb-0"><i class="fas fa-bookmark me-2"></i>Nuevo Encargo</h2>
+            </div>
+            <div class="row">
+              <div class="col-lg-8">
+                <div class="card mb-3"><div class="card-body">
+                  <div class="row g-3">
+                    <div class="col-md-5">
+                      <label class="form-label">Nombre del cliente *</label>
+                      <input type="text" class="form-control" id="encCliente" placeholder="Quien encarga...">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Vencimiento</label>
+                      <input type="date" class="form-control" id="encVencimiento">
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Observaciones</label>
+                      <input type="text" class="form-control" id="encObs" placeholder="Teléfono, referencia...">
+                    </div>
+                  </div>
+                </div></div>
+                <div class="card">
+                  <div class="card-header d-flex gap-2 align-items-end">
+                    <div class="flex-grow-1">
+                      <select class="form-select form-select-sm" id="encProducto">
+                        <option value="">— Agregar producto —</option>
+                        ${validos.map(p => `<option value="${p.id}" data-precio="${p.precio_venta}" data-unidad="${p.unidad_venta_abrev || ''}">${p.nombre} (${Utils.formatMoney(p.precio_venta)})</option>`).join('')}
+                      </select>
+                    </div>
+                    <div style="width:110px"><input type="number" class="form-control form-control-sm" id="encCantidad" step="0.01" min="0.01" value="1"></div>
+                    <button class="btn btn-sm btn-primary" id="btnAgregarLinea"><i class="fas fa-plus"></i></button>
+                  </div>
+                  <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                      <thead class="table-light"><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Precio</th><th class="text-end">Total</th><th></th></tr></thead>
+                      <tbody id="lineasBody"><tr id="lineasVacio"><td colspan="5" class="text-center text-muted py-3">Agrega productos al encargo</td></tr></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-4">
+                <div class="card">
+                  <div class="card-header"><strong>Resumen</strong></div>
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between fs-4"><span>Total:</span><strong id="encTotal" class="text-primary">0.00</strong></div>
+                    <div class="d-grid mt-3"><button class="btn btn-primary" id="btnGuardarEncargo"><i class="fas fa-save me-1"></i>Guardar Encargo</button></div>
+                    <small class="text-muted d-block mt-2">Se cobra al entregar (efectivo o tarjeta). El stock se descuenta en ese momento.</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindCommonEvents();
+    $('#btnVolver').on('click', () => ViewManager.volver());
+
+    const lineas = [];
+    const actualizarTotal = () => {
+      const total = lineas.reduce((s, l) => s + l.total, 0);
+      $('#encTotal').text(Utils.formatMoney(total));
+    };
+
+    $('#btnAgregarLinea').on('click', function () {
+      const prodId = parseInt($('#encProducto').val());
+      const cantidad = parseFloat($('#encCantidad').val());
+      if (!prodId || !cantidad || cantidad <= 0) return Toast.warning('Selecciona producto y cantidad');
+
+      const opt = $('#encProducto option:selected');
+      const existente = lineas.find(l => l.producto_id === prodId);
+      if (existente) {
+        existente.cantidad += cantidad;
+        existente.total = existente.cantidad * existente.precio_unitario;
+      } else {
+        lineas.push({
+          producto_id: prodId, nombre: opt.text().split(' (')[0], unidad: opt.data('unidad'),
+          cantidad, precio_unitario: parseFloat(opt.data('precio')), total: parseFloat(opt.data('precio')) * cantidad
+        });
+      }
+
+      $('#lineasVacio').hide();
+      $('#lineasBody').find('tr.linea').remove();
+      lineas.forEach((l, i) => {
+        $('#lineasBody').append(`
+          <tr class="linea">
+            <td>${l.nombre}</td>
+            <td class="text-end">${Utils.formatNumber(l.cantidad, 2)} ${l.unidad}</td>
+            <td class="text-end">${Utils.formatMoney(l.precio_unitario)}</td>
+            <td class="text-end fw-bold">${Utils.formatMoney(l.total)}</td>
+            <td class="text-center"><button class="btn btn-sm btn-outline-danger quitar-linea" data-i="${i}"><i class="fas fa-times"></i></button></td>
+          </tr>
+        `);
+      });
+      $('.quitar-linea').on('click', function () {
+        lineas.splice(parseInt($(this).data('i')), 1);
+        $(this).closest('tr').remove();
+        if (lineas.length === 0) $('#lineasVacio').show();
+        actualizarTotal();
+      });
+      actualizarTotal();
+    });
+
+    $('#btnGuardarEncargo').on('click', async function () {
+      const clienteNombre = $('#encCliente').val().trim();
+      if (!clienteNombre) return Toast.warning('Indica el nombre del cliente');
+      if (lineas.length === 0) return Toast.warning('Agrega al menos un producto');
+
+      try {
+        Utils.showLoading('Guardando...');
+        const res = await API.mayoristas.crearPedido({
+          tipo: 'minorista',
+          cliente_nombre: clienteNombre,
+          fecha_vencimiento: $('#encVencimiento').val() || null,
+          observaciones: $('#encObs').val().trim() || null,
+          detalles: lineas.map(l => ({ producto_id: l.producto_id, cantidad: l.cantidad }))
+        });
+        Utils.hideLoading();
+        Toast.success('Encargo creado');
+        ViewManager.navegar(`ventas/encargos/${res.id}`);
+      } catch (error) {
+        Utils.hideLoading();
+        Toast.error(error.message || 'Error al guardar');
+      }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+    Toast.error('Error al cargar el formulario');
+  }
+};
+
+Ventas.encargoFicha = async function (params) {
+  try {
+    Utils.showLoading('Cargando...');
+    const p = await API.mayoristas.obtenerPedido(params.id);
+
+    const estadoBadge = {
+      pendiente: '<span class="badge bg-warning text-dark">Pendiente</span>',
+      entregado: '<span class="badge bg-success">Entregado</span>',
+      cancelado: '<span class="badge bg-secondary">Cancelado</span>'
+    };
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('ventas')}
+        <main class="main-content">
+          <nav class="navbar navbar-light bg-white border-bottom px-3">
+            <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+            <div class="d-flex align-items-center ms-auto">
+              <span class="me-3"><i class="fas fa-user me-1"></i>${State.getUser()?.nombre_completo || ''}</span>
+            </div>
+          </nav>
+          <div class="container-fluid p-4">
+            <div class="d-flex align-items-center mb-4">
+              <button class="btn btn-outline-secondary me-3" id="btnVolver"><i class="fas fa-arrow-left me-1"></i>Volver</button>
+              <h2 class="mb-0 me-3">Encargo #${p.id}</h2>
+              ${estadoBadge[p.estado]}
+            </div>
+            <div class="row g-4">
+              <div class="col-lg-7">
+                <div class="card mb-3"><div class="card-body">
+                  <div class="row">
+                    <div class="col-6"><small class="text-muted">Cliente</small><p class="fw-bold">${p.cliente_nombre || '—'}</p></div>
+                    <div class="col-6"><small class="text-muted">Fecha</small><p>${Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha), 'fecha')}</p></div>
+                    <div class="col-6"><small class="text-muted">Vence</small><p>${p.fecha_vencimiento ? Utils.formatearFecha(Utils.fechaISOToLocal(p.fecha_vencimiento), 'fecha') : '—'}</p></div>
+                    <div class="col-6"><small class="text-muted">Observaciones</small><p>${p.observaciones || '—'}</p></div>
+                  </div>
+                </div></div>
+                <div class="card">
+                  <div class="card-header"><strong>Productos</strong></div>
+                  <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                      <thead class="table-light"><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Total</th></tr></thead>
+                      <tbody>
+                        ${p.detalles.map(d => `<tr><td>${d.producto_nombre}</td><td class="text-end">${Utils.formatNumber(d.cantidad, 2)} ${d.unidad_abrev || ''}</td><td class="text-end">${Utils.formatMoney(d.total)}</td></tr>`).join('')}
+                      </tbody>
+                      <tfoot class="table-light">
+                        <tr><th colspan="2">TOTAL</th><th class="text-end fs-5">${Utils.formatMoney(p.total)}</th></tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-5">
+                <div class="card">
+                  <div class="card-header"><strong>Acciones</strong></div>
+                  <div class="card-body d-grid gap-2">
+                    ${p.estado === 'pendiente' ? `
+                      <button class="btn btn-success" id="btnEntregarEfectivo"><i class="fas fa-money-bill me-1"></i>Entregar y Cobrar (Efectivo)</button>
+                      <button class="btn btn-info" id="btnEntregarTarjeta"><i class="fas fa-credit-card me-1"></i>Entregar y Cobrar (Tarjeta)</button>
+                      <button class="btn btn-outline-danger" id="btnCancelarEncargo"><i class="fas fa-ban me-1"></i>Cancelar Encargo</button>
+                    ` : ''}
+                    ${p.estado === 'entregado' && p.venta_id ? `<a href="#ventas/ver/${p.venta_id}" class="btn btn-outline-primary"><i class="fas fa-receipt me-1"></i>Ver la venta #${p.venta_id}</a>` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Ventas.bindCommonEvents();
+    $('#btnVolver').on('click', () => ViewManager.volver());
+
+    const entregar = async (metodo) => {
+      if (!await Utils.confirm(`¿Entregar y cobrar ${Utils.formatMoney(p.total)} por ${metodo}? Se descuenta el stock y entra en las ventas del día.`, 'Confirmar entrega')) return;
+      try {
+        await API.mayoristas.entregarPedido(p.id, { metodo_pago: metodo });
+        Toast.success('Encargo entregado y cobrado');
+        ViewManager.refresh();
+      } catch (error) { Toast.error(error.message); }
+    };
+    $('#btnEntregarEfectivo').on('click', () => entregar('efectivo'));
+    $('#btnEntregarTarjeta').on('click', () => entregar('tarjeta'));
+
+    $('#btnCancelarEncargo').on('click', async function () {
+      if (!await Utils.confirm('¿Cancelar este encargo?', 'Confirmar')) return;
+      try {
+        await API.mayoristas.cancelarPedido(p.id);
+        Toast.success('Encargo cancelado');
+        ViewManager.navegar('ventas/encargos');
+      } catch (error) { Toast.error(error.message); }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error(error);
+    Toast.error('Error al cargar el encargo');
+  }
 };
 
 window.Ventas = Ventas;

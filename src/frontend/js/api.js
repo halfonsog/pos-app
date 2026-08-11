@@ -86,6 +86,14 @@ const API = {
         body: formData
       });
 
+      // ✅ Detectar token expirado (igual que en request JSON)
+      if (response.status === 401) {
+        State.clear();
+        Toast.warning('Sesión expirada. Inicie sesión nuevamente.');
+        ViewManager.navegar('auth/login', {}, { reset: true });
+        throw new Error('Sesión expirada');
+      }
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Error en la petición' }));
         throw new Error(error.error || 'Error en la petición');
@@ -115,8 +123,8 @@ const API = {
     obtener: (id) => API.get(`/proveedores/${id}`),
     crear: (data) => API.post('/proveedores', data),
     actualizar: (id, data) => API.put(`/proveedores/${id}`, data),
-    eliminar: (id) => API.delete(`/ proveedores / ${id} `),
-    listarContactos: (id) => API.get(`/ proveedores / ${id}/contactos`),
+    eliminar: (id) => API.delete(`/proveedores/${id}`),
+    listarContactos: (id) => API.get(`/proveedores/${id}/contactos`),
     crearContacto: (id, data) => API.post(`/proveedores/${id}/contactos`, data),
     actualizarContacto: (id, contactoId, data) => API.put(`/proveedores/${id}/contactos/${contactoId}`, data),
     eliminarContacto: (id, contactoId) => API.delete(`/proveedores/${id}/contactos/${contactoId}`)
@@ -163,8 +171,10 @@ const API = {
     stock: () => API.get('/inventario/stock'),
     movimientos: () => API.get('/inventario/movimientos'),
     preparables: () => API.get('/inventario/preparables'),
+    tiposMovimiento: () => API.get('/inventario/tipos-movimiento'),
     preparar: (id, data) => API.post(`/inventario/preparar/${id}`, data),
-    crearAjuste: (data) => API.post('/inventario/ajuste', data)
+    crearAjuste: (data) => API.post('/inventario/ajuste', data),
+    intercambio: (data) => API.post('/inventario/intercambio', data)
   },
 
   configuracion: {
@@ -218,6 +228,70 @@ const API = {
     reset: () => API.post('/mantenimiento/reset'),
     restaurar: (formData) => API.postFormData('/mantenimiento/restaurar', formData),
     verLogs: () => API.get('/mantenimiento/logs')
+  },
+
+  contabilidad: {
+    calcularImpuestos: (mes, anio) => API.post('/contabilidad/calcular-impuestos', { mes, anio }),
+    registrarPago: (data) => API.post('/contabilidad/registrar-pago', data),
+    historial: () => API.get('/contabilidad/historial'),
+    cierreMes: (mes, anio) => API.get(`/contabilidad/cierre-mes?mes=${mes}&anio=${anio}`),
+    liquidacionAnual: (anio) => API.get(`/contabilidad/liquidacion-anual?anio=${anio}`),
+    libroDiario: (mes, anio) => API.get(`/contabilidad/libro-diario?mes=${mes}&anio=${anio}`),
+    banco: () => API.get('/contabilidad/banco'),
+    bancoMovimiento: (data) => API.post('/contabilidad/banco/movimiento', data),
+    cambioDivisas: (data) => API.post('/contabilidad/cambio-divisas', data),
+    nominas: (mes, anio) => API.get(`/contabilidad/nominas?mes=${mes}&anio=${anio}`),
+    generarNominas: (mes, anio) => API.post('/contabilidad/nominas/generar', { mes, anio }),
+    pagarSalario: (id) => API.post(`/contabilidad/nominas/${id}/pagar-salario`),
+    ayudaBonos: () => API.get('/contabilidad/bonos/ayuda'),
+    pagarBono: (data) => API.post('/contabilidad/bonos', data)
+  },
+
+  usuarios: {
+    listar: () => API.get('/usuarios'),
+    crear: (data) => API.post('/usuarios', data),
+    actualizar: (id, data) => API.put(`/usuarios/${id}`, data),
+    resetPassword: (id, password) => API.put(`/usuarios/${id}/password`, { password })
+  },
+
+  empleados: {
+    listar: () => API.get('/empleados'),
+    crear: (data) => API.post('/empleados', data),
+    actualizar: (id, data) => API.put(`/empleados/${id}`, data)
+  },
+
+  servicios: {
+    listar: (tipo) => API.get('/servicios' + (tipo ? `?tipo=${tipo}` : '')),
+    crear: (data) => API.post('/servicios', data)
+  },
+
+  prestamosInversiones: {
+    listar: () => API.get('/config/prestamos-inversiones'),
+    obtener: (id) => API.get(`/config/prestamos-inversiones/${id}`),
+    crear: (data) => API.post('/config/prestamos-inversiones', data),
+    actualizar: (id, data) => API.put(`/config/prestamos-inversiones/${id}`, data),
+    cancelar: (id) => API.delete(`/config/prestamos-inversiones/${id}`),
+    registrarPago: (id, data) => API.post(`/config/prestamos-inversiones/${id}/pagos`, data)
+  },
+
+  clientes: {
+    listar: () => API.get('/clientes'),
+    obtener: (id) => API.get(`/clientes/${id}`),
+    crear: (data) => API.post('/clientes', data),
+    actualizar: (id, data) => API.put(`/clientes/${id}`, data)
+  },
+
+  mayoristas: {
+    resumen: () => API.get('/mayoristas/resumen'),
+    cuentasPorCobrar: () => API.get('/mayoristas/cuentas-por-cobrar'),
+    listarPedidos: (query = '') => API.get('/mayoristas/pedidos' + query),
+    obtenerPedido: (id) => API.get(`/mayoristas/pedidos/${id}`),
+    crearPedido: (data) => API.post('/mayoristas/pedidos', data),
+    facturarPedido: (id) => API.post(`/mayoristas/pedidos/${id}/facturar`),
+    entregarPedido: (id) => API.post(`/mayoristas/pedidos/${id}/entregar`),
+    cancelarPedido: (id) => API.post(`/mayoristas/pedidos/${id}/cancelar`),
+    extenderPedido: (id, data) => API.post(`/mayoristas/pedidos/${id}/extender`, data),
+    registrarPago: (id, data) => API.post(`/mayoristas/pedidos/${id}/pagos`, data)
   }
 };
 

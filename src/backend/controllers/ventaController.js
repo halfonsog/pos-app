@@ -1,4 +1,5 @@
 const { getDb } = require('../models/db');
+const costos = require('../utils/costos');
 
 const ventaController = {
 
@@ -48,7 +49,9 @@ const ventaController = {
     try {
       const db = await getDb();
       const { vendedor_id, monto_apertura } = req.body;
-      const usuario_id = req.usuario?.id || 1;
+      // Un vendedor solo puede abrir turno a su nombre; un admin puede indicar otro vendedor
+      const esAdmin = req.usuario.rol === 'admin';
+      const vendedorTurno = (esAdmin && vendedor_id) ? vendedor_id : req.usuario.id;
 
       // Verificar que no haya turno abierto
       const turnoAbierto = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
@@ -59,7 +62,7 @@ const ventaController = {
       const result = await db.run(`
         INSERT INTO turnos (vendedor_id, monto_apertura)
         VALUES (?, ?)
-      `, [vendedor_id || usuario_id, monto_apertura]);
+      `, [vendedorTurno, monto_apertura]);
 
       res.status(201).json({
         id: result.lastID,
@@ -81,14 +84,22 @@ const ventaController = {
         return res.status(400).json({ error: 'No hay turno abierto' });
       }
 
-      // Calcular monto esperado (ventas en efectivo)
+      // Calcular monto esperado (ventas en efectivo + cobros mayoristas en efectivo del turno)
       const ventas = await db.get(`
         SELECT SUM(total) as total_efectivo
         FROM ventas
         WHERE turno_id = ? AND metodo_pago = 'efectivo' AND estado = 'completada'
       `, [turno.id]);
 
-      const montoEsperado = (turno.monto_apertura || 0) + (ventas?.total_efectivo || 0);
+      // Cobros mayoristas en efectivo registrados durante este turno (caja física compartida)
+      const cobrosMayoristas = await db.get(`
+        SELECT COALESCE(SUM(pp.monto), 0) AS total
+        FROM pagos_pedido pp
+        WHERE pp.metodo_pago = 'efectivo'
+          AND pp.created_at >= ? AND pp.created_at <= COALESCE(?, CURRENT_TIMESTAMP)
+      `, [turno.abierto_at, turno.cerrado_at]);
+
+      const montoEsperado = (turno.monto_apertura || 0) + (ventas?.total_efectivo || 0) + (cobrosMayoristas?.total || 0);
       const diferencia = (monto_real || 0) - montoEsperado;
 
       await db.run(`
@@ -122,6 +133,14 @@ const ventaController = {
       const { detalles, metodo_pago } = req.body;
       const usuario_id = req.usuario?.id || 1;
 
+      // Tipo de venta asignado al vendedor (propietario): 'minorista'|'mayorista'|'ambas'
+      if (req.usuario?.rol === 'vendedor') {
+        const u = await db.get('SELECT tipo_venta FROM usuarios WHERE id = ?', [usuario_id]);
+        if (u && !['minorista', 'ambas'].includes(u.tipo_venta || 'ambas')) {
+          return res.status(403).json({ error: 'No tienes asignado el tipo de venta minorista' });
+        }
+      }
+
       // Verificar turno abierto
       const turno = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
       if (!turno) {
@@ -129,7 +148,7 @@ const ventaController = {
       }
 
       // Obtener impuesto y redondeo de configuración
-      const config = await db.get('SELECT redondeo_venta, impuesto_ventas FROM configuracion_general WHERE id = 1');
+      const config = await db.get('SELECT redondeo_venta, impuesto_ventas FROM parametros_contables WHERE id = 1');
       const impuestoRate = (config.impuesto_ventas) / 100;
       const REDONDEO = config.redondeo_venta;
 
@@ -140,13 +159,13 @@ const ventaController = {
       totalExacto = 0;
       for (const d of detalles) {
         const producto = await db.get(
-          'SELECT id, nombre, precio_venta, stock_actual, tipo, requiere_preparacion FROM productos WHERE id = ? AND activo = 1',
+          'SELECT id, nombre, precio_venta, stock_actual, tipo, sub_tipo FROM productos WHERE id = ? AND activo = 1',
           [d.producto_id]
         );
         if (!producto) throw new Error(`Producto no encontrado: ${d.producto_id}`);
 
         // Verificar stock según tipo de producto
-        if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+        if (producto.tipo === 'compuesto' && producto.sub_tipo === 'conformado') {
           // Para compuestos no preparables, verificar stock de componentes
           const receta = await db.all(`
             SELECT pr.stock_actual, r.cantidad, pr.nombre
@@ -189,7 +208,7 @@ const ventaController = {
         // UN SOLO BUCLE para insertar detalles y descontar stock
         for (const d of detalles) {
           const producto = await db.get(`
-          SELECT p.id, p.nombre, p.tipo, p.requiere_preparacion, p.precio_venta, uv.abreviatura as unidad_abrev
+          SELECT p.id, p.nombre, p.tipo, p.sub_tipo, p.precio_venta, uv.abreviatura as unidad_abrev
           FROM productos p
           JOIN unidades uv ON p.unidad_venta_id = uv.id
           WHERE p.id = ?
@@ -204,9 +223,9 @@ const ventaController = {
         `, [ventaId, d.producto_id, d.cantidad, producto.precio_venta, d.cantidad * producto.precio_venta]);
 
           // 2. Descontar stock según tipo
-          if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+          if (producto.tipo === 'compuesto' && producto.sub_tipo === 'conformado') {
             // ============================================
-            // COMPUESTO NO PREPARABLE
+            // COMPUESTO CONFORMADO (se arma en la venta)
             // Descontar componentes según la receta
             // ============================================
             const receta = await db.all(`
@@ -330,12 +349,19 @@ const ventaController = {
       const isAdmin = req.usuario?.rol === 'admin';
 
       let query = `
-        SELECT v.*, u.nombre_completo as vendedor_nombre
+        SELECT v.*, u.nombre_completo as vendedor_nombre, c.nombre as cliente_nombre
         FROM ventas v
         LEFT JOIN usuarios u ON v.vendedor_id = u.id
+        LEFT JOIN clientes c ON v.cliente_id = c.id
         WHERE 1=1
       `;
       const params = [];
+
+      // Filtro por tipo de venta (minorista/mayorista)
+      if (req.query.tipo_venta && req.query.tipo_venta !== 'todas') {
+        query += ' AND v.tipo_venta = ?';
+        params.push(req.query.tipo_venta);
+      }
 
       if (inicio && fin) {
         query += ' AND v.created_at >= ? AND v.created_at <= ?';
@@ -352,8 +378,16 @@ const ventaController = {
         params.push(`%${busqueda}%`, `%${busqueda}%`);
       }
 
-      query += ' ORDER BY v.created_at DESC LIMIT 100';
-      console.log('Query: ', query);
+      // El vendedor solo ve sus propias ventas; el admin las ve todas
+      if (!isAdmin) {
+        query += ' AND v.vendedor_id = ?';
+        params.push(usuario_id);
+      }
+
+      // Límite configurable (por defecto 1000, máximo 5000) — D13
+      const limite = Math.min(parseInt(req.query.limite) || 1000, 5000);
+      query += ' ORDER BY v.created_at DESC LIMIT ?';
+      params.push(limite);
 
       const ventas = await db.all(query, params);
       res.json(ventas);
@@ -417,12 +451,11 @@ const ventaController = {
 
       // Productos vendidos
       const productosVendidos = await db.all(`
-        SELECT p.nombre, SUM(vd.cantidad) as cantidad_total, uv.abreviatura as unidad_venta_abrev, uv.tipo as unidad_venta_tipo, SUM(vd.total) as total_vendido, pc.costo_base, pc.gastos_fijos
+        SELECT p.nombre, SUM(vd.cantidad) as cantidad_total, uv.abreviatura as unidad_venta_abrev, uv.tipo as unidad_venta_tipo, SUM(vd.total) as total_vendido, p.costo_base
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
         JOIN unidades uv ON p.unidad_venta_id = uv.id
-        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
         WHERE v.turno_id = ? AND v.estado = 'completada'
         GROUP BY p.id ORDER BY total_vendido DESC
       `, [id]);
@@ -438,6 +471,9 @@ const ventaController = {
         FROM ventas WHERE turno_id = ? AND estado = 'completada'
       `, [id]);
 
+      // % de gastos global (fórmula del propietario, D3)
+      const params = await costos.obtenerParametros(db);
+
       // Costo de ventas
       const costoVentas = {
         gastos_base: 0,
@@ -446,11 +482,11 @@ const ventaController = {
       productosVendidos.forEach(p => {
         const cb = p.costo_base * p.cantidad_total;
         costoVentas.gastos_base += cb;
-        costoVentas.gastos_fijos += (cb / (1 - p.gastos_fijos / 100)) - cb;
+        costoVentas.gastos_fijos += cb * params.pctGastos; // multiplicativa (propietario)
       });
 
       // Configuración
-      const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+      const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
 
       // Cálculos financieros
       const f = {
@@ -468,12 +504,19 @@ const ventaController = {
       f.margen = f.ventaNeta - f.costoBase - f.gastosFijos;
       f.gananciaBruta = f.margen + f.ajusteRedondeo;
 
+      // Desglose del recaudado por prioridades (00-pendientes #3)
+      // Período del turno: desde apertura hasta cierre (o ahora si sigue abierto)
+      const inicioTurno = turno.abierto_at;
+      const finTurno = turno.cerrado_at || new Date().toISOString().replace('T', ' ').slice(0, 19);
+      const desglose = await costos.desglosePrioridades(db, inicioTurno, finTurno);
+
       res.json({
         turno,
         ventasPorMetodo,
         totales,
         productosVendidos,
-        financiero: f
+        financiero: f,
+        desglose_prioridades: desglose
       });
 
     } catch (error) {
@@ -551,15 +594,15 @@ const ventaController = {
 
         // Devolver stock de cada producto
         const detalles = await db.all(`
-        SELECT vd.producto_id, vd.cantidad, p.nombre, p.tipo, p.requiere_preparacion
+        SELECT vd.producto_id, vd.cantidad, p.nombre, p.tipo, p.sub_tipo
         FROM venta_detalles vd
         JOIN productos p ON vd.producto_id = p.id
         WHERE vd.venta_id = ?
       `, [id]);
 
         for (const d of detalles) {
-          if (d.tipo === 'compuesto' && !d.requiere_preparacion) {
-            // Para compuestos no preparables, devolver stock a los componentes
+          if (d.tipo === 'compuesto' && d.sub_tipo === 'conformado') {
+            // Para conformados, devolver stock a los componentes
             const receta = await db.all(`
             SELECT producto_hijo_id, cantidad, pr.nombre
             FROM recetas r

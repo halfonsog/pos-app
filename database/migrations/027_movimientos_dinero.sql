@@ -1,0 +1,35 @@
+-- ============================================
+-- 027 — Tipos de movimiento de dinero ampliados
+-- ============================================
+-- movimientos_bancarios: añade 'cambio_divisas' (soporte USD, m025) y
+-- 'pago_servicio'/'cobro_servicio' (servicios: estiba, transporte...).
+-- ============================================
+
+PRAGMA foreign_keys = OFF;
+
+CREATE TABLE movimientos_bancarios_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT CHECK(tipo IN ('deposito', 'retiro', 'compra_transferencia', 'pago_impuesto', 'cambio_divisas', 'pago_servicio', 'cobro_servicio')) NOT NULL,
+  monto REAL NOT NULL,
+  fecha DATE NOT NULL,
+  descripcion TEXT,
+  referencia TEXT,
+  usuario_id INTEGER,
+  cuenta TEXT DEFAULT 'banco',
+  moneda TEXT DEFAULT 'CUP',
+  tasa_cambio REAL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO movimientos_bancarios_new (id, tipo, monto, fecha, descripcion, referencia, usuario_id, cuenta, moneda, tasa_cambio, created_at)
+SELECT id, tipo, monto, fecha, descripcion, referencia, usuario_id, COALESCE(cuenta, 'banco'), COALESCE(moneda, 'CUP'), COALESCE(tasa_cambio, 1), created_at
+FROM movimientos_bancarios;
+
+DROP TABLE movimientos_bancarios;
+ALTER TABLE movimientos_bancarios_new RENAME TO movimientos_bancarios;
+
+CREATE INDEX idx_movbanco_tipo ON movimientos_bancarios(tipo);
+CREATE INDEX idx_movbanco_fecha ON movimientos_bancarios(fecha);
+CREATE INDEX idx_movbanco_cuenta_moneda ON movimientos_bancarios(cuenta, moneda);
+
+PRAGMA foreign_keys = ON;

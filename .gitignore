@@ -5,6 +5,7 @@ scripts/
 # Base de datos
 database/*.db
 database/*.backup_*
+backups/
 
 # Variables de entorno
 .env
@@ -14,6 +15,7 @@ src/frontend/uploads/
 frontend/uploads/
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 deleted/
@@ -23,8 +25,10 @@ deleted/
 Thumbs.db
 
 # Archivos temporales
+temp/
 *.tmp
 *.temp
 
 # token (credenciales) para validarse en el repositorio!
 .token
+*.token

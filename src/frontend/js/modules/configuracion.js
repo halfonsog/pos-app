@@ -77,6 +77,24 @@ Configuracion.index = async function () {
                 </div>
               </div>
             </div>
+            <div class="col-md-6 col-lg-4">
+              <div class="card clickable h-100" data-route="configuracion/usuarios" style="cursor: pointer;">
+                <div class="card-body text-center">
+                  <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                  <h5>Usuarios y Empleados</h5>
+                  <p class="text-muted">Credenciales de acceso y personal</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+              <div class="card clickable h-100" data-route="configuracion/prestamos" style="cursor: pointer;">
+                <div class="card-body text-center">
+                  <i class="fas fa-hand-holding-usd fa-3x text-success mb-3"></i>
+                  <h5>Préstamos e Inversiones</h5>
+                  <p class="text-muted">Seguimiento y vencimientos</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -156,11 +174,44 @@ Configuracion.general = async function () {
                         </small>
                       </div>
                       <hr>
+                      <h6 class="text-muted"><i class="fas fa-file-invoice-dollar me-1"></i>Parámetros tributarios (ONAE)</h6>
+                      <div class="mb-3">
+                        <label class="form-label">Salario Mínimo ($/mes)</label>
+                        <input type="number" class="form-control" id="salarioMinimo" 
+                              value="${config.salario_minimo ?? 3260}" step="1" min="0">
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Base de Contribución Especial ($/mes)</label>
+                        <input type="number" class="form-control" id="baseContribucion" 
+                              value="${config.base_contribucion_especial ?? 0}" step="1" min="0">
+                        <small class="text-muted">Base mensual elegida en tu afiliación (tributo 0820132, trimestral).</small>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Límite de escala de retención ($)</label>
+                        <input type="number" class="form-control" id="limiteEscala" 
+                              value="${config.limite_escala_retencion ?? 15000}" step="1" min="0">
+                      </div>
+                      <div class="row g-2 mb-3">
+                        <div class="col-6">
+                          <label class="form-label">Porciento a declarar (%)</label>
+                          <input type="number" class="form-control" id="porcientoDeclarar" 
+                                value="${config.porciento_declarar ?? 100}" step="1" min="0" max="100">
+                          <small class="text-muted">% de ventas y compras que se declara al fisco</small>
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label">Día de pago de bonos</label>
+                          <select class="form-select" id="diaPagoBonos">
+                            ${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map((d, i) => `<option value="${i}" ${(config.dia_pago_bonos ?? 5) === i ? 'selected' : ''}>${d}</option>`).join('')}
+                          </select>
+                        </div>
+                      </div>
+                      <hr>
                       <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>Resumen:</strong><br>
-                        Total Gastos Fijos: <strong>${Utils.formatMoney(config.total_gastos_fijos || 0)}</strong><br>
-                        % Gastos Fijos: <strong>${(config.porcentaje_gastos || 0).toFixed(2)}%</strong>
+                        Gastos Fijos: <strong>${Utils.formatMoney(config.total_gastos_fijos || 0)}</strong><br>
+                        Gasto Financiero del mes: <strong>${Utils.formatMoney(config.gasto_financiero_mes || 0)}</strong><br>
+                        % Gastos total: <strong>${(config.porcentaje_gastos || 0).toFixed(2)}%</strong>
                       </div>
                       <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
@@ -197,7 +248,12 @@ Configuracion._bindGeneralSubmit = function () {
       margen_recomendado: parseFloat($('#margenRecomendado').val()),
       impuesto_ventas: parseFloat($('#impuestoVentas').val()),
       redondeo_venta: parseFloat($('#redondeoVenta').val()),
-      impuesto_ganancia: parseFloat($('#impuestoGanancia').val())
+      impuesto_ganancia: parseFloat($('#impuestoGanancia').val()),
+      salario_minimo: parseFloat($('#salarioMinimo').val()),
+      base_contribucion_especial: parseFloat($('#baseContribucion').val()),
+      limite_escala_retencion: parseFloat($('#limiteEscala').val()),
+      porciento_declarar: parseFloat($('#porcientoDeclarar').val()),
+      dia_pago_bonos: parseInt($('#diaPagoBonos').val())
     };
     try {
       Utils.showLoading('Guardando...');
@@ -839,6 +895,705 @@ Configuracion._bindTerminosEvents = function () {
       console.error('Error:', error);
     }
   });
+};
+
+
+// ============================================
+// USUARIOS Y EMPLEADOS (D18)
+// PatrÃ³n estÃ¡ndar de mÃ³dulo: la primera vista es la LISTA DE EMPLEADOS.
+// Pinchando en un empleado se abre su FICHA: datos del empleado + sus usuarios
+// (aÃ±adir, activar/desactivar, restablecer contraseÃ±a, cambiar rol).
+// Todo usuario pertenece a un empleado; un empleado puede tener varios o ninguno.
+// ============================================
+Configuracion.usuarios = async function () {
+  console.log('ðŸ‘¥ Cargando empleados');
+
+  try {
+    Utils.showLoading('Cargando...');
+    const empleados = await API.empleados.listar();
+
+    const cargoLabel = { vendedor: 'Vendedor', administrador: 'Administrador', cajero: 'Cajero', otro: 'Otro' };
+
+    const filas = empleados.map(e => `
+      <tr class="empleado-row ${e.activo ? '' : 'text-muted'}" data-id="${e.id}" style="cursor:pointer">
+        <td><strong>${e.nombre}</strong></td>
+        <td>${cargoLabel[e.cargo] || e.cargo}</td>
+        <td>${e.identificacion || 'â€”'}</td>
+        <td class="text-center">${e.num_usuarios > 0 ? `<span class="badge bg-primary">${e.num_usuarios}</span>` : '<span class="text-muted">0</span>'}</td>
+        <td class="text-center">${e.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+      </tr>
+    `).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('configuracion')}
+        <main class="main-content">
+          ${Configuracion.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">ConfiguraciÃ³n</a></li>
+                <li class="breadcrumb-item active">Usuarios y Empleados</li>
+              </ol>
+            </nav>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div class="d-flex align-items-center">
+                <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                  <i class="fas fa-arrow-left me-1"></i>Volver
+                </button>
+                <h2 class="mb-0"><i class="fas fa-users me-2"></i>Empleados</h2>
+              </div>
+              <button class="btn btn-primary" id="btnNuevoEmpleado"><i class="fas fa-plus me-1"></i>Nuevo Empleado</button>
+            </div>
+
+            <div class="row">
+              <div class="col-lg-9">
+                <div class="card">
+                  <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                      <thead class="table-light">
+                        <tr><th>Nombre</th><th>Cargo</th><th>IdentificaciÃ³n</th><th class="text-center">Usuarios</th><th class="text-center">Estado</th></tr>
+                      </thead>
+                      <tbody>${filas}</tbody>
+                    </table>
+                  </div>
+                  <div class="card-footer text-muted small">
+                    Pincha en un empleado para editar sus datos y gestionar sus usuarios (accesos a la app).
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Modal Nuevo Empleado -->
+      <div class="modal fade" id="empleadoModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Nuevo Empleado</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3"><label class="form-label">Nombre *</label><input type="text" class="form-control" id="nuevoEmpNombre"></div>
+              <div class="mb-3"><label class="form-label">IdentificaciÃ³n</label><input type="text" class="form-control" id="nuevoEmpIdentificacion"></div>
+              <div class="mb-3">
+                <label class="form-label">Cargo</label>
+                <select class="form-select" id="nuevoEmpCargo">
+                  <option value="vendedor">Vendedor</option>
+                  <option value="administrador">Administrador</option>
+                  <option value="cajero">Cajero</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="btnGuardarNuevoEmpleado">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Configuracion._bindVolver();
+    Configuracion.bindCommonEvents();
+
+    // Click en fila â†’ ficha del empleado
+    $('.empleado-row').on('click', function () {
+      ViewManager.navegar(`configuracion/empleados/${$(this).data('id')}`);
+    });
+
+    // Nuevo empleado
+    const empleadoModal = new bootstrap.Modal('#empleadoModal');
+    $('#btnNuevoEmpleado').on('click', () => {
+      $('#nuevoEmpNombre').val('');
+      $('#nuevoEmpIdentificacion').val('');
+      $('#nuevoEmpCargo').val('vendedor');
+      empleadoModal.show();
+    });
+
+    $('#btnGuardarNuevoEmpleado').on('click', async function () {
+      const nombre = $('#nuevoEmpNombre').val().trim();
+      if (!nombre) return Toast.warning('Indica el nombre del empleado');
+      try {
+        const res = await API.empleados.crear({
+          nombre,
+          identificacion: $('#nuevoEmpIdentificacion').val().trim() || null,
+          cargo: $('#nuevoEmpCargo').val()
+        });
+        empleadoModal.hide();
+        Toast.success('Empleado creado');
+        ViewManager.navegar(`configuracion/empleados/${res.id}`);
+      } catch (error) {
+        Toast.error(error.message || 'Error al crear el empleado');
+      }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error cargando empleados:', error);
+    Toast.error('Error al cargar empleados');
+  }
+};
+
+// FICHA DE EMPLEADO: datos + gestiÃ³n de sus usuarios
+Configuracion.empleadoFicha = async function (params) {
+  console.log('ðŸ‘¤ Cargando ficha de empleado', params);
+
+  try {
+    Utils.showLoading('Cargando...');
+    const [empleados, usuarios] = await Promise.all([API.empleados.listar(), API.usuarios.listar()]);
+
+    const empleado = empleados.find(e => e.id == params.id);
+    if (!empleado) {
+      Utils.hideLoading();
+      Toast.error('Empleado no encontrado');
+      return ViewManager.navegar('configuracion/usuarios');
+    }
+    const susUsuarios = usuarios.filter(u => u.empleado_id == empleado.id);
+    const yoMismo = State.getUser()?.id;
+
+      const filasUsuarios = susUsuarios.length === 0
+      ? '<tr><td colspan="6" class="text-center text-muted py-3">Este empleado no tiene usuarios (sin acceso a la app)</td></tr>'
+      : susUsuarios.map(u => `
+        <tr class="${u.activo ? '' : 'text-muted'}">
+          <td><strong>${u.username}</strong>${u.id === yoMismo ? ' <span class="badge bg-info">tú</span>' : ''}</td>
+          <td><span class="badge bg-${u.rol === 'admin' ? 'danger' : 'primary'}">${u.rol === 'admin' ? 'Admin' : 'Vendedor'}</span></td>
+          <td><small class="text-muted">${u.tipo_venta === 'ambas' ? 'Minorista + Mayorista' : u.tipo_venta === 'minorista' ? 'Minorista' : 'Mayorista'}</small></td>
+          <td>${u.last_login ? Utils.formatearFecha(Utils.fechaISOToLocal(u.last_login), 'datetime') : '—'}</td>
+          <td class="text-center">${u.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-primary editar-usuario" data-id="${u.id}" title="Editar rol"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-outline-warning reset-password" data-id="${u.id}" data-username="${u.username}" title="Restablecer contraseña"><i class="fas fa-key"></i></button>
+            <button class="btn btn-sm btn-outline-${u.activo ? 'danger' : 'success'} toggle-usuario" data-id="${u.id}" data-activo="${u.activo}" title="${u.activo ? 'Desactivar' : 'Activar'}">
+              <i class="fas fa-${u.activo ? 'ban' : 'check'}"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('configuracion')}
+        <main class="main-content">
+          ${Configuracion.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#configuracion/usuarios" class="breadcrumb-back">Empleados</a></li>
+                <li class="breadcrumb-item active">${empleado.nombre}</li>
+              </ol>
+            </nav>
+            <div class="d-flex align-items-center mb-4">
+              <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+              </button>
+              <h2 class="mb-0"><i class="fas fa-id-badge me-2"></i>${empleado.nombre}</h2>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-lg-5">
+                <div class="card">
+                  <div class="card-header"><strong><i class="fas fa-id-badge me-1"></i>Datos del empleado</strong></div>
+                  <div class="card-body">
+                    <div class="mb-3"><label class="form-label">Nombre *</label><input type="text" class="form-control" id="empNombre" value="${empleado.nombre}"></div>
+                    <div class="mb-3"><label class="form-label">IdentificaciÃ³n</label><input type="text" class="form-control" id="empIdentificacion" value="${empleado.identificacion || ''}"></div>
+                    <div class="mb-3">
+                      <label class="form-label">Cargo</label>
+                      <select class="form-select" id="empCargo">
+                        ${['vendedor', 'administrador', 'cajero', 'otro'].map(c => `<option value="${c}" ${empleado.cargo === c ? 'selected' : ''}>${c[0].toUpperCase() + c.slice(1)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                      <div class="col-4">
+                        <label class="form-label">Salario mensual</label>
+                        <input type="number" class="form-control" id="empSalario" value="${empleado.salario_mensual ?? 0}" step="0.01" min="0">
+                      </div>
+                      <div class="col-4">
+                        <label class="form-label">Aporte corto plazo</label>
+                        <input type="number" class="form-control" id="empAporteCP" value="${empleado.aporte_corto_plazo ?? 0}" step="0.01" min="0">
+                      </div>
+                      <div class="col-4">
+                        <label class="form-label">Utilidades</label>
+                        <input type="number" class="form-control" id="empUtilidades" value="${empleado.utilidades ?? 0}" step="0.01" min="0">
+                      </div>
+                    </div>
+                    <div class="form-check mb-3">
+                      <input class="form-check-input" type="checkbox" id="empActivo" ${empleado.activo ? 'checked' : ''}>
+                      <label class="form-check-label">Empleado activo</label>
+                    </div>
+                    <button class="btn btn-primary" id="btnGuardarEmpleado"><i class="fas fa-save me-1"></i>Guardar datos</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-7">
+                <div class="card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="fas fa-user-shield me-1"></i>Usuarios (acceso a la app)</strong>
+                    <button class="btn btn-sm btn-primary" id="btnNuevoUsuario"><i class="fas fa-plus me-1"></i>AÃ±adir usuario</button>
+                  </div>
+                  <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                      <thead class="table-light">
+                        <tr><th>Usuario</th><th>Rol</th><th>Tipo de venta</th><th>Último acceso</th><th class="text-center">Estado</th><th class="text-center">Acciones</th></tr>
+                      </thead>
+                      <tbody>${filasUsuarios}</tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Modal Nuevo Usuario -->
+      <div class="modal fade" id="usuarioModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Nuevo usuario para ${empleado.nombre}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3"><label class="form-label">Nombre de usuario *</label><input type="text" class="form-control" id="nuevoUsrUsername" autocomplete="off"></div>
+              <div class="mb-3"><label class="form-label">ContraseÃ±a *</label><input type="password" class="form-control" id="nuevoUsrPassword" autocomplete="new-password"></div>
+              <div class="mb-3">
+                <label class="form-label">Rol</label>
+                <select class="form-select" id="nuevoUsrRol">
+                  <option value="vendedor">Vendedor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Tipo de venta asignado</label>
+                <select class="form-select" id="nuevoUsrTipoVenta">
+                  <option value="ambas">Minorista y Mayorista</option>
+                  <option value="minorista">Solo Minorista</option>
+                  <option value="mayorista">Solo Mayorista</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="btnGuardarNuevoUsuario">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Configuracion._bindVolver();
+    Configuracion.bindCommonEvents();
+
+    // Guardar datos del empleado
+    $('#btnGuardarEmpleado').on('click', async function () {
+      const nombre = $('#empNombre').val().trim();
+      if (!nombre) return Toast.warning('El nombre es obligatorio');
+      try {
+        await API.empleados.actualizar(empleado.id, {
+          nombre,
+          identificacion: $('#empIdentificacion').val().trim() || null,
+          cargo: $('#empCargo').val(),
+          salario_mensual: parseFloat($('#empSalario').val()) || 0,
+          aporte_corto_plazo: parseFloat($('#empAporteCP').val()) || 0,
+          utilidades: parseFloat($('#empUtilidades').val()) || 0,
+          activo: $('#empActivo').is(':checked') ? 1 : 0
+        });
+        Toast.success('Empleado actualizado');
+        ViewManager.refresh();
+      } catch (error) {
+        Toast.error(error.message || 'Error al guardar');
+      }
+    });
+
+    // Nuevo usuario para este empleado
+    const usuarioModal = new bootstrap.Modal('#usuarioModal');
+    $('#btnNuevoUsuario').on('click', () => {
+      $('#nuevoUsrUsername').val('');
+      $('#nuevoUsrPassword').val('');
+      $('#nuevoUsrRol').val('vendedor');
+      usuarioModal.show();
+    });
+
+    $('#btnGuardarNuevoUsuario').on('click', async function () {
+      const username = $('#nuevoUsrUsername').val().trim();
+      const password = $('#nuevoUsrPassword').val();
+      if (!username) return Toast.warning('Indica el nombre de usuario');
+      if (!password || password.length < 4) return Toast.warning('La contraseÃ±a debe tener al menos 4 caracteres');
+      try {
+        await API.usuarios.crear({
+          username, password,
+          nombre_completo: $('#empNombre').val().trim() || empleado.nombre,
+          rol: $('#nuevoUsrRol').val(),
+          tipo_venta: $('#nuevoUsrTipoVenta').val(),
+          empleado_id: empleado.id
+        });
+        usuarioModal.hide();
+        Toast.success('Usuario creado');
+        ViewManager.refresh();
+      } catch (error) {
+        Toast.error(error.message || 'Error al crear el usuario');
+      }
+    });
+
+    // Editar rol de un usuario (con modal, no prompt)
+    $('.editar-usuario').on('click', async function () {
+      const u = susUsuarios.find(x => x.id == $(this).data('id'));
+      if (!u) return;
+      FormModal.show({
+        title: `Editar rol de "${u.username}"`,
+        submitLabel: 'Guardar',
+        fields: [{
+          id: 'rol', label: 'Rol', type: 'select', value: u.rol, required: true,
+          options: [{ value: 'vendedor', label: 'Vendedor' }, { value: 'admin', label: 'Administrador' }]
+        }],
+        onSubmit: async (v) => {
+          try {
+            await API.usuarios.actualizar(u.id, { rol: v.rol });
+            Toast.success('Rol actualizado');
+            ViewManager.refresh();
+          } catch (error) {
+            Toast.error(error.message || 'Error al actualizar');
+            return false;
+          }
+        }
+      });
+    });
+
+    // Restablecer contraseña (con modal, no prompt)
+    $('.reset-password').on('click', async function () {
+      const id = $(this).data('id');
+      const username = $(this).data('username');
+      FormModal.show({
+        title: `Nueva contraseña para "${username}"`,
+        submitLabel: 'Restablecer',
+        fields: [{ id: 'password', label: 'Nueva contraseña (mínimo 4 caracteres)', type: 'password', required: true }],
+        onSubmit: async (v) => {
+          if (!v.password || v.password.length < 4) { Toast.warning('La contraseña debe tener al menos 4 caracteres'); return false; }
+          try {
+            await API.usuarios.resetPassword(id, v.password);
+            Toast.success('Contraseña restablecida');
+          } catch (error) {
+            Toast.error(error.message || 'Error al restablecer la contraseña');
+            return false;
+          }
+        }
+      });
+    });
+
+    // Activar / desactivar usuario
+    $('.toggle-usuario').on('click', async function () {
+      const id = $(this).data('id');
+      const activo = $(this).data('activo') === 1 || $(this).data('activo') === '1';
+      if (!await Utils.confirm(`Â¿Seguro que deseas ${activo ? 'desactivar' : 'activar'} este usuario?`, 'Confirmar')) return;
+      try {
+        await API.usuarios.actualizar(id, { activo: activo ? 0 : 1 });
+        Toast.success(`Usuario ${activo ? 'desactivado' : 'activado'}`);
+        ViewManager.refresh();
+      } catch (error) {
+        Toast.error(error.message || 'Error al cambiar el estado');
+      }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error cargando empleado:', error);
+    Toast.error('Error al cargar el empleado');
+  }
+};
+
+// ============================================
+// PRÉSTAMOS E INVERSIONES (00-pendientes #3)
+// ============================================
+Configuracion.prestamos = async function () {
+  console.log('💰 Cargando préstamos e inversiones');
+
+  try {
+    Utils.showLoading('Cargando...');
+    const registros = await API.prestamosInversiones.listar();
+
+    const filas = registros.map(r => `
+      <tr class="prestamo-row ${r.estado === 'cancelado' ? 'text-muted' : ''}" data-id="${r.id}" style="cursor:pointer">
+        <td><span class="badge bg-${r.tipo === 'prestamo' ? 'danger' : 'success'}">${r.tipo === 'prestamo' ? 'Préstamo' : 'Inversión'}</span></td>
+        <td><strong>${r.descripcion}</strong></td>
+        <td class="text-end">${Utils.formatMoney(r.capital_total)}</td>
+        <td class="text-center">${r.plazo_meses}</td>
+        <td class="text-center">${r.tasa_anual}%</td>
+        <td class="text-end">${Utils.formatMoney(r.aporte_mes_actual)}</td>
+        <td class="text-center">${r.vencimientos_pendientes > 0 ? `<span class="badge bg-warning text-dark">${r.vencimientos_pendientes}</span>` : '<span class="text-muted">0</span>'}</td>
+        <td class="text-center">${r.estado === 'activo' ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Cancelado</span>'}</td>
+      </tr>
+    `).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('configuracion')}
+        <main class="main-content">
+          ${Configuracion.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Configuración</a></li>
+                <li class="breadcrumb-item active">Préstamos e Inversiones</li>
+              </ol>
+            </nav>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div class="d-flex align-items-center">
+                <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                  <i class="fas fa-arrow-left me-1"></i>Volver
+                </button>
+                <h2 class="mb-0"><i class="fas fa-hand-holding-usd me-2"></i>Préstamos e Inversiones</h2>
+              </div>
+              <button class="btn btn-primary" id="btnNuevoPrestamo"><i class="fas fa-plus me-1"></i>Nuevo Registro</button>
+            </div>
+
+            <div class="card">
+              <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Tipo</th><th>Descripción</th><th class="text-end">Capital</th>
+                      <th class="text-center">Plazo (m)</th><th class="text-center">Tasa anual</th>
+                      <th class="text-end">Aporte mes actual</th><th class="text-center">Pendientes</th><th class="text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>${filas || '<tr><td colspan="8" class="text-center text-muted py-4">No hay registros. Crea el primero con "Nuevo Registro".</td></tr>'}</tbody>
+                </table>
+              </div>
+              <div class="card-footer text-muted small">
+                El aporte del mes actual alimenta el gasto financiero del costeo (%gastos). Pincha en un registro para ver sus vencimientos y registrar pagos.
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Modal Nuevo Registro -->
+      <div class="modal fade" id="prestamoModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Nuevo Préstamo / Inversión</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">Tipo *</label>
+                <select class="form-select" id="nuevoTipo">
+                  <option value="prestamo">Préstamo (deuda que pagas)</option>
+                  <option value="inversion">Inversión (capital que aportas)</option>
+                </select>
+              </div>
+              <div class="mb-3"><label class="form-label">Descripción *</label><input type="text" class="form-control" id="nuevoDescripcion" placeholder="Ej: Préstamo banco para equipos"></div>
+              <div class="row g-2">
+                <div class="col-6 mb-3"><label class="form-label">Capital total *</label><input type="number" class="form-control" id="nuevoCapital" step="0.01" min="0.01"></div>
+                <div class="col-6 mb-3"><label class="form-label">Plazo (meses) *</label><input type="number" class="form-control" id="nuevoPlazo" min="1" step="1"></div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 mb-3"><label class="form-label">Tasa anual (%)</label><input type="number" class="form-control" id="nuevoTasa" step="0.01" min="0" value="0"></div>
+                <div class="col-6 mb-3"><label class="form-label">Fecha de inicio *</label><input type="date" class="form-control" id="nuevoFechaInicio"></div>
+              </div>
+              <small class="text-muted">El primer vencimiento será el día 1 del mes siguiente a la fecha de inicio.</small>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="btnGuardarPrestamo">Crear y generar vencimientos</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Configuracion._bindVolver();
+    Configuracion.bindCommonEvents();
+
+    $('.prestamo-row').on('click', function () {
+      ViewManager.navegar(`configuracion/prestamos/${$(this).data('id')}`);
+    });
+
+    const prestamoModal = new bootstrap.Modal('#prestamoModal');
+    $('#btnNuevoPrestamo').on('click', () => {
+      $('#nuevoTipo').val('prestamo');
+      $('#nuevoDescripcion').val('');
+      $('#nuevoCapital').val('');
+      $('#nuevoPlazo').val('');
+      $('#nuevoTasa').val('0');
+      $('#nuevoFechaInicio').val(Utils.fechaLocalToInput ? Utils.fechaLocalToInput(new Date()) : new Date().toISOString().split('T')[0]);
+      prestamoModal.show();
+    });
+
+    $('#btnGuardarPrestamo').on('click', async function () {
+      const data = {
+        tipo: $('#nuevoTipo').val(),
+        descripcion: $('#nuevoDescripcion').val().trim(),
+        capital_total: parseFloat($('#nuevoCapital').val()),
+        plazo_meses: parseInt($('#nuevoPlazo').val()),
+        tasa_anual: parseFloat($('#nuevoTasa').val()) || 0,
+        fecha_inicio: $('#nuevoFechaInicio').val()
+      };
+      if (!data.descripcion || !data.capital_total || !data.plazo_meses || !data.fecha_inicio) {
+        return Toast.warning('Completa todos los campos obligatorios');
+      }
+      try {
+        const res = await API.prestamosInversiones.crear(data);
+        prestamoModal.hide();
+        Toast.success('Registro creado con su tabla de vencimientos');
+        ViewManager.navegar(`configuracion/prestamos/${res.id}`);
+      } catch (error) {
+        Toast.error(error.message || 'Error al crear el registro');
+      }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error cargando préstamos:', error);
+    Toast.error('Error al cargar préstamos e inversiones');
+  }
+};
+
+// FICHA: detalle + vencimientos + registrar pagos + cancelar
+Configuracion.prestamoFicha = async function (params) {
+  console.log('💰 Cargando ficha de préstamo/inversión', params);
+
+  try {
+    Utils.showLoading('Cargando...');
+    const r = await API.prestamosInversiones.obtener(params.id);
+
+    const estadoBadge = { pendiente: '<span class="badge bg-warning text-dark">Pendiente</span>', pagado: '<span class="badge bg-success">Pagado</span>', parcial: '<span class="badge bg-info">Parcial</span>' };
+
+    const filasVenc = r.vencimientos.map(v => `
+      <tr class="${v.estado === 'pagado' ? 'text-muted' : ''}">
+        <td class="text-center">${v.ordinal}</td>
+        <td>${Utils.formatearFecha(Utils.fechaISOToLocal(v.fecha_vencimiento), 'fecha')}</td>
+        <td class="text-end">${Utils.formatMoney(v.capital)}</td>
+        <td class="text-end">${Utils.formatMoney(v.pago_capital)}</td>
+        <td class="text-end">${Utils.formatMoney(v.tarifa)}</td>
+        <td class="text-end fw-bold">${Utils.formatMoney(v.aporte)}</td>
+        <td class="text-end">${Utils.formatMoney(v.monto_pagado)}</td>
+        <td class="text-center">${estadoBadge[v.estado] || v.estado}</td>
+        <td class="text-center">
+          ${v.estado !== 'pagado' && r.estado === 'activo' ? `
+            <button class="btn btn-sm btn-outline-success pagar-vencimiento" data-ordinal="${v.ordinal}" data-aporte="${v.aporte - v.monto_pagado}">
+              <i class="fas fa-money-bill"></i>
+            </button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    const layout = `
+      <div class="app-wrapper">
+        ${Sidebar.render('configuracion')}
+        <main class="main-content">
+          ${Configuracion.renderNavbar(State.getUser())}
+          <div class="container-fluid p-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="#configuracion/prestamos" class="breadcrumb-back">Préstamos e Inversiones</a></li>
+                <li class="breadcrumb-item active">${r.descripcion}</li>
+              </ol>
+            </nav>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div class="d-flex align-items-center">
+                <button class="btn btn-outline-secondary me-3" id="btnVolver">
+                  <i class="fas fa-arrow-left me-1"></i>Volver
+                </button>
+                <h2 class="mb-0">
+                  <span class="badge bg-${r.tipo === 'prestamo' ? 'danger' : 'success'} me-2">${r.tipo === 'prestamo' ? 'Préstamo' : 'Inversión'}</span>
+                  ${r.descripcion}
+                </h2>
+              </div>
+              ${r.estado === 'activo' ? `<button class="btn btn-outline-danger" id="btnCancelarRegistro"><i class="fas fa-ban me-1"></i>Cancelar registro</button>` : ''}
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Capital total</small><h5 class="mb-0">${Utils.formatMoney(r.capital_total)}</h5></div></div></div>
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Plazo</small><h5 class="mb-0">${r.plazo_meses} m</h5></div></div></div>
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Tasa anual</small><h5 class="mb-0">${r.tasa_anual}%</h5></div></div></div>
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Pago capital</small><h5 class="mb-0">${Utils.formatMoney(r.pago_capital)}</h5></div></div></div>
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Inicio</small><h5 class="mb-0">${Utils.formatearFecha(Utils.fechaISOToLocal(r.fecha_inicio), 'fecha')}</h5></div></div></div>
+              <div class="col-md-2"><div class="card"><div class="card-body p-2 text-center"><small class="text-muted">Estado</small><h5 class="mb-0">${r.estado === 'activo' ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Cancelado</span>'}</h5></div></div></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><strong><i class="fas fa-calendar-alt me-1"></i>Tabla de vencimientos</strong></div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th class="text-center">#</th><th>Vencimiento</th><th class="text-end">Capital</th>
+                        <th class="text-end">Pago capital</th><th class="text-end">Tarifa</th><th class="text-end">Aporte</th>
+                        <th class="text-end">Pagado</th><th class="text-center">Estado</th><th class="text-center">Pagar</th>
+                      </tr>
+                    </thead>
+                    <tbody>${filasVenc}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    $('#app').html(layout);
+    Configuracion._bindVolver();
+    Configuracion.bindCommonEvents();
+
+    // Registrar pago en un vencimiento (con modal, no prompt)
+    $('.pagar-vencimiento').on('click', async function () {
+      const ordinal = $(this).data('ordinal');
+      const pendiente = parseFloat($(this).data('aporte'));
+      FormModal.show({
+        title: `Pagar vencimiento #${ordinal}`,
+        submitLabel: 'Registrar pago',
+        fields: [{ id: 'monto', label: `Monto a pagar (pendiente: ${Utils.formatMoney(pendiente)})`, type: 'number', value: pendiente.toFixed(2), min: 0.01, step: 0.01, required: true }],
+        onSubmit: async (v) => {
+          if (!v.monto || v.monto <= 0) { Toast.warning('Monto inválido'); return false; }
+          try {
+            await API.prestamosInversiones.registrarPago(r.id, { ordinal, monto: v.monto });
+            Toast.success('Pago registrado');
+            ViewManager.refresh();
+          } catch (error) {
+            Toast.error(error.message || 'Error al registrar el pago');
+            return false;
+          }
+        }
+      });
+    });
+
+    // Cancelar registro
+    $('#btnCancelarRegistro').on('click', async function () {
+      if (!await Utils.confirm('¿Cancelar este registro? Sus vencimientos pendientes dejarán de contar en el gasto financiero.', 'Confirmar cancelación')) return;
+      try {
+        await API.prestamosInversiones.cancelar(r.id);
+        Toast.success('Registro cancelado');
+        ViewManager.navegar('configuracion/prestamos');
+      } catch (error) {
+        Toast.error(error.message || 'Error al cancelar');
+      }
+    });
+
+    Utils.hideLoading();
+  } catch (error) {
+    Utils.hideLoading();
+    console.error('Error cargando ficha:', error);
+    Toast.error('Error al cargar el registro');
+  }
 };
 
 // ============================================

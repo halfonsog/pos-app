@@ -2,6 +2,7 @@ const { getDb } = require('../models/db');
 const path = require('path');
 const fs = require('fs');
 const conversiones = require('../utils/conversiones');
+const costos = require('../utils/costos');
 
 const productoController = {
 
@@ -29,7 +30,7 @@ const productoController = {
         uc.nombre as unidad_compra_nombre,
         uc.abreviatura as unidad_compra_abrev,
         CASE 
-          WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 0 
+          WHEN p.tipo = 'compuesto' AND p.sub_tipo = 'conformado' 
             THEN COALESCE(sc.stock_efectivo, 0)
           ELSE p.stock_actual
         END as stock_efectivo
@@ -66,16 +67,11 @@ const productoController = {
         uv.abreviatura as unidad_venta_abrev,
         uv.tipo as unidad_venta_tipo,
         uc.nombre as unidad_compra_nombre,
-        uc.abreviatura as unidad_compra_abrev,
-        pc.costo_base,
-        pc.margen,
-        pc.gastos_fijos,
-        pc.impuesto
+        uc.abreviatura as unidad_compra_abrev
       FROM productos p
       LEFT JOIN categorias c ON p.categoria_id = c.id
       LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
       LEFT JOIN unidades uc ON p.unidad_compra_id = uc.id
-      LEFT JOIN producto_costos pc ON p.id = pc.producto_id
       WHERE p.id = ?
     `, [id]);
 
@@ -97,11 +93,10 @@ const productoController = {
           u.nombre as unidad_nombre,
           u.abreviatura as unidad_abrev,
           u.tipo as unidad_tipo,
-          pc.costo_base as costo_ficha
+          p.costo_base as costo_ficha
         FROM recetas r
         JOIN productos p ON r.producto_hijo_id = p.id
         JOIN unidades u ON p.unidad_venta_id = u.id
-        LEFT JOIN producto_costos pc ON p.id = pc.producto_id
         WHERE r.producto_padre_id = ?
       `, [id]);
 
@@ -134,14 +129,9 @@ const productoController = {
           }
         }
 
-        // Calcular costo base desde la receta si no tiene costo configurado
+        // Calcular costo base desde la receta si no tiene costo almacenado
         if (!producto.costo_base || producto.costo_base === 0) {
-          let costoTotal = 0;
-          for (const c of producto.receta) {
-            const costoComponente = c.costo_unitario || (c.precio_venta ? c.precio_venta / 1.15 : 0);
-            costoTotal += costoComponente * c.cantidad;
-          }
-          producto.costo_base = Math.round(costoTotal * 100) / 100;
+          producto.costo_base = await costos.calcularCostoCompuesto(db, producto.id);
         }
       }
 
@@ -169,13 +159,13 @@ const productoController = {
         }
       }
 
-      // Valores por defecto desde configuración
-      const config = await db.get('SELECT * FROM configuracion_general WHERE id = 1');
+      // Valores por defecto desde configuración (costeo absorbente — B12 corregido)
+      const params = await costos.obtenerParametros(db);
 
       producto.costo_base = producto.costo_base || 0;
-      producto.margen = producto.margen || (config?.margen_recomendado || 20);
-      producto.gastos_fijos = producto.gastos_fijos || (config?.porcentaje_gastos || 0);
-      producto.impuesto = producto.impuesto || (config?.impuesto_ventas || 15);
+      producto.margen = producto.margen || params.margen;
+      producto.gastos_fijos = producto.gastos_fijos || Math.round(params.pctGastos * 10000) / 100; // % con 2 decimales
+      producto.impuesto = producto.impuesto || params.impuesto;
 
       // Dependencias
       const ventas = await db.get('SELECT COUNT(*) as count FROM movimientos_stock WHERE producto_id = ?', [id]);
@@ -238,21 +228,25 @@ const productoController = {
           }
         }
       } else {
-        // Compuesto: sin unidad de compra
+        // Compuesto: sin unidad de compra; sub_tipo obligatorio (D1)
         data.unidad_compra_id = null;
+        if (!['elaborado', 'conformado'].includes(data.sub_tipo)) {
+          return res.status(400).json({ error: 'Un producto compuesto debe ser sub_tipo "elaborado" o "conformado"' });
+        }
       }
 
       const foto = req.file ? req.file.filename : null;
 
       const result = await db.run(`
-        INSERT INTO productos (codigo, nombre, tipo, sub_tipo, requiere_preparacion,
-          categoria_id, unidad_venta_id, unidad_compra_id, stock_minimo, activo, foto)
+        INSERT INTO productos (codigo, nombre, tipo, sub_tipo,
+          categoria_id, unidad_venta_id, unidad_compra_id, stock_minimo, activo, descripcion_preparacion, foto)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         data.codigo, data.nombre, data.tipo, data.sub_tipo || null,
-        data.requiere_preparacion ? 1 : 0, data.categoria_id || null,
+        data.categoria_id || null,
         data.unidad_venta_id, data.unidad_compra_id || null,
-        data.stock_minimo || 0, data.activo !== false ? 1 : 0, foto
+        data.stock_minimo || 0, data.activo !== false ? 1 : 0,
+        data.descripcion_preparacion || null, foto
       ]);
 
       res.status(201).json({ id: result.lastID, message: 'Producto creado' });
@@ -262,22 +256,32 @@ const productoController = {
   },
 
   // PUT /api/productos/:id
+  // D4: solo campos seguros son editables. Los campos estructurales (tipo, sub_tipo,
+  // unidades, stock_actual, costo_base, precio_recomendado) NUNCA por edición directa:
+  // cambian por conversiones (D6), movimientos de stock o recálculo de costos (D3).
   actualizar: async (req, res, next) => {
     try {
       const db = await getDb();
       const { id } = req.params;
       const data = req.body;
 
+      // Rechazar campos no editables (D4)
+      const noEditables = ['tipo', 'sub_tipo', 'unidad_venta_id', 'unidad_compra_id', 'stock_actual', 'costo_base', 'precio_recomendado', 'requiere_preparacion'];
+      const intentados = noEditables.filter(c => data[c] !== undefined);
+      if (intentados.length > 0) {
+        return res.status(400).json({
+          error: `Campos no editables directamente: ${intentados.join(', ')}. Use las vías controladas (conversiones, movimientos, costos).`
+        });
+      }
+
       const updates = [];
       const params = [];
 
       if (data.nombre !== undefined) { updates.push('nombre = ?'); params.push(data.nombre); }
       if (data.categoria_id !== undefined) { updates.push('categoria_id = ?'); params.push(data.categoria_id === '' ? null : data.categoria_id); }
-      if (data.unidad_venta_id !== undefined) { updates.push('unidad_venta_id = ?'); params.push(data.unidad_venta_id); }
-      if (data.unidad_compra_id !== undefined) { updates.push('unidad_compra_id = ?'); params.push(data.unidad_compra_id === '' ? null : data.unidad_compra_id); }
       if (data.stock_minimo !== undefined) { updates.push('stock_minimo = ?'); params.push(data.stock_minimo); }
+      if (data.precio_venta !== undefined) { updates.push('precio_venta = ?'); params.push(data.precio_venta); }
       if (data.activo !== undefined) { updates.push('activo = ?'); params.push(data.activo === 'false' || data.activo === false ? 0 : 1); }
-      if (data.requiere_preparacion !== undefined) { updates.push('requiere_preparacion = ?'); params.push(data.requiere_preparacion === 'true' || data.requiere_preparacion === true ? 1 : 0); }
       if (data.descripcion_preparacion !== undefined) { updates.push('descripcion_preparacion = ?'); params.push(data.descripcion_preparacion); }
 
       // Foto
@@ -366,9 +370,9 @@ const productoController = {
         return res.status(400).json({ error: 'Solo productos compuestos pueden tener receta' });
       }
 
-      // Verificar que el hijo sea a-granel o compuesto/preparable
+      // Verificar que el hijo sea a-granel o compuesto elaborado (D5)
       const hijo = await db.get(`
-      SELECT p.id, p.nombre, p.tipo, p.sub_tipo, p.requiere_preparacion,
+      SELECT p.id, p.nombre, p.tipo, p.sub_tipo,
              uv.abreviatura as unidad_abrev, uv.tipo as unidad_tipo
       FROM productos p
       JOIN unidades uv ON p.unidad_venta_id = uv.id
@@ -380,17 +384,34 @@ const productoController = {
       }
 
       const esValido = hijo.tipo === 'simple' && hijo.sub_tipo === 'granel' ||
-        hijo.tipo === 'compuesto' && hijo.requiere_preparacion;
+        hijo.tipo === 'compuesto' && hijo.sub_tipo === 'elaborado';
 
       if (!esValido) {
         return res.status(400).json({
-          error: 'Solo productos a granel o compuestos preparables pueden ser componentes'
+          error: 'Solo productos a granel o compuestos elaborados pueden ser ingredientes'
         });
       }
 
       // No puede ser componente de sí mismo
       if (parseInt(id) === parseInt(producto_hijo_id)) {
-        return res.status(400).json({ error: 'Un producto no puede ser componente de sí mismo' });
+        return res.status(400).json({ error: 'Un producto no puede ser ingrediente de sí mismo' });
+      }
+
+      // Anti-ciclos (D2): el padre no puede aparecer entre los descendientes del hijo
+      const ciclo = await db.get(`
+        WITH RECURSIVE descendientes(pid) AS (
+          SELECT producto_hijo_id AS pid FROM recetas WHERE producto_padre_id = ?
+          UNION
+          SELECT r.producto_hijo_id FROM recetas r
+          JOIN descendientes d ON r.producto_padre_id = d.pid
+        )
+        SELECT pid FROM descendientes WHERE pid = ? LIMIT 1
+      `, [producto_hijo_id, id]);
+
+      if (ciclo) {
+        return res.status(400).json({
+          error: `No se puede: "${padre.nombre}" ya es ingrediente (directo o indirecto) de "${hijo.nombre}". Se formaría un ciclo.`
+        });
       }
 
       // Insertar o actualizar
@@ -435,6 +456,9 @@ const productoController = {
 
       res.json({ message: 'Componente agregado exitosamente' });
 
+      // Recalcular costo del padre y de quienes lo contienen (D3) — tras responder, sin bloquear
+      costos.recalcularPorIngrediente(db, parseInt(id)).catch(e => console.error('Error recalculando costos:', e));
+
     } catch (error) {
       next(error);
     }
@@ -448,6 +472,9 @@ const productoController = {
       await db.run('DELETE FROM recetas WHERE producto_padre_id = ? AND producto_hijo_id = ?', [id, componenteId]);
 
       res.json({ message: 'Componente eliminado' });
+
+      // Recalcular costo del padre y de quienes lo contienen (D3)
+      costos.recalcularPorIngrediente(db, parseInt(id)).catch(e => console.error('Error recalculando costos:', e));
     } catch (error) {
       next(error);
     }
@@ -458,22 +485,26 @@ const productoController = {
     try {
       const db = await getDb();
       const { id } = req.params;
-      const { costo_base, margen, gastos_fijos, impuesto, precio_venta } = req.body;
+      const { costo_base, precio_venta } = req.body;
 
-      await db.run(`
-        INSERT INTO producto_costos (producto_id, costo_base, margen, gastos_fijos, impuesto)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(producto_id) DO UPDATE SET
-          costo_base = excluded.costo_base,
-          margen = excluded.margen,
-          gastos_fijos = excluded.gastos_fijos,
-          impuesto = excluded.impuesto,
-          updated_at = CURRENT_TIMESTAMP
-      `, [id, costo_base || 0, margen || 20, gastos_fijos || 0, impuesto || 15]);
+      const producto = await db.get('SELECT tipo FROM productos WHERE id = ?', [id]);
+      if (!producto) {
+        return res.status(404).json({ error: 'Producto no encontrado' });
+      }
+
+      // D3: el costo_base vive en productos. Para compuestos se deriva de la receta
+      // (no se acepta manual); para simples se acepta el costo manual de la ficha.
+      // margen/gastos/impuesto se toman de parametros_contables (globales, m019).
+      if (producto.tipo === 'simple' && costo_base !== undefined) {
+        await db.run('UPDATE productos SET costo_base = ? WHERE id = ?', [costo_base || 0, id]);
+      }
 
       if (precio_venta !== undefined) {
         await db.run('UPDATE productos SET precio_venta = ? WHERE id = ?', [precio_venta, id]);
       }
+
+      // Recalcular este producto y los compuestos que lo contienen (D3)
+      await costos.recalcularPorIngrediente(db, parseInt(id));
 
       res.json({ message: 'Ficha de costo actualizada' });
     } catch (error) {
@@ -496,9 +527,9 @@ const productoController = {
           WHERE pr.activo = 1
           GROUP BY r.producto_padre_id
         )
-        SELECT p.nombre, p.tipo, p.requiere_preparacion,
+        SELECT p.nombre, p.tipo, p.sub_tipo,
               CASE 
-                WHEN p.tipo = 'compuesto' AND p.requiere_preparacion = 0 
+                WHEN p.tipo = 'compuesto' AND p.sub_tipo = 'conformado' 
                   THEN COALESCE(sc.stock_efectivo, 0)
                 ELSE p.stock_actual
               END as stock_actual,
@@ -580,7 +611,7 @@ const productoController = {
       // Total ajustes. ajustes, mermas, devoluciones, donaciones y autoconsumo
       let totalAjustes;
 
-      if (producto.tipo === 'compuesto' && !producto.requiere_preparacion) {
+      if (producto.tipo === 'compuesto' && producto.sub_tipo === 'conformado') {
         // Encontrar el componente con menor total de entradas (Pmin)
         let pminComponente = null;
         let pminTotal = Infinity;
@@ -595,25 +626,28 @@ const productoController = {
               pminTotal = c.cantidad;
               pminComponente = c;
               pminComponente.disponible = disponible;
-              console.log('=> ', pminComponente);
               recetaCantidad = receta.cantidad;
             }
           }
         }
-        const ajustes = await db.all(`
-          SELECT tipo, created_at as fecha, cantidad, 'producto: ${pminComponente?.componente_nombre}' as observaciones
-          FROM movimientos_stock
-          WHERE producto_id = ? 
-            AND tipo IN ('merma', 'ajuste', 'devolucion', 'donacion', 'autoconsumo')
-          ORDER BY created_at DESC
-        `, [pminComponente.producto_id]);
+
+        // B4: si ningún componente tiene entradas, no hay Pmin — responder con ceros
+        let ajustes = [];
+        if (pminComponente) {
+          ajustes = await db.all(`
+            SELECT tipo, created_at as fecha, cantidad, ? as observaciones
+            FROM movimientos_stock
+            WHERE producto_id = ? 
+              AND tipo IN ('merma', 'ajuste', 'devolucion', 'donacion', 'autoconsumo')
+            ORDER BY created_at DESC
+          `, ['producto: ' + (pminComponente.componente_nombre || ''), pminComponente.producto_id]);
+        }
 
         // Usar ajustes de Pmin
         totalAjustes = ajustes.reduce((sum, a) => sum + a.cantidad, 0) / recetaCantidad;
-        console.log('=> ', { totalAjustes, recetaCantidad });
 
         // Total entradas = cantidad del componente limitante (en su unidad)
-        totalEntradas = pminTotal;
+        totalEntradas = pminComponente ? pminTotal : 0;
         // Stock esperado = PminTotal / cantidad en receta
         const stockEsperado = pminComponente ? pminComponente.disponible : 0;
         // Stock actual = stock_efectivo
@@ -622,7 +656,7 @@ const productoController = {
         const diferencia = stockActual - (stockEsperado - totalSalidas + totalAjustes);
         // Guardar info adicional para mostrar
         producto.pminComponente = pminComponente;
-        producto.pminTotal = pminTotal;
+        producto.pminTotal = pminComponente ? pminTotal : 0;
         producto.stockEsperadoCalculado = stockEsperado;
         producto.diferenciaCalculada = diferencia;
         ret.ajustes = ajustes;
@@ -644,8 +678,8 @@ const productoController = {
         `, [id]);
         totalAjustes = ajustes.reduce((sum, a) => sum + a.cantidad, 0);
 
-        if (producto.tipo === 'compuesto' && producto.requiere_preparacion) {
-          // Preparables: sumar preparaciones
+        if (producto.tipo === 'compuesto' && producto.sub_tipo === 'elaborado') {
+          // Elaborados: sumar preparaciones
           totalEntradas = preparaciones.reduce((sum, p) => sum + p.cantidad, 0);
         } else {
           // Simples: sumar compras (ya convertidas a unidad de venta)
