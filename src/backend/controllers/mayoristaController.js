@@ -392,7 +392,7 @@ const mayoristaController = {
         : null;
 
       // Impuesto incluido sobre lo facturado, CON el descuento global del cliente (sin redondeo de caja)
-      const config = await db.get('SELECT impuesto_ventas FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT impuesto_ventas FROM configuracion_contabilidad WHERE id = 1');
       const tasa = (config?.impuesto_ventas ?? 15) / 100;
       const clientePedido = await db.get('SELECT descuento_global FROM clientes WHERE id = ?', [pedido.cliente_id]);
       const descuento = (clientePedido?.descuento_global || 0) / 100;
@@ -511,7 +511,7 @@ const mayoristaController = {
       }
 
       // Impuesto incluido + redondeo de caja (igual que el POS minorista)
-      const config = await db.get('SELECT impuesto_ventas, redondeo_venta FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT impuesto_ventas, redondeo_venta FROM configuracion_contabilidad WHERE id = 1');
       const tasa = (config?.impuesto_ventas ?? 15) / 100;
       const redondeo = config?.redondeo_venta ?? 5;
       const totalExacto = pedido.total;

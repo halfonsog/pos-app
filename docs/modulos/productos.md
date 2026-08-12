@@ -4,7 +4,7 @@
 Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fichas de costo (costeo del propietario) y trazabilidad de stock. Las categorías se gestionan desde Configuración pero pertenecen a este dominio.
 
 ## Tablas
-`productos` · `recetas` · `categorias` · `unidades` (migraciones 003, 010, 017, 018). `producto_costos` fue **eliminada** (m019): `costo_base` y `precio_recomendado` viven en `productos`; margen, gastos e impuesto se toman de `parametros_contables`.
+`productos` · `recetas` · `categorias` · `unidades` (migraciones 003, 010, 017, 018). `producto_costos` fue **eliminada** (m019): `costo_base` y `precio_recomendado` viven en `productos`; margen, gastos e impuesto se toman de `configuracion_contabilidad`.
 
 ## Endpoints (ref: ../03-api.md)
 - `/api/productos/*`: CRUD + receta (GET/POST/DELETE componente) + `PUT /:id/costo` + `GET /:id/trazabilidad`
@@ -35,7 +35,7 @@ Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fic
   precio_neto      = costo_base × (1 + %gastos) × (1 + margen_recomendado%)
   precio_recomendado = precio_neto × (1 + impuesto_ventas%)
   ```
-- **costo_base y precio_recomendado persistidos en `productos`** (D3). Triggers de recálculo: compra inventariada (cascada a compuestos contenedores), ficha de costo (solo costo_base de simples + precio_venta), cambio de configuración general o de gastos fijos, agregar/quitar ingrediente. **margen/gastos/impuesto son globales** (de `parametros_contables`), no por producto.
+- **costo_base y precio_recomendado persistidos en `productos`** (D3). Triggers de recálculo: compra inventariada (cascada a compuestos contenedores), ficha de costo (solo costo_base de simples + precio_venta), cambio de configuración general o de gastos fijos, agregar/quitar ingrediente. **margen/gastos/impuesto son globales** (de `configuracion_contabilidad`), no por producto.
 - **Campos editables (D4)**: solo nombre, descripción, foto, categoría, stock_minimo, precio_venta, activo. El backend RECHAZA (400) tipo, sub_tipo, unidades, stock_actual, costo_base, precio_recomendado — cambian por conversiones (D6), movimientos o recálculo.
 - **Fotos**: multer+sharp, 800×800 JPEG, `uploads/productos/`, máx 3 MB.
 

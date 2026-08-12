@@ -15,7 +15,7 @@ const reportesController = {
           SUM(vd.total) as total_vendido,
           COUNT(DISTINCT v.id) as num_ventas,
           COALESCE(p.costo_base, 0) as costo_unitario,
-          (SELECT margen_recomendado FROM parametros_contables WHERE id = 1) as margen_pct
+          (SELECT margen_recomendado FROM configuracion_contabilidad WHERE id = 1) as margen_pct
         FROM venta_detalles vd
         JOIN ventas v ON vd.venta_id = v.id
         JOIN productos p ON vd.producto_id = p.id
@@ -99,7 +99,7 @@ const reportesController = {
       SELECT 
         p.id, p.nombre, p.codigo, p.precio_venta,
         COALESCE(p.costo_base, 0) as costo_base,
-        (SELECT margen_recomendado FROM parametros_contables WHERE id = 1) as margen_pct,
+        (SELECT margen_recomendado FROM configuracion_contabilidad WHERE id = 1) as margen_pct,
         SUM(vd.cantidad) as cantidad_vendida,
         SUM(vd.total) as total_vendido
       FROM venta_detalles vd
@@ -212,7 +212,7 @@ const reportesController = {
         const totalCompras = await db.get(`SELECT SUM(total) as total FROM compras WHERE fecha_compra >= ? AND fecha_compra <= ?`, [inicio, fin]);
 
         // Impuesto a la ganancia desde configuración
-        const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+        const config = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
         const impuestoGananciaPct = config?.impuesto_ganancia || 35;
         const { gastosFijos: gastosFijosMensuales } = await require('../utils/costos').obtenerGastosFijos(db);
         const gastosMensuales = { total: gastosFijosMensuales };

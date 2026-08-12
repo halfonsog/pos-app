@@ -26,7 +26,7 @@ beforeAll(async () => {
   // Setup: PD=50%, empleado con salario, ventas del mes
   const { getDb } = require('../src/backend/models/db');
   const db = await getDb();
-  await db.run('UPDATE parametros_contables SET porciento_declarar = 50, salario_minimo = 3260 WHERE id = 1');
+  await db.run('UPDATE configuracion_contabilidad SET porciento_declarar = 50, salario_minimo = 3260 WHERE id = 1');
   await db.run("UPDATE empleados SET salario_mensual = 6000 WHERE id = 1");
   const turno = await db.run("INSERT INTO turnos (vendedor_id, monto_apertura, estado) VALUES (1, 0, 'cerrado')");
   await db.run(`INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, metodo_pago, estado, created_at)

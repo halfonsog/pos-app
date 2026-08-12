@@ -91,7 +91,7 @@ const dashboardController = {
       `);
 
       // ¿Hoy es día de pagar bonos? (dia_pago_bonos configurado vs día de la semana actual)
-      const configBono = await db.get('SELECT dia_pago_bonos FROM parametros_contables WHERE id = 1');
+      const configBono = await db.get('SELECT dia_pago_bonos FROM configuracion_contabilidad WHERE id = 1');
       const diaPagoBonos = configBono?.dia_pago_bonos ?? 5;
       const hoyDiaSemana = new Date().getDay(); // 0=domingo..6=sábado
       const esDiaBonos = hoyDiaSemana === diaPagoBonos;

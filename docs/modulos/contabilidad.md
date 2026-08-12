@@ -4,7 +4,7 @@
 Liquidación de tributos según normativa cubana (ONAE) para un TCP: cálculo por período, registro de pagos, historial, balance/estado de resultados y cierre de mes con desglose por prioridades. **Estado: vector fiscal completo y verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`).**
 
 ## Tablas
-`tributos` (9 precargados) · `configuracion_tributos` · `empleados` · `tributos_empleados` · `periodos_fiscales` · `liquidaciones_tributos` · `configuracion_tributos_historial` · `movimientos_bancarios` · `servicios` · `nominas` · `bonos` · `parametros_contables` (porciento_declarar, dia_pago_bonos). Migraciones 015, 021, 022, 025–027, 029, 030.
+`tributos` (9 precargados) · `configuracion_tributos` · `empleados` · `tributos_empleados` · `periodos_fiscales` · `liquidaciones_tributos` · `configuracion_tributos_historial` · `movimientos_bancarios` · `servicios` · `nominas` · `bonos` · `configuracion_contabilidad` (porciento_declarar, dia_pago_bonos; antes `parametros_contables`, m031). Migraciones 015, 021, 022, 025–027, 029, 030.
 
 ## Endpoints (ref: ../03-api.md) — todos [A+] admin
 - `POST /calcular-impuestos` (mes, anio) — motor de liquidación ✅ verificado contra el vector fiscal real · **aplica el Porciento a Declarar (PD)** a ventas
@@ -23,7 +23,7 @@ Liquidación de tributos según normativa cubana (ONAE) para un TCP: cálculo po
 `js/modules/contabilidad.js` — cards (ventas hoy/mes, días para pago con semáforo, cobertura de gastos), calcular impuestos por período, cierre de mes con desglose por prioridades, historial con registro de pago por fila.
 
 ## Reglas de negocio — Vector fiscal ONAE (verificado contra el Excel del propietario)
-Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado; `sm` (salario mínimo), `base_contribucion_especial` en parametros_contables (editables en Configuración → Parámetros).
+Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado; `sm` (salario mínimo), `base_contribucion_especial` en configuracion_contabilidad (editables en Configuración → Parámetros).
 
 | Código | Nombre | Período | Fórmula | Verificado |
 |---|---|---|---|---|
@@ -43,7 +43,7 @@ Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado
 - Test de regresión: `tests/vector-fiscal.test.js` replica el vector completo del propietario.
 
 ## Temas pendientes a resolver
-- La gestión de tributos **se queda en este módulo** (decisión del propietario, `com.md` #2a: la contabilidad y su configuración viven en Contabilidad; los parámetros que cambian se mueven a `parametros_contables`, tabla que el propietario sugiere renombrar a `configuracion_contabilidad`) → `00-pendientes.md`.
+- La gestión de tributos **se queda en este módulo** (decisión del propietario, `com.md` #2a: la contabilidad y su configuración viven en Contabilidad). La tabla quedó renombrada a `configuracion_contabilidad` (m031). → `00-pendientes.md`.
 - Tabla de gastos deducibles para la DJ anual (el propietario la aportará; en espera de su consulta a un especialista).
 - La contabilidad se limita a la gestión del negocio; el export es **CSV para software certificado (Versat)** — no PDF propio → `00-pendientes.md`.
 

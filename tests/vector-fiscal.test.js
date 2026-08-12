@@ -31,7 +31,7 @@ beforeAll(async () => {
   // Setup del vector: empleado con st=6000 y base_contribucion=2000
   const { getDb } = require('../src/backend/models/db');
   const db = await getDb();
-  await db.run('UPDATE parametros_contables SET salario_minimo = 3260, base_contribucion_especial = 2000 WHERE id = 1');
+  await db.run('UPDATE configuracion_contabilidad SET salario_minimo = 3260, base_contribucion_especial = 2000 WHERE id = 1');
   await db.run(
     "INSERT INTO empleados (nombre, cargo, salario_mensual, aporte_corto_plazo, utilidades, activo) VALUES ('Vendedor', 'vendedor', 6000, 0, 0, 1)"
   );

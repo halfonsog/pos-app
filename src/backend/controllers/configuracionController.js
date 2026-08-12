@@ -11,11 +11,11 @@ const configuracionController = {
   obtenerGeneral: async (req, res, next) => {
     try {
       const db = await getDb();
-      const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
 
       if (!config) {
-        await db.run('INSERT INTO parametros_contables (id, ventas_proyectadas, margen_recomendado, impuesto_ventas,impuesto_ganancia) VALUES (1, 250000, 20, 15, 35)');
-        const nuevo = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+        await db.run('INSERT INTO configuracion_contabilidad (id, ventas_proyectadas, margen_recomendado, impuesto_ventas,impuesto_ganancia) VALUES (1, 250000, 20, 15, 35)');
+        const nuevo = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
         return res.json(nuevo);
       }
 
@@ -52,10 +52,10 @@ const configuracionController = {
               porciento_declarar, dia_pago_bonos } = req.body;
 
       // Leer actuales para no pisar con undefined los campos no enviados
-      const actual = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+      const actual = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
 
       await db.run(`
-      UPDATE parametros_contables 
+      UPDATE configuracion_contabilidad 
       SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, 
           redondeo_venta = ?, impuesto_ganancia = ?,
           salario_minimo = ?, base_contribucion_especial = ?, limite_escala_retencion = ?,

@@ -40,6 +40,7 @@ Las migraciones se registran en `schema_migrations` (version, name, executed_at,
 | 028 | `028_facturacion_parcial.sql` | `pedido_detalles.cantidad_facturada`; `pedidos.estado` +`'parcial'` |
 | 029 | `029_servicios_tipo_venta.sql` | `servicios` + `usuarios.tipo_venta` |
 | 030 | `030_contabilidad_nominas.sql` | `parametros_contables` +`porciento_declarar` (def 100) +`dia_pago_bonos` (def 5=viernes); `nominas` + `bonos` |
+| 031 | `031_renombrar_parametros_contables.sql` | `parametros_contables` renombrada a **`configuracion_contabilidad`** (propietario, `com.md` #2a) |
 
 ## 2. Catálogo completo de tablas
 
@@ -62,7 +63,7 @@ Seeds: Contado, 7 días, 30 días. Usados por proveedores y por clientes (condic
 **`denominaciones`** — billetes/monedas para el arqueo de caja.
 `id` · `valor` · `activo` · `orden`. Toggle según lo que circula.
 
-**`parametros_contables`** — registro único (id=1).
+**`configuracion_contabilidad`** — registro único (id=1). Antes `parametros_contables` (m031 lo renombró).
 `ventas_proyectadas` · `margen_recomendado` (def 20) · `impuesto_ventas` (def 15) · `redondeo_venta` (def 5) · `impuesto_ganancia` (def 35) · `salario_minimo` (def 3260) · `base_contribucion_especial` · `limite_escala_retencion` (def 15000) · `porciento_declarar` (def 100; % de ventas y compras declaradas al fisco) · `dia_pago_bonos` (def 5=viernes) · `updated_at`
 - `total_gastos_fijos` y `porcentaje_gastos` **no son columnas**: se calculan al vuelo (fórmulas en `modulos/configuracion.md`).
 - Auto-siembra: si falta el registro id=1 se crea solo.

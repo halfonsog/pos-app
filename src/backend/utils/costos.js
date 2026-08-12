@@ -13,7 +13,7 @@
  * Recálculo:
  *   · recalcularPorIngrediente(db, id)  — tras compra/cambio de costo de un producto:
  *     recalcula ese producto y todos los compuestos que lo contienen (cascada hacia arriba).
- *   · recalcularTodosLosPrecios(db)     — tras cambio en parametros_contables.
+ *   · recalcularTodosLosPrecios(db)     — tras cambio en configuracion_contabilidad.
  */
 
 /**
@@ -40,7 +40,7 @@ async function obtenerGastosFijos(db) {
 //   gastos fijos = Σ configuracion_gastos + Σ salarios de empleados activos
 //   gasto financiero del mes = próximo vencimiento pendiente de préstamos/inversiones (m020)
 async function obtenerParametros(db) {
-  const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+  const config = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
   const { gastosFijos } = await obtenerGastosFijos(db);
 
   // Gasto financiero del mes (préstamos e inversiones activos; próximo vencimiento pendiente)
@@ -158,7 +158,7 @@ async function desglosePrioridades(db, inicio, fin) {
   const { gastoFinancieroMes } = require('../controllers/prestamoInversionController');
 
   // Porciento a declarar (m030): escala ventas Y compras/gastos en lo fiscal
-  const configPD = await db.get('SELECT porciento_declarar FROM parametros_contables WHERE id = 1');
+  const configPD = await db.get('SELECT porciento_declarar FROM configuracion_contabilidad WHERE id = 1');
   const pd = (configPD?.porciento_declarar ?? 100) / 100;
 
   // Ventas del período

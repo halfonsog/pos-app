@@ -4,7 +4,7 @@
 Tablas maestras y parámetros del sistema: parámetros contables, gastos fijos, categorías (con subcategorías), unidades de medida, denominaciones (arqueo), términos de pago, gestión de empleados/usuarios y **préstamos e inversiones**.
 
 ## Tablas (ref: ../02-base-de-datos.md)
-`parametros_contables` (registro único id=1) · `configuracion_gastos` · `categorias` (con `padre_id`) · `unidades` · `denominaciones` · `terminos_pago` · `usuarios` · `empleados` · `prestamos_inversiones` + `vencimientos` (m020)
+`configuracion_contabilidad` (registro único id=1) · `configuracion_gastos` · `categorias` (con `padre_id`) · `unidades` · `denominaciones` · `terminos_pago` · `usuarios` · `empleados` · `prestamos_inversiones` + `vencimientos` (m020)
 
 ## Endpoints (ref: ../03-api.md)
 `/api/configuracion/`: `general` (GET/PUT) · `gastos` CRUD · `denominaciones` (listar/todas/toggle) · `categorias` (listar/crear/actualizar, con padre_id y anti-ciclo) · `unidades` (listar/crear/actualizar) · `terminos-pago` CRUD · `/api/usuarios` CRUD · `/api/empleados` CRUD · `/api/config/prestamos-inversiones` (listar/crear/editar/cancelar/pagos).
@@ -41,7 +41,7 @@ Una vista SPA por sección, todas bajo el menú "Configuración" (`/configuracio
 - **Unidades** (confirmado por el propietario): cada unidad no-base tiene unidad base de referencia implícita por su `tipo` (ud/l/lb/m) y un `coeficiente` de conversión respecto a esa base → la conversión entre unidades del mismo tipo es directa. **La unidad de compra y de venta de un producto deben ser del mismo tipo (misma base)** — validado al crear producto. Base (id≤4) bloqueadas; usuario crea desde id≥100; coeficiente debe ser > 0; **no se puede cambiar el `tipo` de una unidad en uso** por productos (rompería conversiones).
 - **Denominaciones**: toggle activo según billetes/monedas en circulación; alimentan el arqueo de caja (Ventas).
 - **Préstamos e Inversiones** (m020): registro de seguimiento con tabla de vencimientos autogenerada (fórmulas del propietario, ver ../02-base-de-datos.md §2.5). El **gasto financiero del mes** (Σ aportes del **próximo vencimiento pendiente** de registros activos — si paga el 01/09, los precios del mes actual lo cubren) se suma a los gastos fijos en el %gastos del costeo. En inversiones, un pago de capital distinto al programado reajusta el número de cuotas restantes. Cancelar un registro deja sin efecto sus vencimientos.
-- **Auto-siembra**: si falta el registro id=1 de parametros_contables se crea solo.
+- **Auto-siembra**: si falta el registro id=1 de configuracion_contabilidad se crea solo.
 
 
 ## Problemas conocidos (../05-problemas-conocidos.md)

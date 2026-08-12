@@ -145,7 +145,7 @@ Ver `modulos/contabilidad.md` para el vector fiscal completo (fórmulas verifica
 | **Sprint 7** | Promociones y campañas (último módulo nuevo; menú oculto hasta que exista). **Por definir** (borrador del propietario en `com.md` #3: campañas con periodos y análisis de impacto en ventas; minoristas: "compra X y regala 1", descuentos por calidad y por grupos; mayoristas: transporte desde un monto). Se definirá bien antes de implementar. | ⬜ |
 | **Fase II** | Multi-caja, vendedores multi-caja, rol contable, venta online (pedidos ya unificados). Decisión MySQL/PostgreSQL. | ⬜ |
 | **Comercialización** | White-label (nombre negocio, logo, colores) **vía variables de configuración, aplazado al despliegue Windows** (`com.md` #1) + instaladores Windows/Linux/Android (con Node.js embebido, D17). | ⬜ |
-| **Contabilidad** | La contabilidad se limita a la gestión del negocio (cuentas por pagar/cobrar, salarios y bonos, impuestos); los ficheros se generan para importar en software certificado (Versat), no PDF propio. Pendientes: tabla de gastos deducibles DJ (la aportará el propietario), ajustar el CSV al ejemplo de Versat, renombrar `parametros_contables` → `configuracion_contabilidad`. | ⬜ |
+| **Contabilidad** | La contabilidad se limita a la gestión del negocio (cuentas por pagar/cobrar, salarios y bonos, impuestos); los ficheros se generan para importar en software certificado (Versat), no PDF propio. Pendientes: tabla de gastos deducibles DJ (la aportará el propietario), ajustar el CSV al ejemplo de Versat. Hecho: `parametros_contables` → `configuracion_contabilidad` (m031). | ⬜ |
 
 ## 6. Notas para comercialización (futuro)
 

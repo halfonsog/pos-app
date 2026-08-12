@@ -148,7 +148,7 @@ const ventaController = {
       }
 
       // Obtener impuesto y redondeo de configuración
-      const config = await db.get('SELECT redondeo_venta, impuesto_ventas FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT redondeo_venta, impuesto_ventas FROM configuracion_contabilidad WHERE id = 1');
       const impuestoRate = (config.impuesto_ventas) / 100;
       const REDONDEO = config.redondeo_venta;
 
@@ -486,7 +486,7 @@ const ventaController = {
       });
 
       // Configuración
-      const config = await db.get('SELECT * FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
 
       // Cálculos financieros
       const f = {

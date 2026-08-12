@@ -4,7 +4,7 @@
 Análisis del negocio: ventas por producto, tendencias, rentabilidad por producto y reportes contables mensuales/anuales.
 
 ## Tablas
-Lee de: `ventas`, `venta_detalles`, `productos`, `parametros_contables` (costos), `compras`, `proveedores`.
+Lee de: `ventas`, `venta_detalles`, `productos`, `configuracion_contabilidad` (costos), `compras`, `proveedores`.
 
 ## Endpoints (ref: ../03-api.md) — `ventas-por-producto` [A] (lo usa el POS del vendedor), el resto [A+] admin
 - `GET /ventas-por-producto` · `GET /tendencia?tipo=dia|semana|mes` · `GET /rentabilidad` · `GET /contables?anio&mes` · `GET /resumen-anual?anio`

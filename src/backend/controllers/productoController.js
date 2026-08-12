@@ -494,7 +494,7 @@ const productoController = {
 
       // D3: el costo_base vive en productos. Para compuestos se deriva de la receta
       // (no se acepta manual); para simples se acepta el costo manual de la ficha.
-      // margen/gastos/impuesto se toman de parametros_contables (globales, m019).
+      // margen/gastos/impuesto se toman de configuracion_contabilidad (globales, m019).
       if (producto.tipo === 'simple' && costo_base !== undefined) {
         await db.run('UPDATE productos SET costo_base = ? WHERE id = ?', [costo_base || 0, id]);
       }

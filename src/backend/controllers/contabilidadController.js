@@ -5,7 +5,7 @@ const costos = require('../utils/costos');
 // Porciento a declarar (m030): factor que escala ventas Y compras/gastos en lo fiscal.
 // Devuelve 1 si no está configurado (= declarar el 100%).
 async function factorDeclaracion(db) {
-  const config = await db.get('SELECT porciento_declarar FROM parametros_contables WHERE id = 1');
+  const config = await db.get('SELECT porciento_declarar FROM configuracion_contabilidad WHERE id = 1');
   return (config?.porciento_declarar ?? 100) / 100;
 }
 
@@ -51,7 +51,7 @@ const contabilidadController = {
 
       // Porciento a declarar (propietario, m030): todo lo fiscal se calcula sobre
       // ventas Y compras/gastos reales × (porciento_declarar / 100)
-      const configPD = await db.get('SELECT porciento_declarar FROM parametros_contables WHERE id = 1');
+      const configPD = await db.get('SELECT porciento_declarar FROM configuracion_contabilidad WHERE id = 1');
       const factorDeclaracion = (configPD?.porciento_declarar ?? 100) / 100;
       const totalVentas = totalVentasReal * factorDeclaracion;
 
@@ -69,7 +69,7 @@ const contabilidadController = {
       // 3. Obtener configuración general (salario mínimo, etc.)
       const config = await db.get(`
                 SELECT salario_minimo, base_contribucion_especial, limite_escala_retencion
-                FROM parametros_contables 
+                FROM configuracion_contabilidad 
                 WHERE id = 1
             `);
 
@@ -637,7 +637,7 @@ const contabilidadController = {
       const ventasDecl = ventas.ventas_netas * pd;
       const gastosDecl = gastosAnio * pd;
       const gananciaNeta = ventasDecl - costoRow.total * pd - gastosDecl;
-      const config = await db.get('SELECT impuesto_ganancia FROM parametros_contables WHERE id = 1');
+      const config = await db.get('SELECT impuesto_ganancia FROM configuracion_contabilidad WHERE id = 1');
       const tasa = (config?.impuesto_ganancia ?? 35) / 100;
       const monto = Math.max(0, gananciaNeta) * tasa;
       const montoConDescuento = monto * 0.95; // 5% dto. si se paga antes del 28/02 del año siguiente
