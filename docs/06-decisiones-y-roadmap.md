@@ -59,6 +59,12 @@ Los listados y filtros del frontend se alimentan de esta tabla.
 ### D8. Subcategorías
 `categorias.padre_id → categorias.id`. Al filtrar productos por una categoría padre, se incluyen los productos de sus hijas. Gestión en Configuración (selector de padre, anti-ciclo).
 
+### D27. Recetas sin validación de suma (regla del propietario)
+Las cantidades de la receta **deben coincidir con la cantidad del producto a preparar**; el sistema **no valida** la suma de componentes (antes exigía ≤ 1 por tipo de unidad). La UI muestra la nota "Las cantidades establecidas en la receta deben coincidir con la cantidad del producto a preparar". El título de la receta incluye la unidad (ej. "Receta: 1 litro de Jugo de guayaba").
+
+### D28. Eliminar producto con feedback y dependencias reales
+Al eliminar un producto desde el listado, el sistema muestra confirmación y resultado (Toast). El backend bloquea el borrado si el producto está usado en movimientos de stock, compras, ventas, pedidos o recetas (como ingrediente o como padre), con mensaje que enumera los usos. En la ficha de edición, el stock mínimo muestra la unidad correspondiente y la vista de ficha ya no muestra el tipo en la barra del título.
+
 ---
 
 ## 2. Decisiones de usuarios y seguridad (Fase I)

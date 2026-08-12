@@ -318,12 +318,24 @@ const productoController = {
       const db = await getDb();
       const { id } = req.params;
 
-      const movs = await db.get('SELECT COUNT(*) as count FROM movimientos_stock WHERE producto_id = ?', [id]);
-      if (movs.count > 0) {
-        return res.status(400).json({ error: 'No se puede eliminar: tiene movimientos de stock' });
+      // Dependencias previas: si el producto se usa en alguna tabla, impedir con mensaje claro.
+      const deps = {
+        movimientos_de_stock: await db.get('SELECT COUNT(*) as c FROM movimientos_stock WHERE producto_id = ?', [id]),
+        compras: await db.get('SELECT COUNT(*) as c FROM compra_detalles WHERE producto_id = ?', [id]),
+        ventas: await db.get('SELECT COUNT(*) as c FROM venta_detalles WHERE producto_id = ?', [id]),
+        pedidos: await db.get('SELECT COUNT(*) as c FROM pedido_detalles WHERE producto_id = ?', [id]),
+        ingrediente_de_compuestos: await db.get('SELECT COUNT(*) as c FROM recetas WHERE producto_hijo_id = ?', [id]),
+        recetas_de_compuestos: await db.get('SELECT COUNT(*) as c FROM recetas WHERE producto_padre_id = ?', [id])
+      };
+
+      const bloqueos = Object.entries(deps).filter(([, r]) => r.c > 0);
+      if (bloqueos.length > 0) {
+        const motivos = bloqueos.map(([k]) => k.replace(/_/g, ' ')).join(', ');
+        return res.status(400).json({
+          error: `No se puede eliminar el producto: está usado en ${motivos}. Márcalo como inactivo.`
+        });
       }
 
-      await db.run('DELETE FROM recetas WHERE producto_padre_id = ? OR producto_hijo_id = ?', [id, id]);
       await db.run('DELETE FROM productos WHERE id = ?', [id]);
 
       res.json({ message: 'Producto eliminado' });
@@ -422,42 +434,12 @@ const productoController = {
       DO UPDATE SET cantidad = ?
     `, [id, producto_hijo_id, cantidad, cantidad]);
 
-      // ✅ Validar sumas si el padre NO se vende en "unidad"
-      const esUnidad = padre.unidad_abrev === 'ud';
-
-      if (!esUnidad) {
-        // Obtener todos los componentes actuales
-        const receta = await db.all(`
-        SELECT r.cantidad, uv.tipo as unidad_tipo, uv.abreviatura
-        FROM recetas r
-        JOIN productos p ON r.producto_hijo_id = p.id
-        JOIN unidades uv ON p.unidad_venta_id = uv.id
-        WHERE r.producto_padre_id = ?
-      `, [id]);
-
-        // Verificar que al menos un componente sea del mismo tipo que el padre
-        const mismoTipo = receta.filter(c => c.unidad_tipo === padre.unidad_tipo);
-
-        if (mismoTipo.length === 0) {
-          // No bloqueamos, solo advertimos (la validación final será al guardar)
-          console.log('⚠️ La receta no tiene componentes del mismo tipo que el producto padre');
-        }
-
-        // Calcular suma de componentes del mismo tipo
-        const suma = mismoTipo.reduce((s, c) => s + parseFloat(c.cantidad), 0);
-        console.log(`📊 Suma de componentes del mismo tipo (${padre.unidad_abrev}): ${suma}`);
-
-        if (suma > 1.0001) {
-          return res.status(400).json({
-            error: `La suma de componentes del mismo tipo (${padre.unidad_abrev}) no puede exceder 1. Actual: ${suma.toFixed(4)}`
-          });
-        }
-      }
-
-      res.json({ message: 'Componente agregado exitosamente' });
-
-      // Recalcular costo del padre y de quienes lo contienen (D3) — tras responder, sin bloquear
+      // ✅ Recalcular costo del padre y de quienes lo contienen (D3) — tras responder, sin bloquear
       costos.recalcularPorIngrediente(db, parseInt(id)).catch(e => console.error('Error recalculando costos:', e));
+
+      // Nota (regla del propietario): las cantidades de la receta deben coincidir con
+      // la cantidad del producto a preparar; el sistema NO valida la suma (2026-08-11).
+      res.json({ message: 'Componente agregado exitosamente' });
 
     } catch (error) {
       next(error);

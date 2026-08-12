@@ -33,9 +33,9 @@ Base: `/api` · Formato: JSON · Auth: `Authorization: Bearer <JWT>` (24h de exp
 | GET | `/:id` | Ficha completa: enriquece con costos, receta, dependencias (ventas/compras/recetas) |
 | POST | `/` | Crear (multipart: foto opcional vía multer+sharp → `uploads/productos/`) |
 | PUT | `/:id` | Actualizar (multipart). Borra foto antigua del disco si cambia |
-| DELETE | `/:id` | Bloqueado si tiene movimientos de stock; borra recetas asociadas |
+| DELETE | `/:id` | Bloqueado si tiene dependencias (movimientos de stock, compras, ventas, pedidos o recetas); elimina el producto y borra sus recetas como padre |
 | GET | `/:id/receta` | Componentes del compuesto |
-| POST | `/:id/receta` | Agregar componente (UPSERT; valida suma ≤ 1 por tipo de unidad; anti-ciclos) |
+| POST | `/:id/receta` | Agregar componente (UPSERT; validación de suma desactivada, solo anti-ciclos) |
 | DELETE | `/:id/receta/:componenteId` | Quitar componente |
 | PUT | `/:id/costo` | Actualizar ficha de costo (costo_base, margen, gastos_fijos, impuesto) + precio_venta |
 | GET | `/:id/trazabilidad` | Entradas/salidas/ajustes; stock esperado vs real; componente limitante (Pmin) |

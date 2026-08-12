@@ -32,7 +32,7 @@ Inventario de bugs confirmados, riesgos de seguridad y deuda técnica pendientes
 
 | # | Bug | Ubicación | Estado |
 |---|---|---|---|
-| F4 | Eliminar producto desde listado sin handler (clase `.eliminar-producto` vs `[data-eliminar]`) | `productos.js` | ⬜ |
+| F4 | Eliminar producto desde listado sin handler (clase `.eliminar-producto` vs `[data-eliminar]`) | `productos.js` | ✅ |
 | F7 | Rentabilidad: fila de totales rota (globales implícitas, `ganancia_bruta += ganancia_bruta` → siempre 0); `<td class="text-end>` sin comilla | `reportes.js` | ⬜ |
 | F9 | Impuesto del carrito incoherente: `total×(1−pct)` vs `total÷(1+pct)` al procesar | `ventas.js` | ⬜ |
 | F10 | `compras/seleccionar-productos`: ruta inexistente usada como retorno (legacy) | `compras.js` | ⬜ |

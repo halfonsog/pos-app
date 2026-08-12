@@ -26,7 +26,7 @@ Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fic
 | compuesto | **conformado** | Virtual: `MIN(⌊stock_ingrediente ÷ cantidad_receta⌋)` |
 
 - **Stock virtual (conformados)**: CTE compartida con inventario y dashboard (⚠ triplicada; unificar en un futuro stockService).
-- **Recetas**: ingredientes solo granel o elaborados (D5); suma por tipo de unidad ≤ 1; `UNIQUE(padre,hijo)`; **anti-ciclos recursivo con CTE** (D2).
+- **Recetas**: ingredientes solo granel o elaborados (D5); **sin validación de suma** — las cantidades de la receta deben coincidir con la cantidad del producto a preparar (regla del propietario, 2026-08-11); `UNIQUE(padre,hijo)`; **anti-ciclos recursivo con CTE** (D2).
 - **Conversiones**: `cantidad × coef_origen ÷ coef_destino`, solo entre unidades del mismo tipo. La unidad de compra y de venta deben ser del mismo tipo.
 - **Costeo FÓRMULA DEL PROPIETARIO (multiplicativa, `utils/costos.js`)**:
   ```

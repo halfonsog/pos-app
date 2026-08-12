@@ -372,6 +372,28 @@ Productos.bindListadoEvents = function (params) {
     ViewManager.navegar('productos/receta/' + id);
   });
 
+  // Eliminar desde el listado
+  $('#productosTable').on('click', '.eliminar-producto', async function (e) {
+    e.preventDefault();
+    const id = $(this).data('id');
+
+    const confirmado = await Utils.confirm('¿Está seguro de eliminar este producto?', 'Confirmar eliminación');
+    if (!confirmado) return;
+
+    try {
+      Utils.showLoading('Eliminando producto...');
+      await API.productos.eliminar(id);
+      State.invalidateCache('productos');
+      Utils.hideLoading();
+      Toast.success('Producto eliminado');
+      ViewManager.refresh();
+    } catch (error) {
+      Utils.hideLoading();
+      console.error('❌ Error al eliminar:', error);
+      Toast.error(error.message || 'No se pudo eliminar el producto');
+    }
+  });
+
   // Eliminar
   $('#app').on('click', '[data-eliminar]', async function (e) {
     // Solo si estamos en el módulo de productos
@@ -402,7 +424,7 @@ Productos.bindListadoEvents = function (params) {
       } catch (error) {
         Utils.hideLoading();
         console.error('❌ Error en eliminación:', error);
-        console.log(error);
+        Toast.error(error.message || 'No se pudo eliminar el producto');
       }
     }
   });
@@ -461,21 +483,6 @@ Productos.formulario = async function (params) {
       // ✅ Si tiene dependencias, redirigir con mensaje (ya no bloqueamos)
       if (producto && producto.tiene_dependencias) {
         console.log('⚠️ Producto con dependencias - Edición restringida');
-      }
-
-      // Si es edición y es a-granel, filtrar unidad de compra por el tipo guardado
-      if (producto && producto.tipo === 'simple' && producto.sub_tipo === 'granel' && producto.unidad_compra_id) {
-        const unidadCompra = Utils.getUnidad(producto.unidad_compra_id);
-        if (unidadCompra) {
-          const todas = State.getCache('unidades') || [];
-          const filtradas = todas.filter(u => u.tipo === unidadCompra.tipo && u.activo);
-
-          // Actualizar combo de unidad de venta
-          const $venta = $('#unidadVentaId');
-          $venta.empty().append('<option value="">Seleccione...</option>');
-          filtradas.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-          $venta.val(producto.unidad_venta_id);
-        }
       }
     }
 
@@ -558,7 +565,7 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                     <select class="form-select" id="unidadVentaId" required><option value="">Seleccione...</option>${uniVentaHtml}</select>
                   </div>
                   <div class="col-md-4"><label class="form-label">Precio de Venta</label><input type="text" class="form-control" id="precioVenta" readonly disabled><small class="text-muted">Calculado en Ficha de Costo</small></div>
-                  <div class="col-md-4"><label class="form-label">Stock Mínimo</label><input type="number" class="form-control" id="stockMinimo" value="0" step="0.01" min="0"></div>
+                  <div class="col-md-4"><label class="form-label">Stock Mínimo <small class="text-muted" id="stockMinimoUnidad">(unidad de venta)</small></label><input type="number" class="form-control" id="stockMinimo" value="0" step="0.01" min="0"></div>
                   <div class="col-md-4"><label class="form-label">Stock Actual</label><input type="text" class="form-control" id="stockActual" readonly disabled></div>
                   <div class="col-12"><label class="form-label"><i class="fas fa-camera me-1"></i>Foto</label><div class="d-flex align-items-start gap-3"><div id="previewFotoContainer" style="width:120px;height:120px;border:1px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8f9fa"><img id="previewFoto" src="" style="max-width:100%;max-height:100%;display:none"><i id="placeholderFoto" class="fas fa-image fa-3x text-muted"></i></div><div class="flex-grow-1"><input type="file" class="form-control" id="fotoProducto" name="foto" accept="image/*"><small class="text-muted">Máx. 2MB</small><button class="btn btn-sm btn-outline-danger mt-2" id="btnEliminarFoto" style="display:none"><i class="fas fa-trash me-1"></i>Eliminar foto</button></div></div></div>
                   <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="productoActivo" checked><label class="form-check-label">Producto Activo</label></div></div>
@@ -640,26 +647,76 @@ Productos.configurarVisibilidadCampos = function () {
 
     $('#rowSubTipo').show();
     $('#receta-tab').hide();
-
-    const subTipo = $('#subTipo').val();
-    if (subTipo === 'reventa') {
-      $('#rowUnidadCompra').hide();
-      $('#subTipo').trigger('change');
-    } else if (subTipo === 'granel') {
-      $('#rowUnidadCompra').show();
-      $('#subTipo').trigger('change');
-    }
   } else {
     // Subtipos de compuesto (D1): elaborado / conformado
     $('#subTipo').html(`
-      <option value="elaborado">Elaborado (requiere preparación previa)</option>
+      <option value="elaborado">Elaborado</option>
       <option value="conformado">Conformado (se arma en el momento de la venta)</option>
     `);
     if (['elaborado', 'conformado'].includes(actual)) $('#subTipo').val(actual);
 
     $('#rowSubTipo').show();
     $('#receta-tab').show();
+  }
+
+  // Regla de unidades del propietario (2026-08-11):
+  //  * simple-reventa → compra y venta limitadas a tipo base "unidad"
+  //  * si la lista de compra está visible → la venta es del mismo tipo base que la compra
+  //  * si la lista de compra NO está visible → cualquier unidad de venta
+  // Solo en creación (en edición los valores los fija llenarFormulario).
+  if (!$('#productoId').val()) {
+    Productos._aplicarFiltroUnidades();
+  }
+};
+
+// Filtra el combo de unidad de venta (y la visibilidad de la de compra) según tipo/subtipo.
+Productos._aplicarFiltroUnidades = function () {
+  const todas = State.getCache('unidades') || [];
+  const tipo = $('#tipo').val();
+  const sub = $('#subTipo').val();
+  const $venta = $('#unidadVentaId');
+  const $compra = $('#unidadCompraId');
+  const prevVenta = $venta.val();
+  const existe = (list, v) => list.some(u => String(u.id) === String(v));
+
+  // simple-reventa: compra y venta solo de tipo base "unidad"
+  if (tipo === 'simple' && sub === 'reventa') {
     $('#rowUnidadCompra').hide();
+    const list = todas.filter(u => u.tipo === 'unidad' && u.activo);
+    $venta.empty().append('<option value="">Seleccione...</option>');
+    list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
+    if (!existe(list, prevVenta)) {
+      const def = list.find(u => u.abreviatura === 'ud') || list[0];
+      if (def) $venta.val(def.id);
+    }
+    return;
+  }
+
+  // simple-granel: compra visible (cualquier tipo base); venta = mismo tipo base que la compra
+  if (tipo === 'simple' && sub === 'granel') {
+    $('#rowUnidadCompra').show();
+    const compraId = $compra.val();
+    const unidadCompra = todas.find(u => String(u.id) === String(compraId));
+    if (unidadCompra) {
+      const list = todas.filter(u => u.tipo === unidadCompra.tipo && u.activo);
+      $venta.empty().append('<option value="">Seleccione...</option>');
+      list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
+      if (!existe(list, prevVenta)) {
+        if (list.length > 0) $venta.val(list[0].id);
+      }
+    } else {
+      $venta.empty().append('<option value="">Seleccione...</option>');
+    }
+    return;
+  }
+
+  // compuesto (elaborado/conformado): compra oculta; cualquier unidad de venta
+  $('#rowUnidadCompra').hide();
+  const list = todas.filter(u => u.activo);
+  $venta.empty().append('<option value="">Seleccione...</option>');
+  list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
+  if (!existe(list, prevVenta)) {
+    if (list.length > 0) $venta.val(list[0].id);
   }
 };
 
@@ -687,6 +744,7 @@ Productos.llenarFormulario = function (p) {
 
   $('#precioVenta').val(Utils.formatMoney(p.precio_venta));
   $('#stockMinimo').val(p.stock_minimo || 0);
+  $('#stockMinimoUnidad').text(p.unidad_venta_abrev ? `(${p.unidad_venta_abrev})` : '(unidad de venta)');
   $('#stockActual').val(`${Utils.formatNumber(p.stock_actual, 1)} ${p.unidad_venta_abrev || ''}`);
   $('#productoActivo').prop('checked', p.activo === 1);
 
@@ -709,58 +767,9 @@ Productos.bindFormularioEvents = function (id, params) {
   const retorno = params?.retorno || null, retornoParams = params?.retornoParams || {};
 
   $('#tipo').on('change', () => self.configurarVisibilidadCampos());
-  // Al cambiar sub-tipo, filtrar unidades
+  // Al cambiar sub-tipo (reventa/granel/elaborado/conformado), aplicar regla de unidades
   $('#subTipo').on('change', function () {
-    const subTipo = $(this).val();
-    const todasUnidades = State.getCache('unidades') || [];
-
-    if (subTipo === 'reventa') {
-      // ✅ Reventa: solo unidades tipo "unidad"
-      const unidadesTipo = todasUnidades.filter(u => u.tipo === 'unidad' && u.activo);
-
-      // Actualizar unidad de venta
-      const $venta = $('#unidadVentaId');
-      $venta.empty().append('<option value="">Seleccione...</option>');
-      unidadesTipo.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-
-      // Seleccionar "Unidad" por defecto
-      const unidadDefault = unidadesTipo.find(u => u.abreviatura === 'ud');
-      if (unidadDefault) $venta.val(unidadDefault.id);
-
-      // Ocultar unidad de compra
-      $('#rowUnidadCompra').hide();
-
-    } else if (subTipo === 'granel') {
-      // ✅ Granel: mostrar unidad de compra con todas las unidades
-      $('#rowUnidadCompra').show();
-
-      // Cargar todas las unidades en unidad de compra
-      const $compra = $('#unidadCompraId');
-      $compra.empty().append('<option value="">Seleccione...</option>');
-      todasUnidades.filter(u => u.activo).forEach(u =>
-        $compra.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`)
-      );
-
-      // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo
-      $('#unidadCompraId').off('change').on('change', function () {
-        const compraId = $(this).val();
-        if (!compraId) {
-          $('#unidadVentaId').empty().append('<option value="">Seleccione...</option>');
-          return;
-        }
-
-        const unidadCompra = todasUnidades.find(u => u.id == compraId);
-        if (!unidadCompra) return;
-
-        const filtradas = todasUnidades.filter(u => u.tipo === unidadCompra.tipo && u.activo);
-
-        const $venta = $('#unidadVentaId');
-        $venta.empty().append('<option value="">Seleccione...</option>');
-        filtradas.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-
-        if (filtradas.length > 0) $venta.val(filtradas[0].id);
-      });
-    }
+    self.configurarVisibilidadCampos();
   });
 
   $('#fotoProducto').on('change', function (e) {
@@ -830,29 +839,9 @@ Productos.bindFormularioEvents = function (id, params) {
     }
   });
 
-  // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo
+  // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo base
   $('#unidadCompraId').on('change', function () {
-    const $venta = $('#unidadVentaId');
-    $venta.empty().append('<option value="">Seleccione...</option>');
-    const compraId = $(this).val();
-    if (!compraId) {
-      return;
-    }
-
-    const unidadCompra = Utils.getUnidad(compraId);
-    if (!unidadCompra) return;
-
-    const todasUnidades = State.getCache('unidades') || [];
-
-    // Filtrar solo unidades del mismo tipo
-    const filtradas = todasUnidades.filter(u => u.tipo === unidadCompra.tipo && u.activo);
-
-    filtradas.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-
-    // Seleccionar la primera por defecto si hay opciones
-    if (filtradas.length > 0) {
-      $venta.val(filtradas[0].id);
-    }
+    Productos._aplicarFiltroUnidades();
   });
 
 
@@ -865,6 +854,10 @@ Productos.bindFormularioEvents = function (id, params) {
     if (nCat) {
       $('#categoriaId').val(nCat);
       sessionStorage.removeItem('nuevaCategoriaId');
+    }
+    // Al volver de crear categoría, reaplicar la regla de unidades (venta según compra)
+    if (!$('#productoId').val()) {
+      Productos._aplicarFiltroUnidades();
     }
   }
 
@@ -960,7 +953,6 @@ Productos.renderFichaLayout = async function (producto) {
                 <i class="fas fa-arrow-left me-1"></i>Volver
               </button>
               <h2 class="mb-0">${producto.nombre}</h2>&nbsp;
-              ${Productos.getTipoBadge(producto)}
             </div>
             <div class="btn-group">
               <button class="btn btn-primary" id="btnEditar">
@@ -1054,7 +1046,7 @@ Productos.renderFichaLayout = async function (producto) {
                       <p>
                         ${producto.tipo === 'simple'
       ? `<span class="badge bg-info">Simple · ${producto.sub_tipo === 'granel' ? 'A Granel' : 'Reventa'}</span>`
-      : `<span class="badge bg-primary">Compuesto · ${producto.sub_tipo === 'elaborado' ? 'Elaborado (requiere preparación)' : 'Conformado (se arma en la venta)'}</span>`
+      : `<span class="badge bg-primary">Compuesto · ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado (se arma en la venta)'}</span>`
     }
                       </p>
                     </div>
@@ -1104,7 +1096,7 @@ Productos.renderFichaLayout = async function (producto) {
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Receta</h5>
                     <span class="badge ${producto.sub_tipo === 'elaborado' ? 'bg-warning' : 'bg-info'}">
-                      ${producto.sub_tipo === 'elaborado' ? 'Elaborado: requiere preparación' : 'Conformado: se descuenta en venta'}
+                      ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado: se descuenta en venta'}
                     </span>
                   </div>
                   <div class="card-body">
@@ -1181,7 +1173,7 @@ Productos.bindFichaEvents = function (producto) {
     } catch (error) {
       Utils.hideLoading();
       console.error('❌ Error al eliminar:', error);
-      console.log(error);
+      Toast.error(error.message || 'No se pudo eliminar el producto');
     }
   });
 
@@ -1799,7 +1791,7 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
               <i class="fas fa-arrow-left me-1"></i>Volver
             </button>
             <h2 class="mb-0">
-              <i class="fas fa-list-ul me-2"></i>Receta: ${producto.nombre}
+              <i class="fas fa-list-ul me-2"></i>Receta: 1 ${producto.unidad_venta_nombre || producto.unidad_venta_abrev || 'unidad'} de ${producto.nombre}
             </h2>
           </div>
           
@@ -1877,7 +1869,7 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
                     <label class="form-label">Tipo de compuesto</label>
                     <p>
                       <span class="badge ${producto.sub_tipo === 'elaborado' ? 'bg-warning' : 'bg-info'} fs-6">
-                        ${producto.sub_tipo === 'elaborado' ? 'Elaborado (requiere preparación previa)' : 'Conformado (se arma en la venta)'}
+                        ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado (se arma en la venta)'}
                       </span>
                     </p>
                     <small class="text-muted">El subtipo solo se define al crear el producto.</small>
@@ -2059,7 +2051,8 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
   $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
 };
 
-// Función auxiliar para verificar sumas
+// Función informativa: las cantidades de la receta deben coincidir con la cantidad
+// del producto a preparar (regla del propietario, 2026-08-11). No se valida la suma.
 Productos.verificarSumaReceta = function (receta, producto) {
   if (!receta || receta.length === 0) {
     $('#infoSuma').hide();
@@ -2073,28 +2066,8 @@ Productos.verificarSumaReceta = function (receta, producto) {
     return;
   }
 
-  // Agrupar por tipo de unidad
-  const porTipo = {};
-  receta.forEach(c => {
-    const tipo = c.unidad_tipo || 'otro';
-    if (!porTipo[tipo]) {
-      porTipo[tipo] = { suma: 0, abrev: c.unidad_abrev };
-    }
-    porTipo[tipo].suma += parseFloat(c.cantidad);
-  });
-
-  // Mostrar info para el tipo del producto padre
-  const tipoPadre = producto.unidad_venta_tipo;
-  const sumaPadre = porTipo[tipoPadre]?.suma || 0;
-  const abrevPadre = producto.unidad_venta_abrev;
-
-  if (Math.abs(sumaPadre - 1) > 0.001) {
-    $('#sumaText').html(`⚠️ La suma de componentes en ${abrevPadre} es <strong>${sumaPadre.toFixed(4)}</strong>. Debe ser 1 para que la receta sea válida.`);
-    $('#infoSuma').removeClass('alert-info').addClass('alert-warning');
-  } else {
-    $('#sumaText').html(`✅ Suma de componentes en ${abrevPadre}: <strong>${sumaPadre.toFixed(4)}</strong>. Receta válida.`);
-    $('#infoSuma').removeClass('alert-warning').addClass('alert-info');
-  }
+  $('#sumaText').html('⚠️ Las cantidades establecidas en la receta deben coincidir con la cantidad del producto a preparar.');
+  $('#infoSuma').removeClass('alert-info').addClass('alert-warning');
   $('#infoSuma').show();
 };
 
