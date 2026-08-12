@@ -558,11 +558,11 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                   <!-- Unidad de Compra (solo a-granel) -->
                   <div class="col-md-4" id="rowUnidadCompra" style="display:none">
                     <label class="form-label">Unidad de Compra <span class="text-danger">*</span></label>
-                    <select class="form-select" id="unidadCompraId"><option value="">Seleccione...</option>${uniCompraHtml}</select>
+                    <select class="form-select" id="unidadCompraId" size="8"><option value="">Seleccione...</option>${uniCompraHtml}</select>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Unidad de Venta <span class="text-danger">*</span></label>
-                    <select class="form-select" id="unidadVentaId" required><option value="">Seleccione...</option>${uniVentaHtml}</select>
+                    <select class="form-select" id="unidadVentaId" required size="8"><option value="">Seleccione...</option>${uniVentaHtml}</select>
                   </div>
                   <div class="col-md-4"><label class="form-label">Precio de Venta</label><input type="text" class="form-control" id="precioVenta" readonly disabled><small class="text-muted">Calculado en Ficha de Costo</small></div>
                   <div class="col-md-4"><label class="form-label">Stock Mínimo <small class="text-muted" id="stockMinimoUnidad">(unidad de venta)</small></label><input type="number" class="form-control" id="stockMinimo" value="0" step="0.01" min="0"></div>
@@ -651,7 +651,7 @@ Productos.configurarVisibilidadCampos = function () {
     // Subtipos de compuesto (D1): elaborado / conformado
     $('#subTipo').html(`
       <option value="elaborado">Elaborado</option>
-      <option value="conformado">Conformado (se arma en el momento de la venta)</option>
+      <option value="conformado">Conformado</option>
     `);
     if (['elaborado', 'conformado'].includes(actual)) $('#subTipo').val(actual);
 
@@ -1046,7 +1046,7 @@ Productos.renderFichaLayout = async function (producto) {
                       <p>
                         ${producto.tipo === 'simple'
       ? `<span class="badge bg-info">Simple · ${producto.sub_tipo === 'granel' ? 'A Granel' : 'Reventa'}</span>`
-      : `<span class="badge bg-primary">Compuesto · ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado (se arma en la venta)'}</span>`
+      : `<span class="badge bg-primary">Compuesto · ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado'}</span>`
     }
                       </p>
                     </div>
@@ -1869,7 +1869,7 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
                     <label class="form-label">Tipo de compuesto</label>
                     <p>
                       <span class="badge ${producto.sub_tipo === 'elaborado' ? 'bg-warning' : 'bg-info'} fs-6">
-                        ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado (se arma en la venta)'}
+                        ${producto.sub_tipo === 'elaborado' ? 'Elaborado' : 'Conformado'}
                       </span>
                     </p>
                     <small class="text-muted">El subtipo solo se define al crear el producto.</small>
