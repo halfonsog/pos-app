@@ -754,12 +754,12 @@ Inventario.renderPrepararLayout = function (productos) {
             <div class="row g-3 mb-4">
               ${listos.map(p => `
                 <div class="col-md-6">
-                  <div class="card producto-preparable" data-id="${p.id}" data-max="${p.cantidad_maxima}">
+                  <div class="card producto-preparable" data-id="${p.id}" data-max="${p.cantidad_maxima}" data-unidad="${p.unidad_abrev || ''}">
                     <div class="card-body">
                       <h6>${p.nombre} <span class="badge bg-success">${p.cantidad_maxima} preparables</span></h6>
                       <small class="text-muted">${p.codigo}</small>
                       <div class="mt-3">
-                        <label class="form-label">Cantidad a preparar</label>
+                        <label class="form-label">${p.unidad_abrev || 'unidad de venta'} a preparar</label>
                         <input type="number" class="form-control form-control-sm cantidad-preparar" value="1" min="1" max="${p.cantidad_maxima}" step="1">
                       </div>
                       <button class="btn btn-primary w-100 mt-2 btn-preparar">
@@ -832,7 +832,7 @@ Inventario.bindPrepararEvents = function (productos) {
       return;
     }
 
-    const confirmado = await Utils.confirm(`¿Preparar ${cantidad} unidades?`, 'Confirmar preparación');
+    const confirmado = await Utils.confirm(`¿Preparar ${cantidad} ${card.data('unidad') || 'unidades'}?`, 'Confirmar preparación');
     if (!confirmado) return;
 
     try {

@@ -454,6 +454,8 @@ Productos._aplicarRestriccionesDependencias = function () {
   $('#subTipo').prop('disabled', true);
   $('#unidadVentaId').prop('disabled', true);
   $('#unidadCompraId').prop('disabled', true);
+  $('#menu-unidadVentaId').closest('.dropdown').find('> button').prop('disabled', true);
+  $('#menu-unidadCompraId').closest('.dropdown').find('> button').prop('disabled', true);
 
   // Mostrar aviso visual
   const aviso = `
@@ -473,8 +475,8 @@ Productos.formulario = async function (params) {
   Productos._origenActual = params.origen || null;
   try {
     Utils.showLoading('Cargando...');
-    const [catHtml, uniVentaHtml, uniCompraHtml] = await Promise.all([
-      Productos._cargarCategorias(), Productos._cargarUnidadesVenta(isEdit), Productos._cargarUnidadesCompra()
+    const [catHtml, unidades] = await Promise.all([
+      Productos._cargarCategorias(), Productos._cargarUnidades()
     ]);
     let producto = null;
     if (isEdit) {
@@ -486,7 +488,7 @@ Productos.formulario = async function (params) {
       }
     }
 
-    $('#app').html(Productos.renderFormularioLayout(producto, tipoInicial, { catHtml, uniVentaHtml, uniCompraHtml }));
+    $('#app').html(Productos.renderFormularioLayout(producto, tipoInicial, { catHtml, unidades }));
     if (producto) Productos.llenarFormulario(producto);
     else { $('#placeholderFoto').hide(); $('#previewFotoContainer').append(`<img src="${Utils.getProductPlaceholder('Nuevo', 1, 120)}" class="default-placeholder" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`); }
 
@@ -495,6 +497,8 @@ Productos.formulario = async function (params) {
       $('#subTipo').prop('disabled', true);
       $('#unidadVentaId').prop('disabled', true);
       $('#unidadCompraId').prop('disabled', true);
+      $('#menu-unidadVentaId').closest('.dropdown').find('> button').prop('disabled', true);
+      $('#menu-unidadCompraId').closest('.dropdown').find('> button').prop('disabled', true);
     }
 
     // ✅ Aplicar restricciones si tiene dependencias
@@ -515,7 +519,7 @@ Productos.formulario = async function (params) {
 Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
   const user = State.getUser(), isEdit = !!producto, title = isEdit ? 'Editar Producto' : 'Nuevo Producto';
   const origen = Productos._origenActual, tipoDisabled = isEdit || origen === 'compra', tipoForzado = origen === 'compra' ? 'simple' : tipoInicial;
-  const { catHtml, uniVentaHtml, uniCompraHtml } = htmlOpts;
+  const { catHtml } = htmlOpts;
 
   return `
     <div class="app-wrapper">
@@ -558,11 +562,23 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                   <!-- Unidad de Compra (solo a-granel) -->
                   <div class="col-md-4" id="rowUnidadCompra" style="display:none">
                     <label class="form-label">Unidad de Compra <span class="text-danger">*</span></label>
-                    <select class="form-select" id="unidadCompraId" size="8"><option value="">Seleccione...</option>${uniCompraHtml}</select>
+                    <div class="dropdown w-100">
+                      <button type="button" class="btn btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="unidad-label">Seleccione...</span>
+                      </button>
+                      <ul class="dropdown-menu shadow unidad-menu w-100" id="menu-unidadCompraId" style="max-height:240px;overflow-y:auto"></ul>
+                      <input type="hidden" id="unidadCompraId" value="">
+                    </div>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Unidad de Venta <span class="text-danger">*</span></label>
-                    <select class="form-select" id="unidadVentaId" required size="8"><option value="">Seleccione...</option>${uniVentaHtml}</select>
+                    <div class="dropdown w-100">
+                      <button type="button" class="btn btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="unidad-label">Seleccione...</span>
+                      </button>
+                      <ul class="dropdown-menu shadow unidad-menu w-100" id="menu-unidadVentaId" style="max-height:240px;overflow-y:auto"></ul>
+                      <input type="hidden" id="unidadVentaId" value="">
+                    </div>
                   </div>
                   <div class="col-md-4"><label class="form-label">Precio de Venta</label><input type="text" class="form-control" id="precioVenta" readonly disabled><small class="text-muted">Calculado en Ficha de Costo</small></div>
                   <div class="col-md-4"><label class="form-label">Stock Mínimo <small class="text-muted" id="stockMinimoUnidad">(unidad de venta)</small></label><input type="number" class="form-control" id="stockMinimo" value="0" step="0.01" min="0"></div>
@@ -593,35 +609,58 @@ Productos._cargarCategorias = async function () {
   catch (e) { return ''; }
 };
 
-Productos._cargarUnidadesVenta = async function (isEdit) {
+Productos._cargarUnidades = async function () {
   try {
     let units = State.getCache('unidades');
     if (!units) {
       units = await API.get('/configuracion/unidades');
       State.setCache('unidades', units);
     }
-
-    if (isEdit) {
-      return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
-    }
-    else {
-      // ✅ Reventa: solo unidades tipo "unidad"
-      return units.filter(u => u.tipo === 'unidad' && u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
-    }
+    return units;
   }
-  catch (e) { return ''; }
+  catch (e) { return []; }
 };
 
-Productos._cargarUnidadesCompra = async function () {
-  try {
-    let units = State.getCache('unidades');
-    if (!units) {
-      units = await API.get('/configuracion/unidades');
-      State.setCache('unidades', units);
-    }
-    return units.filter(u => u.activo).map(u => `<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
+// Puebla un dropdown de unidades (menu-{campoId}) y sincroniza el hidden input + etiqueta.
+// forzado: valor a seleccionar; si no, conserva el actual salvo que autoSeleccionar.
+Productos._poblarMenuUnidades = function (campoId, lista, autoSeleccionar, forzado) {
+  const $menu = $('#menu-' + campoId);
+  const $input = $('#' + campoId);
+  const $btn = $menu.closest('.dropdown').find('> button');
+  const $label = $btn.find('.unidad-label');
+  const prev = $input.val();
+
+  $menu.empty();
+  if (!lista || lista.length === 0) {
+    $menu.append('<li><span class="dropdown-item-text text-muted">Sin unidades disponibles</span></li>');
+  } else {
+    lista.forEach(u => {
+      $menu.append(`<li><a class="dropdown-item" href="#" data-val="${u.id}">${u.nombre} (${u.abreviatura})</a></li>`);
+    });
   }
-  catch (e) { return ''; }
+
+  // Selección vigente
+  let elegida = forzado !== undefined ? String(forzado) : '';
+  const existe = lista.some(u => String(u.id) === String(prev));
+  if (!elegida && existe) elegida = String(prev);
+  if (!elegida && autoSeleccionar && lista.length > 0) elegida = String(lista[0].id);
+  $input.val(elegida);
+  const uSel = lista.find(u => String(u.id) === String(elegida));
+  $label.text(uSel ? `${uSel.nombre} (${uSel.abreviatura})` : 'Seleccione...');
+  $menu.find('.dropdown-item').removeClass('active');
+  $menu.find(`.dropdown-item[data-val="${String($input.val())}"]`).addClass('active');
+
+  $menu.find('.dropdown-item').off('click').on('click', function (e) {
+    e.preventDefault();
+    const val = $(this).data('val');
+    $input.val(String(val));
+    $label.text($(this).text());
+    $menu.find('.dropdown-item').removeClass('active');
+    $(this).addClass('active');
+    const instancia = bootstrap.Dropdown.getInstance($btn[0]);
+    if (instancia) instancia.hide();
+    $input.trigger('change');
+  });
 };
 
 Productos._initTabs = function () {
@@ -669,25 +708,21 @@ Productos.configurarVisibilidadCampos = function () {
   }
 };
 
-// Filtra el combo de unidad de venta (y la visibilidad de la de compra) según tipo/subtipo.
+// Filtra el dropdown de unidad de venta (y la visibilidad de la de compra) según tipo/subtipo.
 Productos._aplicarFiltroUnidades = function () {
   const todas = State.getCache('unidades') || [];
   const tipo = $('#tipo').val();
   const sub = $('#subTipo').val();
-  const $venta = $('#unidadVentaId');
-  const $compra = $('#unidadCompraId');
-  const prevVenta = $venta.val();
-  const existe = (list, v) => list.some(u => String(u.id) === String(v));
+  const prevVenta = $('#unidadVentaId').val();
 
   // simple-reventa: compra y venta solo de tipo base "unidad"
   if (tipo === 'simple' && sub === 'reventa') {
     $('#rowUnidadCompra').hide();
     const list = todas.filter(u => u.tipo === 'unidad' && u.activo);
-    $venta.empty().append('<option value="">Seleccione...</option>');
-    list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-    if (!existe(list, prevVenta)) {
+    Productos._poblarMenuUnidades('unidadVentaId', list, true);
+    if (!list.some(u => String(u.id) === String(prevVenta))) {
       const def = list.find(u => u.abreviatura === 'ud') || list[0];
-      if (def) $venta.val(def.id);
+      if (def) Productos._poblarMenuUnidades('unidadVentaId', list, true, String(def.id));
     }
     return;
   }
@@ -695,17 +730,18 @@ Productos._aplicarFiltroUnidades = function () {
   // simple-granel: compra visible (cualquier tipo base); venta = mismo tipo base que la compra
   if (tipo === 'simple' && sub === 'granel') {
     $('#rowUnidadCompra').show();
-    const compraId = $compra.val();
+    // La compra siempre ofrece todas las unidades activas
+    Productos._poblarMenuUnidades('unidadCompraId', todas.filter(u => u.activo), true);
+    const compraId = $('#unidadCompraId').val();
     const unidadCompra = todas.find(u => String(u.id) === String(compraId));
     if (unidadCompra) {
       const list = todas.filter(u => u.tipo === unidadCompra.tipo && u.activo);
-      $venta.empty().append('<option value="">Seleccione...</option>');
-      list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-      if (!existe(list, prevVenta)) {
-        if (list.length > 0) $venta.val(list[0].id);
+      Productos._poblarMenuUnidades('unidadVentaId', list, true);
+      if (!list.some(u => String(u.id) === String(prevVenta))) {
+        if (list.length > 0) Productos._poblarMenuUnidades('unidadVentaId', list, true, String(list[0].id));
       }
     } else {
-      $venta.empty().append('<option value="">Seleccione...</option>');
+      Productos._poblarMenuUnidades('unidadVentaId', [], true);
     }
     return;
   }
@@ -713,10 +749,9 @@ Productos._aplicarFiltroUnidades = function () {
   // compuesto (elaborado/conformado): compra oculta; cualquier unidad de venta
   $('#rowUnidadCompra').hide();
   const list = todas.filter(u => u.activo);
-  $venta.empty().append('<option value="">Seleccione...</option>');
-  list.forEach(u => $venta.append(`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`));
-  if (!existe(list, prevVenta)) {
-    if (list.length > 0) $venta.val(list[0].id);
+  Productos._poblarMenuUnidades('unidadVentaId', list, true);
+  if (!list.some(u => String(u.id) === String(prevVenta))) {
+    if (list.length > 0) Productos._poblarMenuUnidades('unidadVentaId', list, true, String(list[0].id));
   }
 };
 
@@ -733,6 +768,12 @@ Productos.llenarFormulario = function (p) {
   $('#subTipo').val(p.sub_tipo || (p.tipo === 'simple' ? 'reventa' : 'conformado'));
 
   $('#categoriaId').val(p.categoria_id || '');
+
+  // Poblar menús de unidades con el valor guardado (edición: campos bloqueados)
+  const todas = State.getCache('unidades') || [];
+  const activas = todas.filter(u => u.activo);
+  Productos._poblarMenuUnidades('unidadVentaId', activas, false, p.unidad_venta_id || '');
+  Productos._poblarMenuUnidades('unidadCompraId', activas, false, p.unidad_compra_id || '');
 
   // Solo cambiar unidades si no están deshabilitadas
   if (!$('#unidadVentaId').prop('disabled')) {
@@ -842,6 +883,13 @@ Productos.bindFormularioEvents = function (id, params) {
   // Al cambiar unidad de compra, filtrar unidad de venta por el mismo tipo base
   $('#unidadCompraId').on('change', function () {
     Productos._aplicarFiltroUnidades();
+  });
+
+  // Reflejar la unidad de venta en el label del stock mínimo
+  $('#unidadVentaId').on('change', function () {
+    const unid = State.getCache('unidades') || [];
+    const u = unid.find(x => String(x.id) === String($(this).val()));
+    $('#stockMinimoUnidad').text(u ? `(${u.abreviatura})` : '(unidad de venta)');
   });
 
 

@@ -11,7 +11,7 @@ Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fic
 - `/api/configuracion/categorias`: listar/crear/actualizar (sin DELETE)
 
 ## Frontend
-- `js/modules/productos.js` (~2100 l. — **el archivo más grande de la app** ⚠): vistas `index`, `listado`, `formulario` (tabs Datos/Receta/Costo, foto con preview, combos de unidades dinámicos, bloqueo por dependencias), `ficha`, `costo` (desglose en vivo), `receta`, `trazabilidad`.
+- `js/modules/productos.js` (~2100 l. — **el archivo más grande de la app** ⚠): vistas `index`, `listado`, `formulario` (tabs Datos/Receta/Costo, foto con preview, **unidades como dropdowns Bootstrap** con scroll de 240px y regla de tipos, bloqueo por dependencias), `ficha`, `costo` (desglose en vivo), `receta`, `trazabilidad`.
 - `js/modules/categorias.js` (217 l.): formulario con retorno al producto (sessionStorage) y listado para Configuración.
 - `js/modules/selector-productos.js` (216 l.): componente-vista reutilizable para elegir productos (usado por compras y recetas).
 

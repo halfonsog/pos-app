@@ -65,6 +65,9 @@ Las cantidades de la receta **deben coincidir con la cantidad del producto a pre
 ### D28. Eliminar producto con feedback y dependencias reales
 Al eliminar un producto desde el listado, el sistema muestra confirmación y resultado (Toast). El backend bloquea el borrado si el producto está usado en movimientos de stock, compras, ventas, pedidos o recetas (como ingrediente o como padre), con mensaje que enumera los usos. En la ficha de edición, el stock mínimo muestra la unidad correspondiente y la vista de ficha ya no muestra el tipo en la barra del título.
 
+### D29. Unidades como dropdowns Bootstrap
+En el formulario de producto, la unidad de compra y venta se muestran como **dropdowns de Bootstrap** (botón + menú con scroll máximo 240px), en lugar de `<select>` nativos, para que listas largas no salgan de la ventana visual. La unidad de venta refleja la regla D27 (reventa → solo tipo `unidad`; compra visible → mismo tipo base que la compra; compuesto → cualquier tipo). El label del stock mínimo muestra la abreviatura de la unidad de venta.
+
 ---
 
 ## 2. Decisiones de usuarios y seguridad (Fase I)
