@@ -43,9 +43,9 @@ Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado
 - Test de regresión: `tests/vector-fiscal.test.js` replica el vector completo del propietario.
 
 ## Temas pendientes a resolver
-- Gestión de tributos/tasas desde Configuración (acordado con el propietario) → `00-pendientes.md`.
-- Tabla de gastos deducibles para la DJ anual (el propietario la aportará).
-- Exportar PDF de liquidaciones.
+- La gestión de tributos **se queda en este módulo** (decisión del propietario, `com.md` #2a: la contabilidad y su configuración viven en Contabilidad; los parámetros que cambian se mueven a `parametros_contables`, tabla que el propietario sugiere renombrar a `configuracion_contabilidad`) → `00-pendientes.md`.
+- Tabla de gastos deducibles para la DJ anual (el propietario la aportará; en espera de su consulta a un especialista).
+- La contabilidad se limita a la gestión del negocio; el export es **CSV para software certificado (Versat)** — no PDF propio → `00-pendientes.md`.
 
 ## Pago a trabajadores (definición acordada)
 - **Nómina mensual por empleado**: se genera al cerrar el mes desde empleados activos (sin duplicar); el **salario se paga por el banco**. El TCP también es empleado con su salario. Salarios editables en la ficha del empleado (salario_mensual, aporte_corto_plazo, utilidades).

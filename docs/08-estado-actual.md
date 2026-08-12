@@ -24,11 +24,10 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - **UI armonizada**: dashboards de todos los módulos con cards del estilo del principal y sin decimales; sidebar siempre "POS Manager"; módulo Clientes accesible a admin y vendedor.
 
 ## En curso / siguiente
-- **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista).
-- **Registro real del propietario**: registrar su préstamo/inversión real en Configuración → Inversiones y eliminar el concepto "Inversiones" (90 000) de los gastos fijos si correspondiera.
+- **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista). Por definir (respuestas y borrador del propietario en `com.md`, pendiente #3).
 - **Fase II**: multi-caja, vendedores multi-caja, rol contable, venta online (pedidos unificados). Decisión de motor MySQL/PostgreSQL.
-- **Comercialización**: white-label / Configuración de despliegue (nombre negocio, logo, colores) + instaladores nativos Win/Linux/Android con Node embebido (D17).
-- **Contabilidad — pendiente menor**: gestión de tasas de tributos desde Configuración, tabla de gastos deducibles DJ (la aportará el propietario), exportar PDF.
+- **Comercialización**: white-label / Configuración de despliegue (nombre negocio, logo, colores) **aplazado a cuando se haga el despliegue Windows** + instaladores nativos Win/Linux/Android con Node embebido (D17).
+- **Contabilidad — pendiente menor**: renombrar `parametros_contables` → `configuracion_contabilidad` (sugerencia del propietario), tabla de gastos deducibles DJ (la aportará el propietario; en espera de su consulta a un especialista), ajustar el CSV al fichero de ejemplo de Versat.
 - Ver lista completa en `00-pendientes.md`.
 
 ## Convenciones clave (resumen rápido)
