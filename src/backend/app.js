@@ -32,6 +32,11 @@ app.use(express.static(path.join(__dirname, '../frontend'), {
   }
 }));
 
+// Servir fotos de productos desde el directorio de uploads (puede estar fuera
+// de la app si se instaló con datos separados — C:\ProgramData\POS3\uploads)
+const { getUploadsDir, asegurarUploadsDir } = require('./utils/rutas');
+app.use('/uploads/productos', express.static(asegurarUploadsDir()));
+
 // API Routes
 app.use('/api', apiRoutes);
 

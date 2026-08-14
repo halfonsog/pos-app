@@ -4,5 +4,5 @@
 
 - ~~error al pinchar en "Nuevo Pedido" en lista de Pedidos~~ **✅ Resuelto (2026-08-12)**: `Mayoristas.nuevo` normalizaba `params` como undefined al navegar desde la lista; ahora `params = params || {}`.
 
-- ~~no veo la posibilidad de pagar (compras) ni cobrar (encargos y pedidos) en dolares. propongo un selector q por defecto indique CUP~~ **Mayormente resuelto (2026-08-12)**: el selector **CUP/USD con tasa acordada** ya existe en **pagos de compras** (compras.js modal de pago) y en **cobros de pedidos mayoristas** (mayoristas.js). Pendiente opcional: cobro de **encargos minoristas en USD** (hoy solo efectivo/tarjeta en CUP).
+- ~~no veo la posibilidad de pagar (compras) ni cobrar (encargos y pedidos) en dolares. propongo un selector q por defecto indique CUP~~ **Resuelto (2026-08-12)**: cobro y pago en **USD por efectivo y transferencia** en compras, encargos y ventas mayoristas (m035). La **tasa se registra por operacion**. El **cierre de turno y de mes** muestran **CUP y USD** (efectivo/banco); el desglose por prioridades se mantiene **en CUP total equivalente**.
 

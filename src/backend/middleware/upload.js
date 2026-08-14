@@ -2,16 +2,12 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const { asegurarUploadsDir } = require('../utils/rutas');
 
-// ✅ NUEVA RUTA: src/frontend/uploads/productos
-const uploadDir = path.join(__dirname, '../../frontend/uploads/productos');
+// Directorio de fotos de productos (puede apuntar a datos separados al instalarse)
+const uploadDir = asegurarUploadsDir();
 
 console.log('📁 UPLOAD DIR:', uploadDir);
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('📁 Directorio creado:', uploadDir);
-}
 
 const storage = multer.memoryStorage();
 

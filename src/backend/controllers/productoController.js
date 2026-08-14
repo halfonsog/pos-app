@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const conversiones = require('../utils/conversiones');
 const costos = require('../utils/costos');
+const { getUploadsDir } = require('../utils/rutas');
 
 const productoController = {
 
@@ -337,14 +338,14 @@ const productoController = {
         updates.push('foto = ?'); params.push(req.file.filename);
         const old = await db.get('SELECT foto FROM productos WHERE id = ?', [id]);
         if (old?.foto) {
-          const oldPath = path.join(__dirname, '../../frontend/uploads/productos', old.foto);
+          const oldPath = path.join(getUploadsDir(), old.foto);
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       } else if (data.eliminar_foto === 'true') {
         updates.push('foto = NULL');
         const old = await db.get('SELECT foto FROM productos WHERE id = ?', [id]);
         if (old?.foto) {
-          const oldPath = path.join(__dirname, '../../frontend/uploads/productos', old.foto);
+          const oldPath = path.join(getUploadsDir(), old.foto);
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       }

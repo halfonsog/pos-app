@@ -44,6 +44,7 @@ Las migraciones se registran en `schema_migrations` (version, name, executed_at,
 | 032 | `032_fiscal_dos_mundos.sql` | Modelo fiscal de dos mundos (D30–D36): `categorias.gravable` + `categorias.es_sistema`; categoría de sistema **"No gravable"** (gravable=0, es_sistema=1); `servicios.tiene_factura` (def 1); **se elimina** `configuracion_contabilidad.porciento_declarar` (PD deprecado) |
 | 033 | `033_cierre_mes.sql` | Cierre de mes (D38): tablas `cierres_mes` (ficha por mes, UNIQUE mes/anio) + `cierre_mes_aplicaciones` (aplicación del excedente a vencimientos) |
 | 034 | `034_arqueos.sql` | Arqueo de caja persistido (B14): detalle del conteo por denominaciones de cada turno cerrado |
+| 035 | `035_movimiento_compra_efectivo.sql` | Soporte USD completo: nuevo tipo `compra_efectivo` en `movimientos_bancarios` (pago de compra en efectivo, CUP o USD) |
 
 ## 2. Catálogo completo de tablas
 

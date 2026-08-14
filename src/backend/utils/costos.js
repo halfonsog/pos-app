@@ -306,6 +306,40 @@ async function desglosePrioridades(db, inicio, fin, opciones = {}) {
     WHERE created_at >= ? AND created_at < ? AND estado = 'completada'
   `, [inicio, fin]);
 
+  // Disponibilidad por moneda del período (CUP/USD × efectivo/banco) — MUNDO REAL
+  const porMoneda = { CUP: { efectivo: 0, banco: 0 }, USD: { efectivo: 0, banco: 0 } };
+  const ventasMoneda = await db.all(`
+    SELECT metodo_pago, COALESCE(SUM(total), 0) AS total FROM ventas
+    WHERE created_at >= ? AND created_at < ? AND estado = 'completada' GROUP BY metodo_pago
+  `, [inicio, fin]);
+  for (const v of ventasMoneda) {
+    if (v.metodo_pago === 'efectivo') porMoneda.CUP.efectivo += v.total;
+    else if (v.metodo_pago === 'tarjeta') porMoneda.CUP.banco += v.total;
+  }
+  const cobrosMoneda = await db.all(`
+    SELECT pp.metodo_pago, pp.moneda, COALESCE(SUM(pp.monto), 0) AS total
+    FROM pagos_pedido pp WHERE pp.created_at >= ? AND pp.created_at < ? GROUP BY pp.metodo_pago, pp.moneda
+  `, [inicio, fin]);
+  for (const c of cobrosMoneda) {
+    const mon = c.moneda === 'USD' ? 'USD' : 'CUP';
+    if (c.metodo_pago === 'efectivo') porMoneda[mon].efectivo += c.total;
+    else if (c.metodo_pago === 'tarjeta' || c.metodo_pago === 'transferencia') porMoneda[mon].banco += c.total;
+  }
+  const movsMoneda = await db.all(`
+    SELECT tipo, cuenta, moneda, COALESCE(SUM(monto), 0) AS total
+    FROM movimientos_bancarios
+    WHERE fecha >= date(?) AND fecha < date(?) GROUP BY tipo, cuenta, moneda
+  `, [inicio, fin]);
+  for (const m of movsMoneda) {
+    const mon = m.moneda === 'USD' ? 'USD' : 'CUP';
+    if (m.tipo === 'retiro' || m.tipo === 'compra_efectivo') porMoneda[mon][m.cuenta || 'efectivo'] -= m.total;
+    else if (m.tipo === 'deposito') porMoneda[mon][m.cuenta || 'banco'] += m.total;
+  }
+  porMoneda.CUP.efectivo = R2(porMoneda.CUP.efectivo);
+  porMoneda.CUP.banco = R2(porMoneda.CUP.banco);
+  porMoneda.USD.efectivo = R2(porMoneda.USD.efectivo);
+  porMoneda.USD.banco = R2(porMoneda.USD.banco);
+
   // Costos base del período: solo productos gravables en fiscal (D32)
   const cf = await filtroGravableLineas(db, 'p');
   const costosRow = cf.sql
@@ -446,6 +480,7 @@ async function desglosePrioridades(db, inicio, fin, opciones = {}) {
       efectivo: R2(alBanco.efectivo),
       pct_tarjeta: ventas.recaudado > 0 ? Math.round((alBanco.tarjeta / ventas.recaudado) * 10000) / 100 : 0
     },
+    por_moneda: porMoneda,
     prioridades: [
       { orden: 1, concepto: 'Impuestos sobre las ventas', monto: rImpuestos },
       { orden: 2, concepto: 'Costos base', monto: rCostosBase },

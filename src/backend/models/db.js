@@ -3,13 +3,10 @@ const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
 const fs = require('fs');
+const { getDbPath } = require('../utils/rutas');
 
-// Ruta de la BD: respeta DB_PATH (.env) si existe; si no, la ubicación por defecto.
-// Las rutas relativas de DB_PATH se resuelven contra la raíz del proyecto.
-const envPath = process.env.DB_PATH;
-const dbPath = envPath
-  ? (path.isAbsolute(envPath) ? envPath : path.resolve(__dirname, '../../../', envPath))
-  : path.resolve(__dirname, '../../../database/database.db');
+// Ruta de la BD (respetando DB_PATH/.env si se instala con datos separados)
+const dbPath = getDbPath();
 
 console.log('📁 Ruta absoluta de BD:', dbPath);
 

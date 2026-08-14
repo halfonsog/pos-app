@@ -374,6 +374,17 @@ Ventas.cerrarTurno = async function () {
                       <span>TOTAL:</span>
                       <span class="text-primary">${resumen.totales.total_ventas} ventas - ${Utils.formatMoney(resumen.totales.total_cobrado)}</span>
                     </div>
+                    ${resumen.por_moneda ? `
+                    <hr>
+                    <small class="text-muted">Disponibilidad por moneda en este turno:</small>
+                    <div class="row mt-2">
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-success-subtle rounded"><small>CUP</small><br><strong class="text-success">${Utils.formatMoney(resumen.por_moneda.CUP.efectivo)}</strong><br><small class="text-muted">efectivo</small><br><strong class="text-primary">${Utils.formatMoney(resumen.por_moneda.CUP.banco)}</strong><br><small class="text-muted">banco</small></div>
+                      </div>
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-warning-subtle rounded"><small>USD</small><br><strong class="text-warning">$${Utils.formatNumber(resumen.por_moneda.USD.efectivo, 2)}</strong><br><small class="text-muted">efectivo</small><br><strong class="text-info">$${Utils.formatNumber(resumen.por_moneda.USD.banco, 2)}</strong><br><small class="text-muted">banco</small></div>
+                      </div>
+                    </div>` : ''}
                   </div>
                 </div>
 
@@ -1729,19 +1740,30 @@ Ventas.verTurno = function (resumen) {
               <!-- Ventas -->
               <div class="card mb-4">
                 <div class="card-header"><h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Ventas</h5></div>
-                <div class="card-body">
-                  ${resumen.ventasPorMetodo.map(v => `
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>${v.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}:</span>
-                      <span><strong>${v.cantidad}</strong> ventas - ${Utils.formatMoney(v.total)}</span>
+                  <div class="card-body">
+                    ${resumen.ventasPorMetodo.map(v => `
+                      <div class="d-flex justify-content-between mb-2">
+                        <span>${v.metodo_pago === 'efectivo' ? '💰 Efectivo' : '💳 Tarjeta'}:</span>
+                        <span><strong>${v.cantidad}</strong> ventas - ${Utils.formatMoney(v.total)}</span>
+                      </div>
+                    `).join('')}
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold">
+                      <span>TOTAL:</span>
+                      <span>${resumen.totales.total_ventas} ventas - ${Utils.formatMoney(resumen.totales.total_cobrado)}</span>
                     </div>
-                  `).join('')}
-                  <hr>
-                  <div class="d-flex justify-content-between fw-bold">
-                    <span>TOTAL:</span>
-                    <span>${resumen.totales.total_ventas} ventas - ${Utils.formatMoney(resumen.totales.total_cobrado)}</span>
+                    ${resumen.por_moneda ? `
+                    <hr>
+                    <small class="text-muted">Disponibilidad por moneda en este turno:</small>
+                    <div class="row mt-2">
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-success-subtle rounded"><small>CUP</small><br><strong class="text-success">${Utils.formatMoney(resumen.por_moneda.CUP.efectivo)}</strong><br><small class="text-muted">efectivo</small><br><strong class="text-primary">${Utils.formatMoney(resumen.por_moneda.CUP.banco)}</strong><br><small class="text-muted">banco</small></div>
+                      </div>
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-warning-subtle rounded"><small>USD</small><br><strong class="text-warning">$${Utils.formatNumber(resumen.por_moneda.USD.efectivo, 2)}</strong><br><small class="text-muted">efectivo</small><br><strong class="text-info">$${Utils.formatNumber(resumen.por_moneda.USD.banco, 2)}</strong><br><small class="text-muted">banco</small></div>
+                      </div>
+                    </div>` : ''}
                   </div>
-                </div>
               </div>
               
               ${Ventas.renderDesgloseTurno(resumen.desglose_prioridades)}
@@ -2134,11 +2156,29 @@ Ventas.encargoFicha = async function (params) {
 
     const entregar = async (metodo) => {
       if (!await Utils.confirm(`¿Entregar y cobrar ${Utils.formatMoney(p.total)} por ${metodo}? Se descuenta el stock y entra en las ventas del día.`, 'Confirmar entrega')) return;
-      try {
-        await API.mayoristas.entregarPedido(p.id, { metodo_pago: metodo });
-        Toast.success('Encargo entregado y cobrado');
-        ViewManager.refresh();
-      } catch (error) { Toast.error(error.message); }
+      FormModal.show({
+        title: `Cobrar encargo #${p.id} (${Utils.formatMoney(p.total)})`,
+        submitLabel: 'Entregar y cobrar',
+        fields: [
+          {
+            id: 'moneda', label: 'Moneda del cobro', type: 'select', value: 'CUP', required: true,
+            options: [{ value: 'CUP', label: 'CUP (pesos)' }, { value: 'USD', label: 'USD (dólares)' }]
+          },
+          { id: 'monto', label: 'Monto a cobrar (en la moneda indicada)', type: 'number', value: p.total.toFixed(2), min: 0.01, step: 0.01, required: true },
+          { id: 'tasa_cambio', label: 'Tasa acordada (CUP por 1 USD)', type: 'number', min: 0.01, step: 0.01, showIf: { field: 'moneda', value: 'USD' } }
+        ],
+        onSubmit: async (v) => {
+          if (v.moneda === 'USD' && (!v.tasa_cambio || v.tasa_cambio <= 0)) { Toast.warning('Indica la tasa de cambio acordada para el cobro en USD'); return false; }
+          try {
+            await API.mayoristas.entregarPedido(p.id, { metodo_pago: metodo, moneda: v.moneda, monto: v.monto, tasa_cambio: v.tasa_cambio || 1 });
+            Toast.success('Encargo entregado y cobrado');
+            ViewManager.refresh();
+          } catch (error) {
+            Toast.error(error.message);
+            return false;
+          }
+        }
+      });
     };
     $('#btnEntregarEfectivo').on('click', () => entregar('efectivo'));
     $('#btnEntregarTarjeta').on('click', () => entregar('tarjeta'));

@@ -8,8 +8,8 @@
 POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/api` + SPA en `src/frontend`, JS vanilla + jQuery + Bootstrap). BD real en uso: `database/database.db` (**nunca reiniciar sin backup**; backups en `backups/`). Docs completas en `docs/` (módulos en `docs/modulos/`).
 
 ## Estado verificado (2026-08-12)
-- **188 tests verdes** (`npm test`, 16 suites) contra BD temporal desde migraciones.
-- **38 tablas de negocio** (+ `schema_migrations`), **34 migraciones** (001–034, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
+- **191 tests verdes** (`npm test`, 16 suites) contra BD temporal desde migraciones.
+- **39 tablas de negocio** (+ `schema_migrations`), **35 migraciones** (001–035, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
 - Servidor en producción local en `PORT 3000` (`npm start` = `node server.js`).
 
 ## Hecho y en producción
@@ -32,7 +32,7 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - Ver lista completa en `00-pendientes.md`.
 
 ## Convenciones clave (resumen rápido)
-- Migraciones numeradas en `database/migrations/` (siguiente libre: **035**); **nunca editar una migración aplicada**; backup antes de tocar esquema.
+- Migraciones numeradas en `database/migrations/` (siguiente libre: **036**); **nunca editar una migración aplicada**; backup antes de tocar esquema.
 - Backend: routers finos + controladores con SQL parametrizado (`?`); `requireRole('admin')` donde aplique; servicios compartidos en `src/backend/utils/` (costos.js, conversiones.js, logger.js).
 - Frontend: módulos como objetos globales en `js/modules/`; vistas por ViewManager (`ViewManager.navegar`); **sin modales en módulos** (vistas completas); `Utils.confirm`, `Toast.*`, `Utils.fechaISOToLocal` antes de mostrar fechas (backend UTC, frontend local).
 - Reglas de negocio y decisiones del propietario en `docs/modulos/*.md` y `docs/06-decisiones-y-roadmap.md`; temas abiertos en `00-pendientes.md`.

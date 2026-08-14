@@ -414,17 +414,25 @@ const compraController = {
         [nuevoPagado, estado_pago, id]
       );
 
-      // Si el pago es por transferencia → sale del banco (movimiento bancario)
+      // Movimiento de dinero: soporta CUP y USD, por efectivo o transferencia (m025/m035).
+      const { moneda, tasa_cambio } = req.body;
+      const mon = moneda === 'USD' ? 'USD' : 'CUP';
+      const tasa = parseFloat(tasa_cambio) || 0;
+      if (mon === 'USD' && tasa <= 0) {
+        return res.status(400).json({ error: 'Indica la tasa de cambio acordada para el pago en USD' });
+      }
+
       if (metodo_pago === 'transferencia') {
-        const { moneda, tasa_cambio } = req.body;
-        const mon = moneda === 'USD' ? 'USD' : 'CUP';
-        const tasa = parseFloat(tasa_cambio) || 0;
-        if (mon === 'USD' && tasa <= 0) {
-          return res.status(400).json({ error: 'Indica la tasa de cambio acordada para el pago en USD' });
-        }
+        // Sale del banco (CUP o USD)
         await db.run(`
           INSERT INTO movimientos_bancarios (tipo, monto, fecha, descripcion, cuenta, moneda, tasa_cambio, referencia, usuario_id)
           VALUES ('compra_transferencia', ?, date('now', 'localtime'), ?, 'banco', ?, ?, ?, ?)
+        `, [montoNum, `Pago compra #${id}`, mon, mon === 'USD' ? tasa : 1, referencia || null, req.usuario.id]);
+      } else {
+        // Efectivo: sale de la caja de la moneda indicada (compra_efectivo)
+        await db.run(`
+          INSERT INTO movimientos_bancarios (tipo, monto, fecha, descripcion, cuenta, moneda, tasa_cambio, referencia, usuario_id)
+          VALUES ('compra_efectivo', ?, date('now', 'localtime'), ?, 'efectivo', ?, ?, ?, ?)
         `, [montoNum, `Pago compra #${id}`, mon, mon === 'USD' ? tasa : 1, referencia || null, req.usuario.id]);
       }
 

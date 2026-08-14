@@ -686,9 +686,10 @@ const contabilidadController = {
 
       const saldos = {};
       for (const mon of ['CUP', 'USD']) {
-        const efectivo = mon === 'CUP'
-          ? (vPorMetodo['efectivo'] || 0) + cPor('efectivo', 'CUP') - mPor('deposito', 'CUP') + mPor('retiro', 'CUP')
-          : cPor('efectivo', 'USD') - mPor('deposito', 'USD') + mPor('retiro', 'USD');
+        const efectivo = (mon === 'CUP' ? (vPorMetodo['efectivo'] || 0) : 0)
+          + cPor('efectivo', mon)
+          - mPor('deposito', mon) + mPor('retiro', mon)
+          - mPor('compra_efectivo', mon);
 
         const banco = (mon === 'CUP' ? (vPorMetodo['tarjeta'] || 0) : 0)
           + cPor('tarjeta', mon) + cPor('transferencia', mon)

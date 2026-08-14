@@ -51,4 +51,4 @@ Inventario de bugs confirmados, riesgos de seguridad y deuda técnica pendientes
 
 - **Backend**: sin capa de validación sistemática; manejo de errores inconsistente (next vs 500 directo); queries N+1 (compras, receta, preparables); `LIMIT 100` fijos sin paginación real; `console.log` de depuración; `routes/usuarios.js` vacío; `eliminarUnidad` en controller sin ruta; categorías sin DELETE (a propósito).
 - **Frontend**: archivos gigantes (`productos.js` ~2100 l.; `compras.js` ~1680 l.; `ventas.js` ~1730 l.; `proveedores.js` ~1270 l.); duplicación (navbar ×8, `bindCommon` ×8, DataTables ×6); XSS sin escaping (S9); código muerto (fallbacks mock, vistas legacy); `console.log` (~107); mezcla jQuery/vanilla sin criterio; sin lazy loading (~460 KB de JS propio siempre).
-- **Pruebas**: Jest + supertest contra BD temporal desde las migraciones; **189 tests verdes** en 16 suites. La BD temporal se construye con `helpers/testDb.js`.
+- **Pruebas**: Jest + supertest contra BD temporal desde las migraciones; **191 tests verdes** en 16 suites. La BD temporal se construye con `helpers/testDb.js`.

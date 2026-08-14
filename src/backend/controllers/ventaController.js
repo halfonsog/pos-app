@@ -1,6 +1,55 @@
 const { getDb } = require('../models/db');
 const costos = require('../utils/costos');
 
+// Dinero del turno por moneda (CUP/USD) y cuenta (efectivo/banco):
+//   ventas minoristas del turno + cobros mayoristas del turno + movimientos del turno.
+async function dineroPorMoneda(db, turno) {
+  const res = { CUP: { efectivo: 0, banco: 0 }, USD: { efectivo: 0, banco: 0 } };
+
+  // Ventas minoristas del turno (efectivo → caja; tarjeta → banco). Solo CUP.
+  const ventas = await db.all(`
+    SELECT metodo_pago, COALESCE(SUM(total), 0) AS total
+    FROM ventas WHERE turno_id = ? AND estado = 'completada'
+    GROUP BY metodo_pago
+  `, [turno.id]);
+  for (const v of ventas) {
+    if (v.metodo_pago === 'efectivo') res.CUP.efectivo += v.total;
+    else if (v.metodo_pago === 'tarjeta') res.CUP.banco += v.total;
+  }
+
+  // Cobros de pedidos (mayoristas y encargos) dentro del turno, por método y moneda.
+  const cobros = await db.all(`
+    SELECT pp.metodo_pago, pp.moneda, COALESCE(SUM(pp.monto), 0) AS total
+    FROM pagos_pedido pp
+    WHERE pp.created_at >= ? AND pp.created_at <= COALESCE(?, CURRENT_TIMESTAMP)
+    GROUP BY pp.metodo_pago, pp.moneda
+  `, [turno.abierto_at, turno.cerrado_at]);
+  for (const c of cobros) {
+    const mon = c.moneda === 'USD' ? 'USD' : 'CUP';
+    if (c.metodo_pago === 'efectivo') res[mon].efectivo += c.total;
+    else if (c.metodo_pago === 'tarjeta' || c.metodo_pago === 'transferencia') res[mon].banco += c.total;
+  }
+
+  // Movimientos bancarios (depósitos/retiros/compra efectivo) dentro del turno.
+  const movs = await db.all(`
+    SELECT tipo, cuenta, moneda, COALESCE(SUM(monto), 0) AS total
+    FROM movimientos_bancarios
+    WHERE fecha >= date(?) AND fecha <= COALESCE(date(?), date('now', 'localtime'))
+    GROUP BY tipo, cuenta, moneda
+  `, [turno.abierto_at, turno.cerrado_at]);
+  for (const m of movs) {
+    const mon = m.moneda === 'USD' ? 'USD' : 'CUP';
+    if (m.tipo === 'retiro' || m.tipo === 'compra_efectivo') res[mon][m.cuenta || 'efectivo'] -= m.total;
+    else if (m.tipo === 'deposito') res[mon][m.cuenta || 'banco'] += m.total;
+  }
+
+  res.CUP.efectivo = Math.round(res.CUP.efectivo * 100) / 100;
+  res.CUP.banco = Math.round(res.CUP.banco * 100) / 100;
+  res.USD.efectivo = Math.round(res.USD.efectivo * 100) / 100;
+  res.USD.banco = Math.round(res.USD.banco * 100) / 100;
+  return res;
+}
+
 const ventaController = {
 
   // ============================================
@@ -538,7 +587,8 @@ const ventaController = {
         totales,
         productosVendidos,
         financiero: f,
-        desglose_prioridades: desglose
+        desglose_prioridades: desglose,
+        por_moneda: await dineroPorMoneda(db, turno)
       });
 
     } catch (error) {

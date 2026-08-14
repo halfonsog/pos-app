@@ -417,6 +417,19 @@ Contabilidad.calcularCierreMes = async function () {
               </tr>
             </tfoot>
           </table>
+          ${d.por_moneda ? `
+          <div class="card bg-light mt-3">
+            <div class="card-body">
+              <h6 class="mb-2"><i class="fas fa-coins me-1"></i>Disponibilidad por moneda del período</h6>
+              <div class="row text-center">
+                <div class="col-3"><small class="text-muted">CUP efectivo</small><div class="fw-bold text-success">${Utils.formatMoney(d.por_moneda.CUP.efectivo)}</div></div>
+                <div class="col-3"><small class="text-muted">CUP banco</small><div class="fw-bold text-primary">${Utils.formatMoney(d.por_moneda.CUP.banco)}</div></div>
+                <div class="col-3"><small class="text-muted">USD efectivo</small><div class="fw-bold text-warning">$${Utils.formatNumber(d.por_moneda.USD.efectivo, 2)}</div></div>
+                <div class="col-3"><small class="text-muted">USD banco</small><div class="fw-bold text-info">$${Utils.formatNumber(d.por_moneda.USD.banco, 2)}</div></div>
+              </div>
+              <small class="text-muted d-block mt-2"><i class="fas fa-info-circle me-1"></i>El desglose por prioridades es en CUP; los dólares se contemplan por su equivalente (tasa acordada en cada operación).</small>
+            </div>
+          </div>` : ''}
         </div>
         <div class="col-lg-5">
           <div class="card bg-light mb-3">

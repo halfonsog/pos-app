@@ -534,6 +534,30 @@ const mayoristaController = {
       const impuesto = Math.round((totalRedondeado * tasa) * 100) / 100;
       const subtotal = Math.round((totalRedondeado - impuesto) * 100) / 100;
 
+      // Moneda del cobro (CUP por defecto; USD con tasa acordada). La venta se
+      // registra en CUP equivalente; el pago guarda su moneda y tasa (m025/m035).
+      const monedaPago = req.body.moneda || 'CUP';
+      const mon = monedaPago === 'USD' ? 'USD' : 'CUP';
+      const tasaUsd = parseFloat(req.body.tasa_cambio) || 0;
+      if (mon === 'USD' && tasaUsd <= 0) {
+        return res.status(400).json({ error: 'Indica la tasa de cambio acordada para el cobro en USD' });
+      }
+      // montoCobrado = dinero recibido en la moneda indicada (por defecto el total en CUP).
+      const montoCobrado = parseFloat(req.body.monto) || totalRedondeado;
+      const equivalenteCup = mon === 'USD' ? Math.round(montoCobrado * tasaUsd * 100) / 100 : montoCobrado;
+      // Si el encargo se cobra en USD, la venta se registra por el equivalente CUP.
+      const totalVentaCup = mon === 'USD' ? equivalenteCup : totalRedondeado;
+      const subtotalVenta = mon === 'USD'
+        ? Math.round((totalVentaCup - totalVentaCup * tasa) * 100) / 100
+        : subtotal;
+      const impuestoVenta = mon === 'USD'
+        ? Math.round((totalVentaCup * tasa) * 100) / 100
+        : impuesto;
+      const totalVentaRedondeado = redondeo > 0 ? Math.ceil(totalVentaCup / redondeo) * redondeo : totalVentaCup;
+      const ajusteVenta = mon === 'USD'
+        ? Math.round((totalVentaRedondeado - totalVentaCup) * 100) / 100
+        : ajusteRedondeo;
+
       // Turno abierto (si lo hay) para que cuente en el arqueo
       const turno = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
 
@@ -542,7 +566,7 @@ const mayoristaController = {
         const venta = await db.run(`
           INSERT INTO ventas (turno_id, vendedor_id, cliente_id, tipo_venta, subtotal, impuesto, total, ajuste_redondeo, metodo_pago, estado)
           VALUES (?, ?, NULL, 'minorista', ?, ?, ?, ?, ?, 'completada')
-        `, [turno?.id || null, req.usuario.id, subtotal, impuesto, totalRedondeado, ajusteRedondeo, metodo_pago]);
+        `, [turno?.id || null, req.usuario.id, subtotalVenta, impuestoVenta, totalVentaRedondeado, ajusteVenta, metodo_pago]);
 
         const ventaId = venta.lastID;
 
@@ -559,6 +583,20 @@ const mayoristaController = {
           `, [d.producto_id, -d.cantidad, ventaId, req.usuario.id, `Encargo entregado #${pedido.id}`]);
         }
 
+        // Registrar el pago del encargo (con su moneda y tasa)
+        await db.run(`
+          INSERT INTO pagos_pedido (pedido_id, fecha, monto, metodo_pago, referencia, usuario_id, moneda, tasa_cambio)
+          VALUES (?, date('now', 'localtime'), ?, ?, ?, ?, ?, ?)
+        `, [pedido.id, montoCobrado, metodo_pago, `Encargo #${pedido.id}`, req.usuario.id, mon, mon === 'USD' ? tasaUsd : 1]);
+
+        // Movimiento de dinero: efectivo → caja (CUP/USD); tarjeta → banco (CUP/USD)
+        const tipoMov = metodo_pago === 'efectivo' ? 'cobro_servicio' : 'deposito';
+        const cuenta = metodo_pago === 'efectivo' ? 'efectivo' : 'banco';
+        await db.run(`
+          INSERT INTO movimientos_bancarios (tipo, monto, fecha, descripcion, cuenta, moneda, tasa_cambio, referencia, usuario_id)
+          VALUES (?, ?, date('now', 'localtime'), ?, ?, ?, ?, ?, ?)
+        `, [tipoMov, montoCobrado, `Encargo entregado #${pedido.id}`, cuenta, mon, mon === 'USD' ? tasaUsd : 1, `pedido:${pedido.id}`, req.usuario.id]);
+
         await db.run(`
           UPDATE pedidos SET estado = 'entregado', estado_pago = 'pagado', pagado = total, venta_id = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
@@ -566,7 +604,7 @@ const mayoristaController = {
 
         await db.run('COMMIT');
         res.json({
-          message: `Encargo entregado y cobrado por ${metodo_pago} (venta #${ventaId}${turno ? ', en el turno abierto' : ''})`,
+          message: `Encargo entregado y cobrado por ${metodo_pago} (${montoCobrado} ${mon}${mon === 'USD' ? `, tasa ${tasaUsd} = ${equivalenteCup} CUP` : ''}; venta #${ventaId}${turno ? ', en el turno abierto' : ''})`,
           venta_id: ventaId
         });
       } catch (error) {

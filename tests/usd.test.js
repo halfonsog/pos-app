@@ -172,4 +172,64 @@ describe('Facturación parcial (m028)', () => {
     const prod = await db.get('SELECT stock_mayorista FROM productos WHERE id = ?', [prodId]);
     expect(prod.stock_mayorista).toBeCloseTo(87, 2);
   });
+
+  test('pago de compra en USD por EFECTIVO descuenta caja USD (m035)', async () => {
+    const { getDb } = require('../src/backend/models/db');
+    const db = await getDb();
+
+    const prov = await request.post('/api/proveedores').set(auth()).send({ nombre: 'Prov USD' });
+    const compra = await request.post('/api/compras').set(auth())
+      .send({ fecha_compra: '2026-08-12', proveedor_id: prov.body.id, detalles: [{ producto_id: prodId, cantidad: 2, precio_unitario: 100 }] }); // total 200 CUP
+    expect(compra.status).toBe(201);
+
+    // USD sin tasa → 400
+    const sinTasa = await request.post(`/api/compras/${compra.body.id}/pagar`).set(auth())
+      .send({ monto: 1, metodo_pago: 'efectivo', moneda: 'USD' });
+    expect(sinTasa.status).toBe(400);
+
+    // 1 USD a tasa 100 = 100 CUP (parcial); el movimiento sale de caja efectivo USD
+    const ok = await request.post(`/api/compras/${compra.body.id}/pagar`).set(auth())
+      .send({ monto: 1, metodo_pago: 'efectivo', moneda: 'USD', tasa_cambio: 100 });
+    expect(ok.status).toBe(200);
+
+    const mov = await db.get("SELECT tipo, cuenta, moneda, monto, tasa_cambio FROM movimientos_bancarios WHERE tipo='compra_efectivo' ORDER BY id DESC LIMIT 1");
+    expect(mov).toBeTruthy();
+    expect(mov.cuenta).toBe('efectivo');
+    expect(mov.moneda).toBe('USD');
+    expect(mov.monto).toBeCloseTo(1, 2);
+    expect(mov.tasa_cambio).toBeCloseTo(100, 2);
+  });
+
+  test('cobro de encargo en USD: venta en CUP equivalente + pago con tasa (m035)', async () => {
+    const { getDb } = require('../src/backend/models/db');
+    const db = await getDb();
+
+    // stock minorista para el encargo
+    await db.run('UPDATE productos SET stock_actual = 50 WHERE id = ?', [prodId]);
+
+    const enc = await request.post('/api/mayoristas/pedidos').set(auth())
+      .send({ tipo: 'minorista', cliente_nombre: 'Cli', detalles: [{ producto_id: prodId, cantidad: 2 }] }); // total 100 CUP
+    expect(enc.status).toBe(201);
+
+    // USD sin tasa → 400
+    const sinTasa = await request.post(`/api/mayoristas/pedidos/${enc.body.id}/entregar`).set(auth())
+      .send({ metodo_pago: 'efectivo', moneda: 'USD' });
+    expect(sinTasa.status).toBe(400);
+
+    // 1 USD a tasa 100 = 100 CUP → cobrado completo
+    const ok = await request.post(`/api/mayoristas/pedidos/${enc.body.id}/entregar`).set(auth())
+      .send({ metodo_pago: 'efectivo', moneda: 'USD', monto: 1, tasa_cambio: 100 });
+    expect(ok.status).toBe(200);
+
+    // la venta creada es el equivalente CUP (100)
+    const pedido = await db.get('SELECT venta_id, estado_pago FROM pedidos WHERE id = ?', [enc.body.id]);
+    expect(pedido.estado_pago).toBe('pagado');
+    const venta = await db.get('SELECT total FROM ventas WHERE id = ?', [pedido.venta_id]);
+    expect(venta.total).toBeCloseTo(100, 2);
+
+    // pago registrado en USD con tasa
+    const pg = await db.get('SELECT moneda, tasa_cambio FROM pagos_pedido WHERE pedido_id = ?', [enc.body.id]);
+    expect(pg.moneda).toBe('USD');
+    expect(pg.tasa_cambio).toBeCloseTo(100, 2);
+  });
 });
