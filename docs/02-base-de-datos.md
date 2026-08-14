@@ -41,6 +41,9 @@ Las migraciones se registran en `schema_migrations` (version, name, executed_at,
 | 029 | `029_servicios_tipo_venta.sql` | `servicios` + `usuarios.tipo_venta` |
 | 030 | `030_contabilidad_nominas.sql` | `parametros_contables` +`porciento_declarar` (def 100) +`dia_pago_bonos` (def 5=viernes); `nominas` + `bonos` |
 | 031 | `031_renombrar_parametros_contables.sql` | `parametros_contables` renombrada a **`configuracion_contabilidad`** (propietario, `com.md` #2a) |
+| 032 | `032_fiscal_dos_mundos.sql` | Modelo fiscal de dos mundos (D30–D36): `categorias.gravable` + `categorias.es_sistema`; categoría de sistema **"No gravable"** (gravable=0, es_sistema=1); `servicios.tiene_factura` (def 1); **se elimina** `configuracion_contabilidad.porciento_declarar` (PD deprecado) |
+| 033 | `033_cierre_mes.sql` | Cierre de mes (D38): tablas `cierres_mes` (ficha por mes, UNIQUE mes/anio) + `cierre_mes_aplicaciones` (aplicación del excedente a vencimientos) |
+| 034 | `034_arqueos.sql` | Arqueo de caja persistido (B14): detalle del conteo por denominaciones de cada turno cerrado |
 
 ## 2. Catálogo completo de tablas
 
@@ -49,9 +52,9 @@ Las migraciones se registran en `schema_migrations` (version, name, executed_at,
 **`terminos_pago`** — condiciones de pago.
 `id` · `nombre` · `dias` · `activo`
 Seeds: Contado, 7 días, 30 días. Usados por proveedores y por clientes (condición de pago).
-
 **`categorias`** — categorías de productos con subcategorías.
-`id` · `nombre UNIQUE` · `descripcion` · `activo` · `padre_id → categorias` (null = raíz; anti-ciclo en backend) · `created_at`
+
+`id` · `nombre UNIQUE` · `descripcion` · `activo` · `padre_id → categorias` (null = raíz; anti-ciclo en backend) · `gravable` (1=declarable, 0=excluida del mundo fiscal; se hereda del padre al crear, m032) · `es_sistema` (1 = categoría de sistema no editable/eliminable — la raíz "No gravable", m032) · `created_at`
 
 **`unidades`** — unidades de medida con conversión por coeficiente.
 `id` · `tipo CHECK('unidad','volumen','peso','longitud')` · `nombre` · `abreviatura` · `coeficiente` · `es_base` · `activo`
@@ -62,9 +65,9 @@ Seeds: Contado, 7 días, 30 días. Usados por proveedores y por clientes (condic
 
 **`denominaciones`** — billetes/monedas para el arqueo de caja.
 `id` · `valor` · `activo` · `orden`. Toggle según lo que circula.
-
 **`configuracion_contabilidad`** — registro único (id=1). Antes `parametros_contables` (m031 lo renombró).
-`ventas_proyectadas` · `margen_recomendado` (def 20) · `impuesto_ventas` (def 15) · `redondeo_venta` (def 5) · `impuesto_ganancia` (def 35) · `salario_minimo` (def 3260) · `base_contribucion_especial` · `limite_escala_retencion` (def 15000) · `porciento_declarar` (def 100; % de ventas y compras declaradas al fisco) · `dia_pago_bonos` (def 5=viernes) · `updated_at`
+
+`ventas_proyectadas` · `margen_recomendado` (def 20) · `impuesto_ventas` (def 15) · `redondeo_venta` (def 5) · `impuesto_ganancia` (def 35) · `salario_minimo` (def 3260) · `base_contribucion_especial` · `limite_escala_retencion` (def 15000) · `dia_pago_bonos` (def 5=viernes) · `updated_at` (el `porciento_declarar` se eliminó en m032 — sustituido por el modelo fiscal de dos mundos, D30–D36)
 - `total_gastos_fijos` y `porcentaje_gastos` **no son columnas**: se calculan al vuelo (fórmulas en `modulos/configuracion.md`).
 - Auto-siembra: si falta el registro id=1 se crea solo.
 
@@ -118,6 +121,9 @@ Al inventariar, cada línea puede dividirse entre inventarios (minorista/mayoris
 **`turnos`** — sesiones de caja. **Modelo de caja única**: solo un turno abierto en todo el sistema.
 `id` · `vendedor_id → usuarios` · `monto_apertura` · `monto_cierre_esperado` · `monto_cierre_real` · `diferencia` · `estado CHECK('abierto','cerrado')` · `abierto_at` · `cerrado_at`
 
+**`arqueos`** (m034, B14) — detalle del conteo por denominaciones al cerrar el turno.
+`id` · `turno_id → CASCADE` · `valor` · `cantidad` · `subtotal` · `created_at`
+
 **`ventas`** (asientos minoristas Y mayoristas)
 `id` · `turno_id` (NULL en mayoristas) · `vendedor_id → usuarios` · `cliente_id → clientes` (NULL en minorista) · `tipo_venta CHECK('minorista','mayorista')` · `subtotal` · `impuesto` · `total` · `ajuste_redondeo` · `metodo_pago CHECK('efectivo','tarjeta','transferencia','mixta')` · `estado CHECK('completada','anulada')` · `created_at`
 El impuesto es **incluido** (el total lo paga el cliente; subtotal = total − impuesto). En minorista, `total` se redondea hacia arriba al múltiplo de `redondeo_venta`; la diferencia va a `ajuste_redondeo`.
@@ -141,8 +147,14 @@ Tipos (D7): compra(+), venta(−), devolucion(+), preparacion_entrada(+), prepar
 
 **`vencimientos`** — generados al crear/editar (día 1 de cada mes; el primero = mes siguiente a fecha_inicio).
 `id` · `prestamo_inversion_id → CASCADE` · `ordinal` (1..plazo) · `fecha_vencimiento` · `capital` · `pago_capital` · `tarifa` (= tasa_mensual × capital_gravado) · `aporte` (= pago_capital + tarifa) · `monto_pagado` · `estado CHECK('pendiente','pagado','parcial')` · `fecha_pago` · `UNIQUE(prestamo_inversion_id, ordinal)`
-Fórmulas (por ordinal i): `capital = capital_total − (i−1) × pago_capital` · `capital_gravado = prestamo: capital − pago_capital · inversion: 0 en el mes 1 (aporte a la par) e i × pago_capital desde el mes 2` · `tasa_mensual = tasa_anual/100/12` · último vencimiento absorbe el redondeo. En inversiones, un pago de capital distinto al programado **reajusta el número de cuotas restantes** (pago_capital base fijo; la última absorbe).
+Fórmulas (por ordinal i): `capital = capital_total − (i−1) × pago_capital` · `capital_gravado = prestamo: capital − pago_capital · inversion: 0 en el mes 1 (aporte a la par) e i × pago_capital desde el mes 2` · `tasa_mensual = tasa_anual/100/12` · último vencimiento absorbe el redondeo. En inversiones, un pago de capital distinto al programado **reajusta el número de cuotas restantes** (pago_capital base fijo; la última absorbe). En el cierre de mes (D38) el excedente acelera el capital (menos cuotas): en **préstamos** las tarifas se **preservan por ordinal original** (el acreedor recibe el mismo total de intereses pactado).
 El **gasto financiero del mes** = Σ `aporte` del **próximo vencimiento pendiente** de cada registro activo (si vence el 01/09, los precios del mes actual lo cubren) → alimenta el %gastos del costeo, junto con los **gastos fijos** = Σ `configuracion_gastos` activos + Σ `empleados.salario_mensual` de activos (regla del propietario 2026-08-11).
+
+**`cierres_mes`** (m033) — ficha de cierre de mes (D38).
+`id` · `mes` · `anio` · `recaudado` · `venta_neta` · `impuestos` · `costo_base` · `gastos_fijos_equiv` · `prestamos_equiv` · `inversiones_equiv` · `margen` · `ganancias` · `excedente` · `destino CHECK('inversiones','prestamos','ganancias')` · `excedente_aplicado` · `usuario_id` · `creado_en` · `UNIQUE(mes, anio)`
+
+**`cierre_mes_aplicaciones`** (m033) — detalle de cómo se aplicó el excedente.
+`id` · `cierre_mes_id → CASCADE` · `registro_id → prestamos_inversiones` · `vencimiento_id` · `tipo_registro CHECK('inversion','prestamo')` · `monto_aplicado` · `descripcion` · `creado_en`
 
 ### 2.5 Banco, divisas y servicios (m022, m025–m027, m029)
 
@@ -152,7 +164,7 @@ El **gasto financiero del mes** = Σ `aporte` del **próximo vencimiento pendien
 **Saldo por cuenta/moneda** (calculado, no almacenado) = ventas tarjeta (completadas − anuladas) + depósitos − retiros − compras transferencia − pagos impuestos + cobros mayoristas tarjeta/transferencia ± cambios de divisas ± servicios.
 
 **`servicios`** — pagos/cobros por servicios (estiba, transporte...).
-`id` · `descripcion` · `tipo CHECK('pago','cobro')` · `monto` · `moneda` · `tasa_cambio` · `cuenta CHECK('efectivo','banco')` · `compra_id` · `pedido_id` (vínculos opcionales) · `referencia` · `usuario_id` · `fecha` · `created_at`. Pago resta, cobro suma, en la cuenta indicada.
+`id` · `descripcion` · `tipo CHECK('pago','cobro')` · `monto` · `moneda` · `tasa_cambio` · `cuenta CHECK('efectivo','banco')` · `compra_id` · `pedido_id` (vínculos opcionales) · `referencia` · `tiene_factura` (1/0; solo los que tienen factura entran al mundo declarado, D33, m032) · `usuario_id` · `fecha` · `created_at`. Pago resta, cobro suma, en la cuenta indicada.
 
 ### 2.6 Pedidos (mayoristas y encargos)
 

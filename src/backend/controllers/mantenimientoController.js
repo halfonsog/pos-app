@@ -11,21 +11,45 @@ const mantenimientoController = {
       const db = await getDb();
       const usuario = req.usuario?.username || 'sistema';
 
-      // Eliminar productos inactivos que NO tengan dependencias
-      await db.run(`
-        DELETE FROM recetas WHERE producto_padre_id IN (SELECT id FROM productos WHERE activo = 0)
-      `);
-      await db.run(`
-        DELETE FROM recetas WHERE producto_hijo_id IN (SELECT id FROM productos WHERE activo = 0)
-      `);
-      await db.run(`
-        DELETE FROM productos WHERE activo = 0
-      `);
+      // B7: en transacción; solo se borran los inactivos SIN dependencias (historial),
+      // y se informa cuántos se omitieron por tener historia.
+      await db.run('BEGIN TRANSACTION');
+      try {
+        // Eliminar recetas de los inactivos (son la única dependencia eliminable)
+        await db.run(`
+          DELETE FROM recetas WHERE producto_padre_id IN (SELECT id FROM productos WHERE activo = 0)
+        `);
+        await db.run(`
+          DELETE FROM recetas WHERE producto_hijo_id IN (SELECT id FROM productos WHERE activo = 0)
+        `);
 
-      console.log(`🗑️ Productos inactivos eliminados por ${usuario}`);
-      log('ELIMINAR_INACTIVOS', 'productos', '-', usuario, 'Productos inactivos eliminados');
+        // Inactivos sin historia (no usados en ventas/compras/movimientos/pedidos)
+        await db.run(`
+          DELETE FROM productos
+          WHERE activo = 0
+            AND id NOT IN (SELECT producto_id FROM venta_detalles)
+            AND id NOT IN (SELECT producto_id FROM compra_detalles)
+            AND id NOT IN (SELECT producto_id FROM movimientos_stock)
+            AND id NOT IN (SELECT producto_id FROM pedido_detalles)
+        `);
+        await db.run('COMMIT');
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
 
-      res.json({ message: 'Productos inactivos eliminados' });
+      const omitidos = (await db.get(`
+        SELECT COUNT(*) AS n FROM productos WHERE activo = 0
+      `))?.n || 0;
+
+      console.log(`🗑️ Productos inactivos eliminados por ${usuario}${omitidos ? ` (${omitidos} con historial no se borraron)` : ''}`);
+      log('ELIMINAR_INACTIVOS', 'productos', '-', usuario, 'Productos inactivos eliminados' + (omitidos ? `; ${omitidos} con historial omitidos` : ''));
+
+      res.json({
+        message: omitidos
+          ? `Productos inactivos sin historial eliminados. ${omitidos} con historial se conservaron.`
+          : 'Productos inactivos eliminados'
+      });
     } catch (error) {
       next(error);
     }
@@ -38,15 +62,34 @@ const mantenimientoController = {
       const { anio } = req.body;
       const usuario = req.usuario?.username || 'sistema';
 
-      await db.run('DELETE FROM movimientos_stock WHERE created_at < ?', [`${anio}-12-31`]);
-      await db.run('DELETE FROM venta_detalles WHERE venta_id IN (SELECT id FROM ventas WHERE created_at < ?)', [`${anio}-12-31`]);
-      await db.run('DELETE FROM ventas WHERE created_at < ?', [`${anio}-12-31`]);
-      await db.run('DELETE FROM compra_detalles WHERE compra_id IN (SELECT id FROM compras WHERE fecha_compra < ?)', [`${anio}-12-31`]);
-      await db.run('DELETE FROM compras WHERE fecha_compra < ?', [`${anio}-12-31`]);
+      if (!anio) {
+        return res.status(400).json({ error: 'Año requerido' });
+      }
+      const anioNum = parseInt(anio);
+      if (isNaN(anioNum)) {
+        return res.status(400).json({ error: 'Año inválido' });
+      }
 
-      console.log(`🗑️ Datos del año ${anio} eliminados por ${usuario}`);
-      log('ELIMINAR_ANIO', 'datos', anio, usuario, `Datos del año ${anio} eliminados`);
-      res.json({ message: `Datos del año ${anio} eliminados` });
+      // B6: borrar SOLO el año indicado (rango [anio-01-01, anio+1-01-01)), en transacción
+      const inicio = `${anioNum}-01-01`;
+      const fin = `${anioNum + 1}-01-01`;
+
+      await db.run('BEGIN TRANSACTION');
+      try {
+        await db.run('DELETE FROM movimientos_stock WHERE created_at >= ? AND created_at < ?', [inicio, fin]);
+        await db.run('DELETE FROM venta_detalles WHERE venta_id IN (SELECT id FROM ventas WHERE created_at >= ? AND created_at < ?)', [inicio, fin]);
+        await db.run('DELETE FROM ventas WHERE created_at >= ? AND created_at < ?', [inicio, fin]);
+        await db.run('DELETE FROM compra_detalles WHERE compra_id IN (SELECT id FROM compras WHERE fecha_compra >= ? AND fecha_compra < ?)', [inicio, fin]);
+        await db.run('DELETE FROM compras WHERE fecha_compra >= ? AND fecha_compra < ?', [inicio, fin]);
+        await db.run('COMMIT');
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
+
+      console.log(`🗑️ Datos del año ${anioNum} eliminados por ${usuario}`);
+      log('ELIMINAR_ANIO', 'datos', anioNum, usuario, `Datos del año ${anioNum} eliminados`);
+      res.json({ message: `Datos del año ${anioNum} eliminados` });
     } catch (error) {
       next(error);
     }

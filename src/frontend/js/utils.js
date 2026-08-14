@@ -506,4 +506,16 @@ Utils.mismoTipo = function (id1, id2) {
   return u1 && u2 && u1.tipo === u2.tipo;
 };
 
+/**
+ * S9: escapa texto para insertarlo en HTML (evita XSS por datos de entrada).
+ */
+Utils.escapeHtml = function (str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 window.Utils = Utils;

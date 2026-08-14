@@ -23,6 +23,7 @@ const { buildTestDb } = require('./helpers/testDb');
 
 let request;
 let adminToken;
+let catId;
 
 beforeAll(async () => {
   await buildTestDb(TEST_DB);
@@ -30,6 +31,10 @@ beforeAll(async () => {
   request = require('supertest')(app);
   const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'admin123' });
   adminToken = res.body.token;
+  const { getDb } = require('../src/backend/models/db');
+  const db = await getDb();
+  const cat = await db.get('SELECT id FROM categorias WHERE gravable = 1 AND es_sistema = 0');
+  catId = cat.id;
 });
 
 afterAll(async () => {
@@ -51,7 +56,8 @@ describe('D1: creación con subtipos', () => {
   test('crear simple granel → 201', async () => {
     const res = await request.post('/api/productos').set(auth())
       .field('codigo', 'G001').field('nombre', 'Azúcar').field('tipo', 'simple')
-      .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1');
+      .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1')
+      .field('categoria_id', String(catId));
     expect(res.status).toBe(201);
     granelId = res.body.id;
   });
@@ -59,7 +65,8 @@ describe('D1: creación con subtipos', () => {
   test('crear simple reventa → 201', async () => {
     const res = await request.post('/api/productos').set(auth())
       .field('codigo', 'R001').field('nombre', 'Refresco').field('tipo', 'simple')
-      .field('sub_tipo', 'reventa').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'reventa').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     expect(res.status).toBe(201);
     reventaId = res.body.id;
   });
@@ -67,14 +74,16 @@ describe('D1: creación con subtipos', () => {
   test('crear compuesto sin sub_tipo → 400', async () => {
     const res = await request.post('/api/productos').set(auth())
       .field('codigo', 'C000').field('nombre', 'Sin subtipo').field('tipo', 'compuesto')
-      .field('unidad_venta_id', '1');
+      .field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     expect(res.status).toBe(400);
   });
 
   test('crear compuesto elaborado → 201', async () => {
     const res = await request.post('/api/productos').set(auth())
       .field('codigo', 'E001').field('nombre', 'Dulce base').field('tipo', 'compuesto')
-      .field('sub_tipo', 'elaborado').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'elaborado').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     expect(res.status).toBe(201);
     elaboradoAId = res.body.id;
   });
@@ -82,7 +91,8 @@ describe('D1: creación con subtipos', () => {
   test('crear compuesto conformado → 201', async () => {
     const res = await request.post('/api/productos').set(auth())
       .field('codigo', 'C001').field('nombre', 'Café con leche').field('tipo', 'compuesto')
-      .field('sub_tipo', 'conformado').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'conformado').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     expect(res.status).toBe(201);
     conformadoId = res.body.id;
   });
@@ -105,7 +115,8 @@ describe('D5: regla de ingredientes', () => {
     // Crear elaborado B que contiene a A
     const resB = await request.post('/api/productos').set(auth())
       .field('codigo', 'E002').field('nombre', 'Dulce premium').field('tipo', 'compuesto')
-      .field('sub_tipo', 'elaborado').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'elaborado').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     elaboradoBId = resB.body.id;
 
     const res = await request.post(`/api/productos/${elaboradoBId}/receta`).set(auth())
@@ -215,5 +226,52 @@ describe('D3: recálculo de costos en cascada', () => {
     const despues = await request.get(`/api/productos/${granelId}`).set(auth());
     expect(despues.body.precio_recomendado).not.toBe(recomendadoAntes);
     expect(despues.body.precio_recomendado).toBeGreaterThan(recomendadoAntes);
+  });
+});
+
+describe('Tema pendiente #1: cambio de categoría restringido al mismo grupo raíz', () => {
+  let catA, catB, catSubA, catNG, prodId;
+
+  test('setup: crear categorías (dos raíces gravables + una no gravable hija de sistema)', async () => {
+    const { getDb } = require('../src/backend/models/db');
+    const db = await getDb();
+    const rA = await db.run("INSERT INTO categorias (nombre, activo, gravable, es_sistema) VALUES ('Raíz A', 1, 1, 0)");
+    catA = rA.lastID;
+    const rB = await db.run("INSERT INTO categorias (nombre, activo, gravable, es_sistema) VALUES ('Raíz B', 1, 1, 0)");
+    catB = rB.lastID;
+    const rSub = await db.run("INSERT INTO categorias (nombre, padre_id, activo, gravable, es_sistema) VALUES ('Sub A', ?, 1, 1, 0)", [catA]);
+    catSubA = rSub.lastID;
+    const ngRoot = await db.get("SELECT id FROM categorias WHERE es_sistema = 1");
+    const rNG = await db.run("INSERT INTO categorias (nombre, padre_id, activo, gravable, es_sistema) VALUES ('Informal', ?, 1, 0, 0)", [ngRoot.id]);
+    catNG = rNG.lastID;
+  });
+
+  test('crear producto en la raíz A', async () => {
+    const res = await request.post('/api/productos').set(auth())
+      .field('codigo', 'CAT-1').field('nombre', 'Producto categoría').field('tipo', 'simple')
+      .field('sub_tipo', 'reventa').field('unidad_venta_id', '1').field('categoria_id', String(catA));
+    expect(res.status).toBe(201);
+    prodId = res.body.id;
+  });
+
+  test('cambiar a otra categoría de la MISMA raíz (subcategoría de A) → 200', async () => {
+    const res = await request.put(`/api/productos/${prodId}`).set(auth()).send({ categoria_id: String(catSubA) });
+    expect(res.status).toBe(200);
+  });
+
+  test('cambiar a una categoría de OTRA raíz (B) → 400', async () => {
+    const res = await request.put(`/api/productos/${prodId}`).set(auth()).send({ categoria_id: String(catB) });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('misma categoría raíz');
+  });
+
+  test('cambiar a una categoría NO gravable (mundo distinto) → 400', async () => {
+    const res = await request.put(`/api/productos/${prodId}`).set(auth()).send({ categoria_id: String(catNG) });
+    expect(res.status).toBe(400);
+  });
+
+  test('quitar la categoría de un producto con categoría → 400', async () => {
+    const res = await request.put(`/api/productos/${prodId}`).set(auth()).send({ categoria_id: '' });
+    expect(res.status).toBe(400);
   });
 });

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mayoristas y Encargos — Manual de Usuario</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='index.html'"><i class="fas fa-arrow-left me-1"></i>Índice</button>
+          <span class="text-muted small">POS — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="manual-search">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" class="form-control" id="busqueda" placeholder="Buscar en esta página...">
+        </div>
+      </div>
+
+      <div id="contenido">
+        <h2 class="mb-3"><i class="fas fa-truck me-2"></i>Mayoristas y Encargos</h2>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bullseye me-2"></i>Objetivo</h4>
+          <p class="mb-0">Vender a clientes mayoristas y gestionar encargos minoristas (pedidos de clientes) con su cobro.</p>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-list-ol me-2"></i>Cómo se hace</h4>
+          <h6 class="mt-2">Pedido mayorista</h6>
+          <ol class="steps">
+            <li>Ve a <strong>Mayoristas → Nuevo pedido</strong>.</li>
+            <li>Selecciona el <strong>cliente</strong> y añade los productos (precio por tramos de volumen si aplica).</li>
+            <li>Confirma el pedido (queda <code>pendiente</code>).</li>
+            <li>Al <strong>entregar y cobrar</strong>: efectivo → caja del turno; tarjeta/transferencia → banco.</li>
+            <li>Se puede <strong>facturar por partes</strong> (facturación parcial).</li>
+          </ol>
+          <h6 class="mt-3">Encargo minorista</h6>
+          <ol class="steps">
+            <li>Desde <strong>Ventas → Encargos</strong>, crea el pedido con el <strong>nombre del cliente</strong> (sin registro).</li>
+            <li>Al retirarlo, <strong>entregar y cobrar</strong> crea la venta minorista automáticamente.</li>
+          </ol>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-exclamation-triangle me-2"></i>Reglas y restricciones</h4>
+          <ul class="mb-0">
+            <li>Los pedidos mayoristas y encargos pueden <strong>mezclar libremente</strong> gravables y no gravables (cada línea se calcula por producto).</li>
+            <li>Tras una <strong>facturación parcial</strong>, el pedido no se modifica; solo se completa lo restante o se cancela.</li>
+            <li>El inventario mayorista es <strong>separado</strong> del minorista.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-random me-2"></i>Flexibilidades</h4>
+          <ul class="mb-0">
+            <li>Pagos <strong>mixtos</strong> (parte efectivo, parte tarjeta/transferencia).</li>
+            <li>Precios por <strong>tramos de volumen</strong>; si no aplica, se usa el precio minorista.</li>
+            <li>Encargos <strong>sin depósitos</strong> (se cobra al entregar).</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-question-circle me-2"></i>Preguntas frecuentes</h4>
+          <div class="faq-item"><strong>¿Por qué no me salen algunos productos para añadir a la lista del pedido?</strong> La lista de productos a elegir se limita a los <strong>gravables o no gravables</strong> según el <strong>primer producto añadido</strong>.</div>
+          <div class="faq-item"><strong>¿Un encargo necesita cliente registrado?</strong> No: se usa el nombre libre.</div>
+          <div class="faq-item"><strong>¿Dónde se ve lo que debe un mayorista?</strong> En la ficha del pedido y del cliente (cuentas por cobrar).</div>
+        </div>
+      </div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">POS — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+</body>
+
+</html>

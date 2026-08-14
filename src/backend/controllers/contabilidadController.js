@@ -2,13 +2,6 @@
 const { getDb } = require('../models/db');
 const costos = require('../utils/costos');
 
-// Porciento a declarar (m030): factor que escala ventas Y compras/gastos en lo fiscal.
-// Devuelve 1 si no está configurado (= declarar el 100%).
-async function factorDeclaracion(db) {
-  const config = await db.get('SELECT porciento_declarar FROM configuracion_contabilidad WHERE id = 1');
-  return (config?.porciento_declarar ?? 100) / 100;
-}
-
 const contabilidadController = {
   /**
    * Calcular liquidación de impuestos para un período específico
@@ -35,25 +28,11 @@ const contabilidadController = {
       const fechaInicioUTC = `${anioNum}-${mesNum.toString().padStart(2, '0')}-01 00:00:00`;
       const fechaFinUTC = `${siguiente.anio}-${siguiente.mes.toString().padStart(2, '0')}-01 00:00:00`;
 
-      // 1. Obtener total de ventas del período (usando UTC)
-      const ventasResult = await db.get(`
-                SELECT 
-                    COALESCE(SUM(total), 0) as total_ventas,
-                    COALESCE(SUM(impuesto), 0) as total_impuesto_ventas,
-                    COUNT(*) as cantidad_ventas
-                FROM ventas 
-                WHERE created_at >= datetime(?, 'utc')
-                  AND created_at < datetime(?, 'utc')
-                  AND estado = 'completada'
-            `, [fechaInicioUTC, fechaFinUTC]);
+      // 1. Ventas del período (mundo declarado = solo líneas gravables, D30/D32)
+      //    total_ventas es la base gravable sobre la que se calcula el impuesto.
+      const ventasGravables = await costos.obtenerVentasPeriodo(db, fechaInicioUTC, fechaFinUTC, true);
 
-      const totalVentasReal = ventasResult?.total_ventas || 0;
-
-      // Porciento a declarar (propietario, m030): todo lo fiscal se calcula sobre
-      // ventas Y compras/gastos reales × (porciento_declarar / 100)
-      const configPD = await db.get('SELECT porciento_declarar FROM configuracion_contabilidad WHERE id = 1');
-      const factorDeclaracion = (configPD?.porciento_declarar ?? 100) / 100;
-      const totalVentas = totalVentasReal * factorDeclaracion;
+      const totalVentas = ventasGravables.venta_neta + ventasGravables.impuestos;
 
       // 2. Obtener empleados activos (con usuario, si tienen credenciales — D18)
       const empleados = await db.all(`
@@ -294,8 +273,6 @@ const contabilidadController = {
         success: true,
         periodo: `${mes}/${anio}`,
         total_ventas: totalVentas,
-        total_ventas_real: totalVentasReal,
-        porciento_declarar: configPD?.porciento_declarar ?? 100,
         salario_minimo: salarioMinimo,
         empleados_count: empleados.length,
         impuestos: impuestos,
@@ -419,44 +396,35 @@ const contabilidadController = {
     try {
       const { anio, mes } = req.query;
 
-      // Ingresos totales del período
-      const ingresos = await db.get(`
-                SELECT 
-                    COALESCE(SUM(total), 0) as total_ingresos,
-                    COALESCE(SUM(impuesto), 0) as total_impuestos,
-                    COUNT(*) as num_ventas
-                FROM ventas 
-                WHERE strftime('%Y', created_at) = ?
-                AND (strftime('%m', created_at) = ? OR ? IS NULL)
-                AND estado = 'completada'
-            `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
+      // Rango del período (mundo declarado = solo líneas gravables, D30/D32)
+      const mesNum = parseInt(mes) || 0;
+      const inicio = mesNum ? `${anio}-${String(mesNum).padStart(2, '0')}-01 00:00:00` : `${anio}-01-01 00:00:00`;
+      const siguiente = mesNum === 12 ? { anio: anio + 1, mes: 1 } : { anio, mes: mesNum + 1 };
+      const fin = mesNum ? `${siguiente.anio}-${String(siguiente.mes).padStart(2, '0')}-01 00:00:00` : `${anio + 1}-01-01 00:00:00`;
+
+      // Ventas y compras gravables del período
+      const v = await costos.obtenerVentasPeriodo(db, inicio, fin, true);
+      const c = await costos.obtenerComprasPeriodo(db, inicio.slice(0, 10), fin.slice(0, 10), true);
 
       // Gastos fijos mensuales (configuracion_gastos + salarios de empleados activos)
       const { gastosFijos: gastosFijosBalance } = await costos.obtenerGastosFijos(db);
-      const gastos = { total_gastos: gastosFijosBalance };
 
-      // Compras del período
-      const compras = await db.get(`
-                SELECT COALESCE(SUM(total), 0) as total_compras
-                FROM compras 
-                WHERE strftime('%Y', fecha_compra) = ?
-                AND (strftime('%m', fecha_compra) = ? OR ? IS NULL)
-            `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
-
-      const pd = await factorDeclaracion(db);
+      const totalIngresos = v.venta_neta + v.impuestos;
+      const totalCompras = c.total;
 
       res.json({
         success: true,
         data: {
-          ingresos: ingresos,
-          ingresos_declarados: Math.round((ingresos?.total_ingresos || 0) * pd * 100) / 100,
-          gastos_fijos: gastos?.total_gastos || 0,
-          gastos_declarados: Math.round((gastos?.total_gastos || 0) * pd * 100) / 100,
-          compras: compras?.total_compras || 0,
-          compras_declaradas: Math.round((compras?.total_compras || 0) * pd * 100) / 100,
-          porciento_declarar: pd * 100,
-          ganancia_bruta: ((ingresos?.total_ingresos || 0) - (compras?.total_compras || 0)) * pd,
-          ganancia_neta: ((ingresos?.total_ingresos || 0) - (compras?.total_compras || 0) - (gastos?.total_gastos || 0)) * pd
+          ingresos: {
+            total_ingresos: totalIngresos,
+            total_impuestos: v.impuestos,
+            num_ventas: null,
+            venta_neta: v.venta_neta
+          },
+          gastos_fijos: gastosFijosBalance || 0,
+          compras: { total_compras: totalCompras },
+          ganancia_bruta: totalIngresos - totalCompras,
+          ganancia_neta: totalIngresos - totalCompras - (gastosFijosBalance || 0)
         }
       });
 
@@ -479,55 +447,47 @@ const contabilidadController = {
     try {
       const { anio, mes } = req.query;
 
-      // Ventas totales
-      const ventas = await db.get(`
-                SELECT 
-                    COALESCE(SUM(subtotal), 0) as ventas_netas,
-                    COALESCE(SUM(impuesto), 0) as impuestos_ventas,
-                    COALESCE(SUM(total), 0) as ventas_brutas
-                FROM ventas 
-                WHERE strftime('%Y', created_at) = ?
-                AND (strftime('%m', created_at) = ? OR ? IS NULL)
-                AND estado = 'completada'
-            `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
+      // Ventas del período (mundo declarado = solo líneas gravables, D30/D32)
+      const mesNum = parseInt(mes) || 0;
+      const inicio = mesNum ? `${anio}-${String(mesNum).padStart(2, '0')}-01 00:00:00` : `${anio}-01-01 00:00:00`;
+      const siguiente = mesNum === 12 ? { anio: anio + 1, mes: 1 } : { anio, mes: mesNum + 1 };
+      const fin = mesNum ? `${siguiente.anio}-${String(siguiente.mes).padStart(2, '0')}-01 00:00:00` : `${anio + 1}-01-01 00:00:00`;
 
-      // Costo de ventas (último costo almacenado en productos)
-      const costoVentas = await db.get(`
-                SELECT COALESCE(SUM(vd.cantidad * p.costo_base), 0) as total_costo
-                FROM venta_detalles vd
-                JOIN productos p ON vd.producto_id = p.id
-                JOIN ventas v ON vd.venta_id = v.id
-                WHERE strftime('%Y', v.created_at) = ?
-                AND (strftime('%m', v.created_at) = ? OR ? IS NULL)
-                AND v.estado = 'completada'
-            `, [anio, mes?.toString().padStart(2, '0') || '', mes || null]);
+      const v = await costos.obtenerVentasPeriodo(db, inicio, fin, true);
+
+      // Costo de ventas gravable (último costo almacenado en productos, D32)
+      const cf = await costos.filtroGravableLineas(db, 'p');
+      const costoVentas = cf.sql
+        ? await db.get(`
+                  SELECT COALESCE(SUM(vd.cantidad * p.costo_base), 0) as total_costo
+                  FROM venta_detalles vd
+                  JOIN productos p ON vd.producto_id = p.id
+                  JOIN ventas v ON vd.venta_id = v.id
+                  WHERE v.created_at >= ? AND v.created_at < ? AND v.estado = 'completada' ${cf.sql}
+              `, [inicio, fin, ...cf.params])
+        : { total_costo: 0 };
 
       // Gastos operativos (configuracion_gastos + salarios de empleados activos)
       const { gastosFijos: gastosFijosOperativos } = await costos.obtenerGastosFijos(db);
-      const gastosOperativos = { total_gastos: gastosFijosOperativos };
 
-      const pd = await factorDeclaracion(db);
-      const ventasDecl = (ventas?.ventas_netas || 0) * pd;
-      const costoDecl = (costoVentas?.total_costo || 0) * pd;
-      const gastosDecl = (gastosOperativos?.total_gastos || 0) * pd;
+      const ventasNetas = v.venta_neta;
+      const ventasBrutas = v.venta_neta + v.impuestos;
+      const costoDecl = costoVentas?.total_costo || 0;
+      const gastosDecl = gastosFijosOperativos || 0;
 
-      const gananciaBruta = ventasDecl - costoDecl;
+      const gananciaBruta = ventasNetas - costoDecl;
       const gananciaNeta = gananciaBruta - gastosDecl;
 
       res.json({
         success: true,
         data: {
-          ventas: ventas,
-          ventas_declaradas: Math.round(ventasDecl * 100) / 100,
-          costo_ventas: costoVentas?.total_costo || 0,
-          costo_declarado: Math.round(costoDecl * 100) / 100,
+          ventas: { ventas_netas: ventasNetas, impuestos_ventas: v.impuestos, ventas_brutas: ventasBrutas },
+          costo_ventas: costoDecl,
           ganancia_bruta: gananciaBruta,
-          gastos_operativos: gastosOperativos?.total_gastos || 0,
-          gastos_declarados: gastosDecl,
+          gastos_operativos: gastosDecl,
           ganancia_neta: gananciaNeta,
-          porciento_declarar: pd * 100,
-          margen_bruto: gananciaBruta / (ventasDecl || 1) * 100,
-          margen_neto: gananciaNeta / (ventasDecl || 1) * 100
+          margen_bruto: ventasNetas ? (gananciaBruta / ventasNetas) * 100 : 0,
+          margen_neto: ventasNetas ? (gananciaNeta / ventasNetas) * 100 : 0
         }
       });
 
@@ -593,23 +553,20 @@ const contabilidadController = {
       const inicio = `${anio}-01-01 00:00:00`;
       const fin = `${anio + 1}-01-01 00:00:00`;
 
-      // Ventas del año
-      const ventas = await db.get(`
-        SELECT COALESCE(SUM(subtotal), 0) AS ventas_netas,
-               COALESCE(SUM(impuesto), 0) AS impuestos,
-               COALESCE(SUM(total), 0) AS recaudado
-        FROM ventas
-        WHERE created_at >= ? AND created_at < ? AND estado = 'completada'
-      `, [inicio, fin]);
+      // Ventas del año — mundo declarado (solo líneas gravables, D30/D32)
+      const v = await costos.obtenerVentasPeriodo(db, inicio, fin, true);
 
-      // Costo de ventas del año
-      const costoRow = await db.get(`
+      // Costo de ventas gravable del año (D32)
+      const cf = await costos.filtroGravableLineas(db, 'p');
+      const costoRow = cf.sql
+        ? await db.get(`
         SELECT COALESCE(SUM(vd.cantidad * p.costo_base), 0) AS total
         FROM venta_detalles vd
         JOIN productos p ON vd.producto_id = p.id
         JOIN ventas v ON vd.venta_id = v.id
-        WHERE v.created_at >= ? AND v.created_at < ? AND v.estado = 'completada'
-      `, [inicio, fin]);
+        WHERE v.created_at >= ? AND v.created_at < ? AND v.estado = 'completada' ${cf.sql}
+      `, [inicio, fin, ...cf.params])
+        : { total: 0 };
 
       // Meses con actividad en el año
       const mesesActividad = (await db.get(`
@@ -632,11 +589,9 @@ const contabilidadController = {
 
       const gastosAnio = (gastosMes * mesesActividad) + financieroAnio;
 
-      // Ganancia neta y monto (declarados: ventas Y gastos × PD, m030)
-      const pd = await factorDeclaracion(db);
-      const ventasDecl = ventas.ventas_netas * pd;
-      const gastosDecl = gastosAnio * pd;
-      const gananciaNeta = ventasDecl - costoRow.total * pd - gastosDecl;
+      // Ganancia neta sobre el mundo declarado (sin PD; se declara el 100% de lo gravable)
+      const ventasNeta = v.venta_neta;
+      const gananciaNeta = ventasNeta - costoRow.total - gastosAnio;
       const config = await db.get('SELECT impuesto_ganancia FROM configuracion_contabilidad WHERE id = 1');
       const tasa = (config?.impuesto_ganancia ?? 35) / 100;
       const monto = Math.max(0, gananciaNeta) * tasa;
@@ -676,15 +631,12 @@ const contabilidadController = {
         success: true,
         anio,
         data: {
-          ventas_netas: ventas.ventas_netas,
-          ventas_declaradas: Math.round(ventasDecl * 100) / 100,
+          ventas_netas: ventasNeta,
           costo_ventas: costoRow.total,
           gastos_fijos: gastosMes * mesesActividad,
-          gastos_declarados: Math.round(gastosDecl * 100) / 100,
           gasto_financiero: financieroAnio,
           meses_con_actividad: mesesActividad,
           ganancia_neta: Math.round(gananciaNeta * 100) / 100,
-          porciento_declarar: pd * 100,
           tasa: tasa * 100,
           monto: Math.round(monto * 100) / 100,
           monto_con_descuento: Math.round(montoConDescuento * 100) / 100,
@@ -943,7 +895,7 @@ const contabilidadController = {
   },
 
   /**
-   * Libro diario: ventas y gastos por día del período (real y declarado × PD, m030)
+   * Libro diario: ventas y gastos gravables por día del período (D30/D32/D33)
    * GET /api/contabilidad/libro-diario?mes=8&anio=2026
    */
   getLibroDiario: async (req, res, next) => {
@@ -959,53 +911,160 @@ const contabilidadController = {
       const siguiente = mesNum === 12 ? { anio: anioNum + 1, mes: 1 } : { anio: anioNum, mes: mesNum + 1 };
       const inicio = `${anioNum}-${mesNum.toString().padStart(2, '0')}-01 00:00:00`;
       const fin = `${siguiente.anio}-${siguiente.mes.toString().padStart(2, '0')}-01 00:00:00`;
-      const pd = await factorDeclaracion(db);
 
-      const ventasPorDia = await db.all(`
-        SELECT date(created_at) AS dia,
-               COUNT(*) AS cantidad,
-               COALESCE(SUM(subtotal), 0) AS ventas_netas,
-               COALESCE(SUM(total), 0) AS ventas_brutas
-        FROM ventas
-        WHERE created_at >= ? AND created_at < ? AND estado = 'completada'
-        GROUP BY dia ORDER BY dia
-      `, [inicio, fin]);
+      const cfVentas = await costos.filtroGravableLineas(db, 'p2');
+      const cfCompras = await costos.filtroGravableLineas(db, 'p');
 
-      const gastosPorDia = await db.all(`
+      // Ventas gravables por día (mundo declarado, D32): por cada venta, la proporción
+      // de líneas gravables se aplica a subtotal/impuesto/total (calculados a nivel ticket).
+      const ventasPorVenta = cfVentas.sql
+        ? await db.all(`
+        SELECT v.id, date(v.created_at) AS dia, v.subtotal, v.impuesto, v.total,
+               (SELECT COALESCE(SUM(vd2.total), 0)
+                FROM venta_detalles vd2
+                JOIN productos p2 ON vd2.producto_id = p2.id
+                WHERE vd2.venta_id = v.id ${cfVentas.sql}) AS gravable_lineal
+        FROM ventas v
+        WHERE v.created_at >= ? AND v.created_at < ? AND v.estado = 'completada'
+      `, [...cfVentas.params, inicio, fin])
+        : [];
+
+      const porDia = {};
+      for (const v of ventasPorVenta) {
+        const ratio = (v.subtotal || 0) > 0 ? Math.min(1, (v.gravable_lineal || 0) / v.subtotal) : 0;
+        porDia[v.dia] = porDia[v.dia] || { cantidad: 0, netas: 0, brutas: 0 };
+        porDia[v.dia].cantidad++;
+        porDia[v.dia].netas += (v.subtotal || 0) * ratio;
+        porDia[v.dia].brutas += (v.total || 0) * ratio;
+      }
+
+      // Gastos gravables por día: compras de líneas gravables + servicios con factura (D33)
+      const gastosPorDia = cfCompras.sql
+        ? await db.all(`
         SELECT dia, SUM(total) AS gastos FROM (
-          SELECT date(c.fecha_compra) AS dia, COALESCE(SUM(c.total), 0) AS total
-          FROM compras c
-          WHERE c.fecha_compra >= ? AND c.fecha_compra < ?
-          GROUP BY dia
+          SELECT date(c.fecha_compra) AS dia, COALESCE(cd.total, 0) AS total
+          FROM compra_detalles cd
+          JOIN compras c ON cd.compra_id = c.id
+          JOIN productos p ON cd.producto_id = p.id
+          WHERE c.fecha_compra >= ? AND c.fecha_compra < ? ${cfCompras.sql}
           UNION ALL
-          SELECT date(s.fecha) AS dia, COALESCE(SUM(s.monto), 0) AS total
+          SELECT date(s.fecha) AS dia, COALESCE(s.monto, 0) AS total
           FROM servicios s
-          WHERE s.tipo = 'pago' AND s.fecha >= ? AND s.fecha < ?
-          GROUP BY dia
+          WHERE s.tipo = 'pago' AND s.tiene_factura = 1 AND s.fecha >= ? AND s.fecha < ?
         ) GROUP BY dia ORDER BY dia
-      `, [inicio.slice(0, 10), fin.slice(0, 10), inicio.slice(0, 10), fin.slice(0, 10)]);
+      `, [inicio.slice(0, 10), fin.slice(0, 10), ...cfCompras.params, inicio.slice(0, 10), fin.slice(0, 10)])
+        : [];
 
       const gastosMap = {};
       gastosPorDia.forEach(g => gastosMap[g.dia] = g.gastos);
 
-      const libro = ventasPorDia.map(v => {
-        const gastos = gastosMap[v.dia] || 0;
-        return {
-          dia: v.dia,
-          cantidad_ventas: v.cantidad,
-          ventas_reales: v.ventas_netas,
-          ventas_declaradas: Math.round(v.ventas_netas * pd * 100) / 100,
-          gastos_reales: gastos,
-          gastos_declarados: Math.round(gastos * pd * 100) / 100
-        };
-      });
+      const libro = Object.keys(porDia).sort().map(dia => ({
+        dia,
+        cantidad_ventas: porDia[dia].cantidad,
+        ventas_gravables: Math.round(porDia[dia].netas * 100) / 100,
+        gastos_gravables: Math.round((gastosMap[dia] || 0) * 100) / 100
+      }));
 
       res.json({
         success: true,
         periodo: `${mesNum}/${anioNum}`,
-        porciento_declarar: pd * 100,
         data: libro
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Cerrar mes: calcula el desglose por prioridades (mundo gravable), PERSISTE la
+   * ficha en cierres_mes y aplica el excedente a los vencimientos (regla del propietario).
+   * POST /api/contabilidad/cierre-mes  Body: { mes, anio }
+   * Un mes solo se cierra una vez.
+   */
+  cerrarMes: async (req, res, next) => {
+    const db = await getDb();
+
+    try {
+      const { mes, anio } = req.body;
+      if (!mes || !anio) {
+        return res.status(400).json({ success: false, error: 'Mes y año son requeridos' });
+      }
+      const mesNum = parseInt(mes);
+      const anioNum = parseInt(anio);
+
+      const existente = await db.get('SELECT id FROM cierres_mes WHERE mes = ? AND anio = ?', [mesNum, anioNum]);
+      if (existente) {
+        return res.status(400).json({ success: false, error: `El mes ${mesNum}/${anioNum} ya está cerrado. Consulta su ficha.` });
+      }
+
+      const siguiente = mesNum === 12 ? { anio: anioNum + 1, mes: 1 } : { anio: anioNum, mes: mesNum + 1 };
+      const inicio = `${anioNum}-${mesNum.toString().padStart(2, '0')}-01 00:00:00`;
+      const fin = `${siguiente.anio}-${siguiente.mes.toString().padStart(2, '0')}-01 00:00:00`;
+
+      const d = await costos.desglosePrioridades(db, inicio, fin);
+
+      // Excedente → inversiones primero (más vencimientos), luego préstamos preservando
+      // tarifas, y lo que sobre queda como ganancia (no se aplica).
+      const { aplicarExcedente } = require('./prestamoInversionController');
+      const { aplicaciones, aplicado } = await aplicarExcedente(db, d.excedente_reajustado);
+
+      await db.run('BEGIN TRANSACTION');
+      try {
+        const r = await db.run(`
+          INSERT INTO cierres_mes
+            (mes, anio, recaudado, venta_neta, impuestos, costo_base, gastos_fijos_equiv,
+             prestamos_equiv, inversiones_equiv, margen, ganancias, excedente, destino,
+             excedente_aplicado, usuario_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [mesNum, anioNum, d.recaudado, d.venta_neta, d.impuestos, d.costo_base,
+          d.equivalentes.gastos_fijos, d.equivalentes.prestamos, d.equivalentes.inversiones,
+          d.margen, d.ganancias, d.excedente_reajustado, d.destino_excedente, aplicado,
+          req.usuario.id]);
+        const cierreId = r.lastID;
+
+        for (const a of aplicaciones) {
+          await db.run(`
+            INSERT INTO cierre_mes_aplicaciones (cierre_mes_id, registro_id, vencimiento_id, tipo_registro, monto_aplicado, descripcion)
+            VALUES (?, ?, NULL, ?, ?, ?)
+          `, [cierreId, a.registro_id, a.tipo, a.monto, a.descripcion]);
+        }
+
+        await db.run('COMMIT');
+
+        const ficha = await db.get('SELECT * FROM cierres_mes WHERE id = ?', [cierreId]);
+        res.status(201).json({ success: true, message: 'Mes cerrado', data: { ficha, aplicaciones } });
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error en cierre de mes:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+
+  /**
+   * Ver la ficha de cierre de mes persistida (con detalle de aplicaciones).
+   * GET /api/contabilidad/cierre-mes/:mes/:anio
+   */
+  getCierreMesFicha: async (req, res, next) => {
+    const db = await getDb();
+
+    try {
+      const mesNum = parseInt(req.params.mes);
+      const anioNum = parseInt(req.params.anio);
+      const ficha = await db.get('SELECT * FROM cierres_mes WHERE mes = ? AND anio = ?', [mesNum, anioNum]);
+      if (!ficha) {
+        return res.status(404).json({ success: false, error: 'Este mes no tiene cierre registrado' });
+      }
+      const aplicaciones = await db.all(`
+        SELECT a.*, pi.descripcion AS registro_descripcion
+        FROM cierre_mes_aplicaciones a
+        JOIN prestamos_inversiones pi ON pi.id = a.registro_id
+        WHERE a.cierre_mes_id = ?
+        ORDER BY a.tipo_registro, a.monto_aplicado DESC
+      `, [ficha.id]);
+      res.json({ success: true, data: { ficha, aplicaciones } });
     } catch (error) {
       next(error);
     }

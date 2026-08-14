@@ -49,6 +49,9 @@ Sidebar.render = function (activeModule) {
       <div class="nav flex-column">
         ${items}
         <hr class="bg-secondary my-3">
+        <a class="manual-link text-white-50" href="/manual/index.html" target="_blank">
+          <i class="fas fa-book me-2"></i>Ayuda
+        </a>
         <a class="nav-link text-white-50" href="#vendedor/perfil">
           <i class="fas fa-user-circle me-2"></i>Mi Perfil
         </a>

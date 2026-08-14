@@ -88,6 +88,95 @@ async function gastoFinancieroMes(db) {
   return r.total;
 }
 
+/**
+ * Regenera los vencimientos PENDIENTES de un registro tras un abono de capital.
+ *
+ * - inversión: se recalculan las tarifas sobre el nuevo saldo (el inversor recibe
+ *   menos intereses al devolver antes). Misma lógica que en registrarPago.
+ * - préstamo (preservarTarifas): las cuotas restantes conservan la tarifa del
+ *   ORDINAL ORIGINAL (el acreedor recibe el mismo total pactado aunque se
+ *   adelante capital). Solo se acelera el capital (menos cuotas).
+ *
+ * Devuelve { cuotas_restantes, saldo } o null si no hay saldo.
+ */
+async function reajustarCuotas(db, registroId, preservarTarifas) {
+  const registro = await db.get('SELECT * FROM prestamos_inversiones WHERE id = ?', [registroId]);
+  if (!registro) return null;
+
+  // Capital efectivamente pagado (capital del pago = monto_pagado − tarifa)
+  const pagos = await db.all(
+    'SELECT monto_pagado, tarifa FROM vencimientos WHERE prestamo_inversion_id = ? AND monto_pagado > 0', [registroId]
+  );
+  const capitalPagado = pagos.reduce((s, p) => s + Math.max(0, p.monto_pagado - p.tarifa), 0);
+  const saldo = Math.round((registro.capital_total - capitalPagado) * 100) / 100;
+
+  // Mapa ordinal → tarifa ORIGINAL (solo si preservamos las tarifas)
+  let tarifasOriginales = null;
+  if (preservarTarifas) {
+    const orig = await db.all(`
+      SELECT ordinal, tarifa FROM vencimientos
+      WHERE prestamo_inversion_id = ? ORDER BY ordinal
+    `, [registroId]);
+    tarifasOriginales = new Map(orig.map(v => [v.ordinal, v.tarifa]));
+  }
+
+  // Último vencimiento CON PAGO: de ahí continúa el nuevo calendario (ordinal + 1 mes).
+  const ultimoPago = await db.get(`
+    SELECT ordinal, fecha_vencimiento FROM vencimientos
+    WHERE prestamo_inversion_id = ? AND monto_pagado > 0
+    ORDER BY ordinal DESC LIMIT 1
+  `, [registroId]);
+  const ultimoOrdinal = ultimoPago?.ordinal || 0;
+  const ultimaFecha = ultimoPago?.fecha_vencimiento || (await db.get(
+    'SELECT MIN(fecha_vencimiento) AS f FROM vencimientos WHERE prestamo_inversion_id = ?', [registroId]
+  ))?.f;
+
+  await db.run(
+    "DELETE FROM vencimientos WHERE prestamo_inversion_id = ? AND estado = 'pendiente'", [registroId]
+  );
+
+  if (saldo <= 0.004) return { cuotas_restantes: 0, saldo };
+
+  const cuotasRestantes = Math.ceil(saldo / registro.pago_capital);
+  const [fa, fm] = ultimaFecha.split('-').map(Number);
+  let capitalRestante = saldo;
+  const tasaMensual = (registro.tasa_anual || 0) / 100 / 12;
+
+  for (let j = 1; j <= cuotasRestantes; j++) {
+    const esUltimo = j === cuotasRestantes;
+    const pagoCapital = esUltimo ? Math.round(capitalRestante * 100) / 100 : registro.pago_capital;
+    const ordinalGlobal = ultimoOrdinal + j;
+
+    // Préstamo con preservación: tarifa del ordinal original; si no existe (ordinal
+    // más allá de la tabla original), se mantiene la del último ordinal conocido.
+    let tarifa;
+    if (preservarTarifas) {
+      tarifa = tarifasOriginales.get(ordinalGlobal);
+      if (tarifa === undefined) {
+        const maxOrd = Math.max(...tarifasOriginales.keys(), ordinalGlobal);
+        tarifa = tarifasOriginales.get(maxOrd) ?? 0;
+      }
+    } else {
+      const capitalGravado = ordinalGlobal * registro.pago_capital;
+      tarifa = Math.round(tasaMensual * capitalGravado * 100) / 100;
+    }
+    tarifa = Math.round(tarifa * 100) / 100;
+
+    const aporte = Math.round((pagoCapital + tarifa) * 100) / 100;
+    const fechaVenc = new Date(fa, fm - 1 + j, 1);
+
+    await db.run(`
+      INSERT INTO vencimientos (prestamo_inversion_id, ordinal, fecha_vencimiento, capital, pago_capital, tarifa, aporte)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [registroId, ordinalGlobal, fechaVenc.toISOString().split('T')[0],
+      Math.round(capitalRestante * 100) / 100, pagoCapital, tarifa, aporte]);
+
+    capitalRestante = Math.round((capitalRestante - pagoCapital) * 100) / 100;
+  }
+
+  return { cuotas_restantes: cuotasRestantes, saldo };
+}
+
 const prestamoInversionController = {
 
   // GET /api/config/prestamos-inversiones
@@ -292,49 +381,7 @@ const prestamoInversionController = {
         // INVERSIONES: un pago de capital distinto al programado ajusta el número de
         // cuotas restantes (mantiene pago_capital base; la última absorbe el redondeo)
         if (registro.tipo === 'inversion') {
-          // Capital acumulado pagado = Σ (monto_pagado − tarifa) de todos los vencimientos
-          const pagos = await db.all(
-            'SELECT monto_pagado, tarifa FROM vencimientos WHERE prestamo_inversion_id = ? AND monto_pagado > 0', [id]
-          );
-          const capitalPagado = pagos.reduce((s, p) => s + Math.max(0, p.monto_pagado - p.tarifa), 0);
-          const saldo = Math.round((registro.capital_total - capitalPagado) * 100) / 100;
-
-          // Eliminar vencimientos pendientes y regenerar según el saldo
-          const ultimoOrdinal = (await db.get(
-            'SELECT MAX(ordinal) AS m FROM vencimientos WHERE prestamo_inversion_id = ? AND monto_pagado > 0', [id]
-          ))?.m || 0;
-          const ultimaFecha = (await db.get(
-            'SELECT MAX(fecha_vencimiento) AS f FROM vencimientos WHERE prestamo_inversion_id = ?', [id]
-          ))?.f;
-
-          await db.run(
-            "DELETE FROM vencimientos WHERE prestamo_inversion_id = ? AND estado = 'pendiente'", [id]
-          );
-
-          if (saldo > 0.004) {
-            const cuotasRestantes = Math.ceil(saldo / registro.pago_capital);
-            const [fa, fm] = ultimaFecha.split('-').map(Number);
-            let capitalRestante = saldo;
-            const tasaMensual = (registro.tasa_anual || 0) / 100 / 12;
-
-            for (let j = 1; j <= cuotasRestantes; j++) {
-              const esUltimo = j === cuotasRestantes;
-              const pagoCapital = esUltimo ? Math.round(capitalRestante * 100) / 100 : registro.pago_capital;
-              const ordinalGlobal = ultimoOrdinal + j;
-              const capitalGravado = ordinalGlobal * registro.pago_capital;
-              const tarifa = Math.round(tasaMensual * capitalGravado * 100) / 100;
-              const aporte = Math.round((pagoCapital + tarifa) * 100) / 100;
-              const fechaVenc = new Date(fa, fm - 1 + j, 1);
-
-              await db.run(`
-                INSERT INTO vencimientos (prestamo_inversion_id, ordinal, fecha_vencimiento, capital, pago_capital, tarifa, aporte)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-              `, [id, ordinalGlobal, fechaVenc.toISOString().split('T')[0],
-                Math.round(capitalRestante * 100) / 100, pagoCapital, tarifa, aporte]);
-
-              capitalRestante = Math.round((capitalRestante - pagoCapital) * 100) / 100;
-            }
-          }
+          await reajustarCuotas(db, id, false);
         }
 
         await db.run('COMMIT');
@@ -349,4 +396,76 @@ const prestamoInversionController = {
   }
 };
 
-module.exports = { prestamoInversionController, gastoFinancieroMes, generarTablaVencimientos };
+/**
+ * Aplica el excedente del cierre de mes a los registros activos (regla del propietario):
+ *   1. Inversiones activas primero, priorizando las de MAYOR número de vencimientos
+ *      pendientes. Cada una absorbe lo que pueda (abono sobre su próximo vencimiento
+ *      pendiente) y se reajustan sus cuotas (menos vencimientos).
+ *   2. Si queda excedente y no hay inversiones activas: préstamos activos, misma
+ *      prioridad (más vencimientos primero), pero PRESERVANDO las tarifas originales
+ *      (el acreedor recibe el mismo total pactado aunque se adelante capital).
+ *   3. Si sobra, no se aplica (queda como ganancia).
+ *
+ * Devuelve { aplicaciones: [{registro_id, tipo, descripcion, monto}], aplicado }.
+ */
+async function aplicarExcedente(db, excedente) {
+  const aplicaciones = [];
+  let restante = Math.round(excedente * 100) / 100;
+  if (restante <= 0) return { aplicaciones, aplicado: 0 };
+
+  // Prioridad: inversiones activas con más vencimientos pendientes, luego préstamos.
+  const activos = await db.all(`
+    SELECT pi.*,
+      (SELECT COUNT(*) FROM vencimientos v
+        WHERE v.prestamo_inversion_id = pi.id AND v.estado != 'pagado') AS vencimientos_pendientes
+    FROM prestamos_inversiones pi
+    WHERE pi.estado = 'activo'
+    ORDER BY pi.tipo = 'prestamo', vencimientos_pendientes DESC, pi.id
+  `);
+
+  for (const reg of activos) {
+    if (restante <= 0) break;
+    const preservarTarifas = reg.tipo === 'prestamo';
+    let aplicadoRegistro = 0;
+
+    // Consumir TODO el excedente posible en este registro (adelanta capital hasta
+    // saldarlo o hasta agotar el excedente), antes de pasar al siguiente.
+    for (;;) {
+      if (restante <= 0) break;
+
+      const prox = await db.get(`
+        SELECT * FROM vencimientos
+        WHERE prestamo_inversion_id = ? AND estado != 'pagado'
+        ORDER BY ordinal ASC LIMIT 1
+      `, [reg.id]);
+      if (!prox) break;
+
+      const monto = Math.min(restante, prox.aporte - (prox.monto_pagado || 0));
+      if (monto <= 0) break;
+
+      const nuevoPagado = Math.round(((prox.monto_pagado || 0) + monto) * 100) / 100;
+      await db.run(
+        'UPDATE vencimientos SET monto_pagado = ?, estado = ? WHERE id = ?',
+        [nuevoPagado, nuevoPagado >= prox.aporte ? 'pagado' : 'parcial', prox.id]
+      );
+
+      await reajustarCuotas(db, reg.id, preservarTarifas);
+
+      aplicadoRegistro = Math.round((aplicadoRegistro + monto) * 100) / 100;
+      restante = Math.round((restante - monto) * 100) / 100;
+    }
+
+    if (aplicadoRegistro > 0) {
+      aplicaciones.push({
+        registro_id: reg.id,
+        tipo: reg.tipo,
+        descripcion: reg.descripcion,
+        monto: aplicadoRegistro
+      });
+    }
+  }
+
+  return { aplicaciones, aplicado: Math.round((excedente - restante) * 100) / 100 };
+}
+
+module.exports = { prestamoInversionController, gastoFinancieroMes, generarTablaVencimientos, reajustarCuotas, aplicarExcedente };

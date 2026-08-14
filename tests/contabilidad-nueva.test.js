@@ -23,14 +23,27 @@ beforeAll(async () => {
   const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'admin123' });
   adminToken = res.body.token;
 
-  // Setup: PD=50%, empleado con salario, ventas del mes
+  // Setup: empleado con salario, ventas gravables del mes
   const { getDb } = require('../src/backend/models/db');
   const db = await getDb();
-  await db.run('UPDATE configuracion_contabilidad SET porciento_declarar = 50, salario_minimo = 3260 WHERE id = 1');
+  await db.run('UPDATE configuracion_contabilidad SET salario_minimo = 3260 WHERE id = 1');
   await db.run("UPDATE empleados SET salario_mensual = 6000 WHERE id = 1");
   const turno = await db.run("INSERT INTO turnos (vendedor_id, monto_apertura, estado) VALUES (1, 0, 'cerrado')");
-  await db.run(`INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, metodo_pago, estado, created_at)
+
+  // Producto gravable (D32: solo cuentan líneas gravables)
+  await db.run("INSERT INTO categorias (nombre, activo, gravable, es_sistema) VALUES ('Ventas', 1, 1, 0)");
+  await db.run(`
+    INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, costo_base, precio_venta, stock_actual, activo)
+    VALUES ('CNV-1', 'Producto contabilidad', 'simple', 'reventa', (SELECT MAX(id) FROM categorias), 1, 100, 100, 99999, 1)
+  `);
+  const prod = await db.get("SELECT id FROM productos WHERE codigo = 'CNV-1'");
+
+  const r = await db.run(`INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, metodo_pago, estado, created_at)
                 VALUES (?, 1, 40000, 0, 40000, 'efectivo', 'completada', datetime('now'))`, [turno.lastID]);
+  await db.run(`
+    INSERT INTO venta_detalles (venta_id, producto_id, cantidad, precio_unitario, total)
+    VALUES (?, ?, 1, 40000, 40000)
+  `, [r.lastID, prod.id]);
 });
 
 afterAll(async () => {
@@ -45,30 +58,26 @@ afterAll(async () => {
 
 const auth = () => ({ Authorization: `Bearer ${adminToken}` });
 
-describe('Porciento a declarar (PD)', () => {
-  test('el vector fiscal se calcula sobre ventas × PD', async () => {
+describe('Vector fiscal (mundo declarado = solo gravables)', () => {
+  test('el vector fiscal se calcula sobre las ventas gravables', async () => {
     const ahora = new Date();
     const res = await request.post('/api/contabilidad/calcular-impuestos').set(auth())
       .send({ mes: ahora.getMonth() + 1, anio: ahora.getFullYear() });
     expect(res.status).toBe(200);
-    expect(res.body.porciento_declarar).toBe(50);
-    expect(res.body.total_ventas).toBeCloseTo(20000, 2); // 40000 × 50%
-    expect(res.body.total_ventas_real).toBeCloseTo(40000, 2);
+    expect(res.body.total_ventas).toBeCloseTo(40000, 2); // 100% gravable
 
     const mapa = {};
     for (const imp of res.body.impuestos) mapa[imp.codigo] = imp.monto;
-    expect(mapa['0114022']).toBeCloseTo(2000, 2);  // 10% × 20000
-    expect(mapa['0510122']).toBeCloseTo(837, 2);   // (20000 − 3260) × 5%
+    expect(mapa['0114022']).toBeCloseTo(4000, 2);  // 10% × 40000
+    expect(mapa['0510122']).toBeCloseTo(1837, 2);   // (40000 − 3260) × 5%
   });
 
-  test('libro diario muestra reales y declarados', async () => {
+  test('libro diario muestra las ventas gravables del período', async () => {
     const ahora = new Date();
     const res = await request.get(`/api/contabilidad/libro-diario?mes=${ahora.getMonth() + 1}&anio=${ahora.getFullYear()}`).set(auth());
     expect(res.status).toBe(200);
-    expect(res.body.porciento_declarar).toBe(50);
     const hoy = res.body.data[0];
-    expect(hoy.ventas_reales).toBeCloseTo(40000, 2);
-    expect(hoy.ventas_declaradas).toBeCloseTo(20000, 2);
+    expect(hoy.ventas_gravables).toBeCloseTo(40000, 2);
   });
 });
 

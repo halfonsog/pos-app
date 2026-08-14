@@ -353,6 +353,12 @@ const mayoristaController = {
         return res.status(400).json({ error: `Solo se puede facturar un pedido pendiente o parcial (estado actual: ${pedido.estado})` });
       }
 
+      // Tema pendiente #1: facturar (cobrar) requiere un turno abierto
+      const turnoAbierto = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
+      if (!turnoAbierto) {
+        return res.status(400).json({ error: 'Para facturar y cobrar debe haber un turno abierto. Abre turno en Ventas.' });
+      }
+
       const detalles = await db.all(`
         SELECT d.*, p.nombre, p.stock_mayorista,
                uc.coeficiente AS coef_compra, uv.coeficiente AS coef_venta
@@ -392,13 +398,14 @@ const mayoristaController = {
         : null;
 
       // Impuesto incluido sobre lo facturado, CON el descuento global del cliente (sin redondeo de caja)
+      // Regla del propietario (2026-08-12): impuesto = % (impuesto_ventas) del total; neto = total − impuesto.
       const config = await db.get('SELECT impuesto_ventas FROM configuracion_contabilidad WHERE id = 1');
       const tasa = (config?.impuesto_ventas ?? 15) / 100;
       const clientePedido = await db.get('SELECT descuento_global FROM clientes WHERE id = ?', [pedido.cliente_id]);
       const descuento = (clientePedido?.descuento_global || 0) / 100;
       const totalFacturaBruto = aFacturar.reduce((s, d) => s + d.a_facturar * d.precio_unitario, 0);
       const totalFactura = totalFacturaBruto * (1 - descuento);
-      const impuesto = Math.round((totalFactura * tasa / (1 + tasa)) * 100) / 100;
+      const impuesto = Math.round((totalFactura * tasa) * 100) / 100;
       const subtotal = Math.round((totalFactura - impuesto) * 100) / 100;
 
       await db.run('BEGIN TRANSACTION');
@@ -490,6 +497,12 @@ const mayoristaController = {
         return res.status(400).json({ error: `Solo se puede entregar un encargo pendiente (estado: ${pedido.estado})` });
       }
 
+      // Tema pendiente #1: cobrar un encargo requiere un turno abierto
+      const turnoAbierto = await db.get("SELECT id FROM turnos WHERE estado = 'abierto'");
+      if (!turnoAbierto) {
+        return res.status(400).json({ error: 'Para cobrar el encargo debe haber un turno abierto. Abre turno en Ventas.' });
+      }
+
       const metodo_pago = req.body.metodo_pago || 'efectivo';
       if (!['efectivo', 'tarjeta'].includes(metodo_pago)) {
         return res.status(400).json({ error: 'Método de pago inválido (efectivo/tarjeta)' });
@@ -517,7 +530,8 @@ const mayoristaController = {
       const totalExacto = pedido.total;
       const totalRedondeado = redondeo > 0 ? Math.ceil(totalExacto / redondeo) * redondeo : totalExacto;
       const ajusteRedondeo = Math.round((totalRedondeado - totalExacto) * 100) / 100;
-      const impuesto = Math.round((totalRedondeado * tasa / (1 + tasa)) * 100) / 100;
+      // Regla del propietario (2026-08-12): impuesto = % del total; neto = total − impuesto.
+      const impuesto = Math.round((totalRedondeado * tasa) * 100) / 100;
       const subtotal = Math.round((totalRedondeado - impuesto) * 100) / 100;
 
       // Turno abierto (si lo hay) para que cuente en el arqueo

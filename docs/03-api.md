@@ -101,7 +101,7 @@ Base: `/api` · Formato: JSON · Auth: `Authorization: Bearer <JWT>` (24h de exp
 | GET/PUT | `/general` | Parámetros globales. GET calcula al vuelo total_gastos_fijos y porcentaje_gastos (incluye gasto financiero del próximo vencimiento pendiente). PUT dispara recálculo de precios |
 | GET/POST | `/gastos` · PUT/DELETE `/gastos/:id` | CRUD gastos fijos |
 | GET | `/denominaciones` · `/denominaciones/todas` · PUT `/denominaciones/:id` | Toggle activo de billetes/monedas |
-| GET/POST | `/categorias` · PUT `/categorias/:id` | CRUD categorías con subcategorías (padre_id, anti-ciclo; sin DELETE) |
+| GET/POST | `/categorias` · PUT `/categorias/:id` | CRUD categorías con subcategorías (padre_id, anti-ciclo; sin DELETE). El flag `gravable` se **hereda del padre** (D31); la categoría de sistema "No gravable" (es_sistema=1) no se puede modificar |
 | GET/POST | `/unidades` · PUT `/unidades/:id` | CRUD unidades (base id≤4 protegidas; no cambiar tipo en uso) |
 | GET/POST | `/terminos-pago` · PUT/DELETE `/terminos-pago/:id` | CRUD términos de pago |
 
@@ -168,18 +168,20 @@ Los encargos reutilizan el ciclo de vida de pedidos (m024): se crean con `POST /
 
 | Método | Ruta | Estado |
 |---|---|---|
-| POST | `/calcular-impuestos` | ✅ Motor de liquidación ONAE por período (mensual y trimestral; diciembre OK); aplica Porciento a Declarar |
+| POST | `/calcular-impuestos` | ✅ Motor de liquidación ONAE por período (mensual y trimestral; diciembre OK); base sobre **ventas gravables** (mundo declarado, D30/D32) |
 | POST | `/registrar-pago` | Marca liquidación pagada/parcial; registra la salida en el banco |
 | GET | `/historial` | ✅ Lista completa de liquidaciones |
-| GET | `/balance` | ✅ Ingresos/gastos/compras del período (reales y declarados) |
-| GET | `/estado-resultados` | ✅ PyG del período (ventas netas, costo, gastos, márgenes) + PD |
-| GET | `/cierre-mes?mes&anio` | Desglose del recaudado por prioridades + dinero al banco (tarjeta) vs caja (efectivo) + pago a trabajadores + comparación %gastos proyectado vs real |
-| GET | `/liquidacion-anual?anio` | Liquidación anual 0530222: ganancia neta del año × impuesto_ganancia (declarada × PD), −5% antes del 28/02 |
+| GET | `/balance` | ✅ Ingresos/gastos/compras del período (solo gravables, D30/D32) |
+| GET | `/estado-resultados` | ✅ PyG del período (ventas netas, costo, gastos, márgenes — solo gravables) |
+| GET | `/cierre-mes?mes&anio` | Desglose del recaudado por prioridades + dinero al banco (tarjeta) vs caja (efectivo) + pago a trabajadores + comparación %gastos proyectado vs real (solo gravables en fiscal) |
+| POST | `/cierre-mes` | **Cerrar mes** (D38): persiste la ficha (`cierres_mes`) y aplica el excedente a los vencimientos (inversiones primero, luego préstamos preservando tarifas). `{mes, anio}`. 400 si el mes ya está cerrado |
+| GET | `/cierre-mes/:mes/:anio` | Ficha persistida de cierre con el detalle de aplicaciones del excedente |
+| GET | `/liquidacion-anual?anio` | Liquidación anual 0530222: ganancia neta del año × impuesto_ganancia (sobre el mundo declarado gravable), −5% antes del 28/02 |
 | GET | `/banco` | **Saldos por cuenta/moneda** (efectivo/banco × CUP/USD) + total equivalente en CUP + últimos movimientos |
 | POST | `/banco/movimiento` | Depósito/retiro manual `{tipo, monto, descripcion?, referencia?, cuenta?, moneda?, tasa_cambio?}` |
 | POST | `/cambio-divisas` | Cambio USD↔CUP a tasa acordada `{de, monto, tasa, cuenta?}` |
 | GET | `/exportar?mes&anio` | **CSV de liquidaciones** del período (para software contable certificado, ej: Versat Sarasola) |
-| GET | `/libro-diario?mes&anio` | **Libro diario**: ventas y gastos por día, reales y declarados (× PD) |
+| GET | `/libro-diario?mes&anio` | **Libro diario**: ventas y gastos gravables por día (D30/D32; servicios solo con factura, D33) |
 | GET | `/nominas?mes&anio` | Nóminas del período (con empleado, cargo, estado) |
 | POST | `/nominas/generar` | Generar nóminas del mes (al cerrarlo; sin duplicar) |
 | POST | `/nominas/:id/pagar-salario` | Pagar salario por **banco** (registra salida bancaria) |

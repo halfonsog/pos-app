@@ -16,6 +16,7 @@ Registro de compras a proveedores con detalle por producto, control de pagos (cu
 ## Reglas de negocio
 - **Ciclo de vida**: crear → (pagar, parcial o total, N veces) → inventariar (una sola vez).
 - `total` y `estado_pago` (pendiente/parcial/pagado) se calculan server-side al crear. ⚠ No se recalculan al editar (B10).
+- **Coherencia fiscal (D36)**: NO se puede mezclar productos gravables y no gravables en la misma compra; y una compra con factura no puede incluir productos no gravables (se compran sin factura, nota interna). Backend valida en crear y editar; el selector de productos **se filtra al estado fiscal del primer producto elegido** (previene el error en la UI).
 - Edición y borrado **bloqueados** una vez inventariada.
 - **Inventariar**: convierte cantidades de unidad de compra a unidad de stock por coeficientes, incrementa stock (y puede dividir entre inventarios minorista/mayorista), registra movimiento `compra` y actualiza `costo_base` con el último costo (dispara el recálculo en cascada de compuestos).
 - **Pagar**: acumula en `compras.pagado`, valida monto>0 y ≤ pendiente; `metodo_pago='transferencia'` registra salida en el banco.

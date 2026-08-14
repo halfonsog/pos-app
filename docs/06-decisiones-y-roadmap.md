@@ -1,7 +1,7 @@
 # 06 — Decisiones de Diseño y Roadmap
 
 Decisiones de diseño vigentes aprobadas por el propietario (Heriberto Alfonso) y plan de trabajo futuro.
-**Última actualización:** 2026-08-11
+**Última actualización:** 2026-08-12
 
 > Las decisiones aquí registradas **prevalecen** sobre lo que diga el código actual. Cuando se implementen, actualizar también los docs 02/03/04 y el módulo correspondiente. Este documento refleja solo lo vigente (sin historial de implementación).
 
@@ -24,14 +24,15 @@ Ningún producto puede tener como ingrediente: a sí mismo ni otro producto que 
 ### D3. `costo_base` y `precio_recomendado` persistidos en `productos`
 - Se guardan como columnas de la tabla `productos` (caché calculada, no dato manual).
 - **costo_base = último costo de compra** (NO promedio ponderado).
-- **FÓRMULA DEL PROPIETARIO (multiplicativa)**:
+- **FÓRMULA DEL PROPIETARIO (multiplicativa, actualizada 2026-08-12)**:
   ```
   %gastos            = (gastos fijos + gasto financiero del mes) ÷ ventas_proyectadas
   gastos fijos       = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
   gasto financiero   = Σ aporte del próximo vencimiento pendiente de préstamos/inversiones activos
   precio_neto        = costo_base × (1 + %gastos) × (1 + margen_recomendado)
-  precio_recomendado = precio_neto × (1 + impuesto_ventas)
+  precio_recomendado = precio_neto ÷ (1 − impuesto_ventas)
   ```
+  **Regla del impuesto (2026-08-12)**: el precio de venta **INCLUYE el impuesto**, y el impuesto es el % `impuesto_ventas` del **precio de venta**. Por eso `precio = neto ÷ (1 − impuesto)` y en la venta: `impuesto = total × tasa`; `neto = total − impuesto`. El card del turno muestra el % configurado (ej. 15%).
   `%gastos`, `total_gastos_fijos`, `gastos_fijos_configurados`, `salarios_mes` y `gasto_financiero_mes` se calculan al vuelo en `obtenerGeneral` (no son columnas); los salarios entran en los gastos fijos por **regla del propietario (2026-08-11)**, tanto en el costeo de precios como en los reportes fiscales (balance, estado de resultados, DJ anual) vía `utils/costos.js` (`obtenerGastosFijos`). El servicio aplica esta fórmula en el recálculo de precios.
 - Triggers de recálculo: compra inventariada (cascada recursiva a compuestos contenedores), ficha de costo (simples), cambio de configuración general o de gastos fijos, agregar/quitar ingrediente.
 
@@ -141,9 +142,66 @@ Registro de seguimiento (no paga deudas reales). Vencimientos el día 1 de cada 
 
 ### Contabilidad — normativa cubana (ONAE), vigente
 Ver `modulos/contabilidad.md` para el vector fiscal completo (fórmulas verificadas contra el Excel del propietario). Destacan:
-- **Porciento a declarar (PD, m030)**: escala ventas Y compras/gastos en todo lo fiscal (vector, libro diario, estados, cierre, DJ anual, CSV exportable).
+- **Porciento a declarar (PD, m030)**: **DEPRECADO y ELIMINADO** (2026-08-12). Sustituido por el modelo fiscal de dos mundos (D30–D36): se declara el 100% de un subconjunto (lo gravable), no el X% de todo. El campo `porciento_declarar` fue borrado de la BD (m032).
 - **Nóminas**: generadas al cerrar el mes; salario pagado por banco. **Bonos semanales en efectivo** (no se declaran como salarios); ayuda a decidirlos por empleado.
 - **USD (m025–m027)**: precios siempre en CUP; cada operación en USD lleva la **tasa acordada en ese momento** (no hay tasa general). Saldos por cuenta/moneda + equivalente en CUP con la última tasa; cambio de divisas; para el fisco solo cuenta el equivalente total en CUP.
+
+### Modelo fiscal de dos mundos: gravable / no gravable — APROBADO (2026-08-12)
+
+**Objetivo**: reducir el impuesto sobre las ventas de forma coherente separando una línea de negocio **informal** ("no gravable") de la línea formal que se declara al 100%. Sustituye al Porciento a Declarar (deprecado).
+
+**Principio rector**: la atribución fiscal es **por línea de producto, nunca por documento**. Una venta, pedido o encargo puede mezclar productos gravables y no gravables; cada línea hereda la visibilidad fiscal de la **categoría** de su producto. Los cálculos fiscales se hacen sobre cada línea vendida, no sobre el total del ticket.
+
+#### D30. Mundo real vs mundo declarado
+- **Mundo real (siempre íntegro)**: inventario, caja, banco, arqueo, cierre de turno. El dinero de los productos no gravables existe y reconcilia.
+- **Mundo declarado (solo gravables)**: liquidación de impuestos, DJ anual, libro diario, balance, PyG, cierre de mes.
+- La exclusión vive en la **capa de consulta fiscal**, nunca en el almacenamiento.
+
+#### D31. Categoría de sistema "No gravable" (predefinida e indeleble)
+- `categorias.gravable` (1=gravable, 0=no gravable). Una **categoría raíz "No gravable"** se crea por migración con `gravable=0`.
+- Es **categoría de sistema**: la UI bloquea editar/eliminar esa categoría; el usuario solo crea **categorías hijas** bajo ella.
+- Los productos **heredan por ancestría**: un producto es no gravable si alguna categoría en su árbol (`padre_id`) tiene `gravable=0`. La elegibilidad se **deriva** en consulta, no se almacena por producto.
+
+#### D32. Filtro fiscal derivado por línea
+Todas las agregaciones fiscales (`contabilidadController.js`, `costos.js`) consultan **solo líneas de productos gravables**:
+- Ventas minoristas: unir `venta_detalles ↔ productos ↔ categorias` y quedar con líneas gravables (join sobre el árbol).
+- Pedidos/encargos/mayoristas: igual a una venta minorista (mismo módulo `pedidos`); la base del impuesto 0114022 y de la DJ incluye también lo facturado desde pedidos cuando corre en la misma caja.
+- No hay restricciones de mezcla en documentos: se calcula por línea vendida.
+
+#### D33. Servicios — atributo "tiene_factura" (no "grava impuestos")
+- Los servicios no afectan al impuesto sobre las ventas, pero sí a la **tributación anual** (gasto deducible justificado).
+- Se añade `servicios.tiene_factura` (1/0, default → inferido del vínculo: compra/pedido sin factura ⇒ 0).
+- Con factura → entra en el libro diario/DJ como gasto/ingreso **justificado**. Sin factura → visible solo en el mundo real (caja/banco, cierre de turno), **no entra** a lo declarado.
+
+#### D34. Regla del 80% — solo informativa (sin restricciones)
+La ley exige justificar (facturas/tickets) **≥80% de los gastos declarados** en caso de auditoría. La regla **no genera bloqueos**: el sistema muestra un indicador `gastos justificados / gastos declarados` en los reportes fiscales, con aviso cuando caiga por debajo del 80%.
+
+#### D35. Servicios en el cierre de turno ✅ implementado
+El cierre de turno (card desglose) incluye una **línea aparte, fuera de la reconciliación del recaudado**:
+```
+(=) Margen                       700.19
+(±) Servicios del turno (cobros − pagos)   +X.XX / −X.XX
+(=) Entradas netas del turno     Y.YY
+```
+Informativo; informa sobre la caja sin contaminar el cálculo de prioridades. `desglosePrioridades` devuelve `servicios: {cobros, pagos, neto}` (solo CUP) y el card lo muestra.
+
+#### D36. Guardas de coherencia (la app ayuda/obliga, informando en cada caso) ✅ implementadas
+- **Bloquear (backend)**: compra con factura que contiene productos no gravables y **mezcla de gravables con no gravables en la misma compra** (`compraController`); compuesto/ingrediente que mezcla gravables y no gravables en la misma receta (`productoController.agregarComponente`).
+- **Prevenir (frontend)**: al elegir el primer producto en una compra o en una receta, el selector de productos **se filtra al mismo estado fiscal** (solo gravables o solo no gravables) y muestra un aviso. El backend sigue siendo la validación definitiva.
+- **Ventas minoristas, encargos y pedidos mayoristas NO se restringen** (regla del propietario 2026-08-12): los cálculos se hacen por producto vendido (cada línea hereda su visibilidad fiscal), así que un ticket/pedido puede mezclar libremente gravables y no gravables.
+- **Categoría obligatoria al crear producto**: define el canal fiscal (gravable / no gravable). La ficha de costo de los **no gravables** se calcula con `impuesto = 0` (muestran el margen real; `precio_recomendado` sin colchón de impuesto). El ticket sigue mostrando el componente de impuesto con su propia regla — este costeo es solo informativo.
+- Donde se mezclarían los dos mundos en compras o recetas, la app lo impide o lo advierte explícitamente.
+
+#### D37. Cambio de categoría de producto restringido al mismo grupo raíz ✅ implementado
+Al editar un producto, su `categoria_id` solo puede cambiar a otra categoría **con la misma raíz** que la actual (y no puede quedar sin categoría). Evita cruzar productos entre el mundo gravable y el no gravable (coherencia fiscal). Backend valida; el frontend filtra el selector y avisa si el grupo es no gravable. (`00-pendientes.md` #1.)
+
+#### D38. Cierre de mes: ficha persistida + excedente → vencimientos ✅ implementado
+Al **cerrar el mes** (automático, `POST /cierre-mes`) se persiste la ficha en `cierres_mes` (m033) y el excedente del desglose (mundo gravable) se aplica a los vencimientos con la regla del propietario:
+1. **Inversiones activas primero**, priorizando la de **mayor número de vencimientos pendientes**; el excedente adelanta capital y se **regeneran las cuotas restantes** (menos vencimientos; el inversor recibe menos intereses por devolución anticipada).
+2. Si queda excedente y no hay inversiones activas: **préstamos activos**, misma prioridad, pero **preservando las tarifas originales por ordinal** — el acreedor recibe el **mismo total de intereses pactado** aunque se adelante capital (solo se acelera el capital).
+3. Lo que sobre no se aplica (queda como ganancia; se informa en la ficha como "no aplicado").
+
+Un mes solo se cierra una vez (UNIQUE mes/anio). `GET /cierre-mes/:mes/:anio` recupera la ficha con el detalle de aplicaciones (`cierre_mes_aplicaciones`). La mecánica de regeneración está en `prestamoInversionController.reajustarCuotas` (reutilizada por `registrarPago` para inversiones).
 
 ---
 

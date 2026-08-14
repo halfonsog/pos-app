@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productos y Recetas — Manual de Usuario</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='index.html'"><i class="fas fa-arrow-left me-1"></i>Índice</button>
+          <span class="text-muted small">POS — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="manual-search">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" class="form-control" id="busqueda" placeholder="Buscar en esta página...">
+        </div>
+      </div>
+
+      <div id="contenido">
+        <h2 class="mb-3"><i class="fas fa-boxes me-2"></i>Productos y Recetas</h2>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bullseye me-2"></i>Objetivo</h4>
+          <p class="mb-0">Mantener el catálogo de productos, organizarlos en categorías y definir las recetas de los productos compuestos.</p>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-th-large me-2"></i>Los 4 tipos de producto</h4>
+          <p>Cada producto se clasifica por su <strong>tipo</strong> (Simple o Compuesto) y su <strong>sub-tipo</strong>. La combinación define cómo se controla su stock y cómo se prepara. El tipo y sub-tipo <strong>no se pueden editar</strong> después de crear.</p>
+          <table class="table table-bordered align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Tipo</th>
+                <th>Sub-tipo</th>
+                <th>Stock</th>
+                <th>Qué es / ejemplo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td rowspan="2"><span class="badge bg-info">Simple</span></td>
+                <td><strong>Reventa</strong></td>
+                <td><span class="badge bg-success">Propio</span></td>
+                <td>Se vende tal cual, sin transformar. <em>Ej: Refresco, Guayabas frescas, Vasos.</em></td>
+              </tr>
+              <tr>
+                <td><strong>Granel</strong></td>
+                <td><span class="badge bg-success">Propio</span></td>
+                <td>Se vende por peso/volumen y <strong>puede ser ingrediente</strong> de compuestos. Compra y venta en unidades del mismo tipo. <em>Ej: Azúcar, Aceite a granel.</em></td>
+              </tr>
+              <tr>
+                <td rowspan="2"><span class="badge bg-primary">Compuesto</span></td>
+                <td><strong>Elaborado</strong></td>
+                <td><span class="badge bg-success">Propio</span></td>
+                <td>Se <strong>prepara antes de vender</strong> (registras la preparación y sube su stock). Puede ser ingrediente de otro compuesto. <em>Ej: Jugo de guayaba.</em></td>
+              </tr>
+              <tr>
+                <td><strong>Conformado</strong></td>
+                <td><span class="badge bg-warning">Virtual</span></td>
+                <td>Se <strong>arma en el momento de la venta</strong> con sus componentes (no tiene stock propio; depende del stock de los ingredientes). <em>Ej: Café con leche, Sándwich.</em></td>
+              </tr>
+            </tbody>
+          </table>
+          <h6 class="mt-3">Detalle por tipo</h6>
+          <ul class="mb-0">
+            <li><strong>Simple — Reventa</strong>: solo usa unidades tipo "unidad". No puede ser ingrediente.</li>
+            <li><strong>Simple — Granel</strong>: compra y venta en unidades del mismo tipo (peso/volumen). Es la base para las recetas.</li>
+            <li><strong>Compuesto — Elaborado</strong>: su stock es propio; al <strong>preparar</strong> consumes ingredientes (salida) y entra el elaborado (entrada). Puede venderse directamente y ser ingrediente de otro compuesto.</li>
+            <li><strong>Compuesto — Conformado</strong>: stock <strong>virtual</strong> = el mínimo de los ingredientes disponibles (receta). No se prepara; se arma al vender. <strong>No entra en ventas mayoristas</strong> (regla del propietario) y no puede ser ingrediente.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-list-ol me-2"></i>Cómo se hace</h4>
+          <h6 class="mt-2">Crear / editar un producto</h6>
+          <ol class="steps">
+            <li>Ve a <strong>Productos → Nuevo</strong> (o edita uno existente).</li>
+            <li>Indica código, nombre y <strong>tipo</strong> (Simple o Compuesto) y <strong>sub-tipo</strong>.</li>
+            <li>Selecciona la <strong>categoría</strong> (<span class="text-danger">obligatoria</span>: define si el producto es gravable o no gravable). Al editar, <strong>solo se permite cambiar a otra del mismo grupo</strong>.</li>
+            <li>Asigna unidades, stock mínimo, foto y precio.</li>
+            <li>Guarda.</li>
+          </ol>
+          <h6 class="mt-3">Gestionar categorías</h6>
+          <ol class="steps">
+            <li>Ve a <strong>Configuración → Categorías</strong>.</li>
+            <li>Crea categorías raíz y <strong>subcategorías</strong> (una hija hereda el estado fiscal del padre).</li>
+            <li>La categoría de sistema <strong>"No gravable"</strong> existe por defecto y <strong>no se puede editar ni eliminar</strong>. Crea subcategorías bajo ella para los productos informales.</li>
+          </ol>
+          <h6 class="mt-3">Definir una receta (producto compuesto)</h6>
+          <ol class="steps">
+            <li>Abre el compuesto → <strong>Receta</strong>.</li>
+            <li>Añade los ingredientes (solo <strong>granel</strong> o <strong>compuestos elaborados</strong>).</li>
+            <li>El selector solo muestra ingredientes <strong>del mismo grupo fiscal</strong> que el producto padre.</li>
+          </ol>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-exclamation-triangle me-2"></i>Reglas y restricciones</h4>
+          <ul class="mb-0">
+            <li><strong>Tipo y sub-tipo no se editan</strong> después de crear (cambian por conversiones o movimientos).</li>
+            <li><strong>Costo base y precio recomendado no se editan a mano</strong>: se calculan.</li>
+            <li><strong>No se puede mezclar</strong> en una misma receta productos gravables y no gravables.</li>
+            <li>La categoría <strong>"No gravable"</strong> es de sistema (protegida).</li>
+            <li>Un producto con categoría <strong>no puede quedarse sin categoría</strong> ni saltar a otra raíz.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bug me-2"></i>Errores comunes</h4>
+          <div class="error-item"><strong>"No se puede mezclar en una misma receta productos gravables y no gravables"</strong> → Usa un ingrediente del mismo grupo que el producto padre.</div>
+          <div class="error-item"><strong>"La categoría solo se puede cambiar a otra dentro del mismo grupo"</strong> → Elige otra categoría del mismo grupo.</div>
+          <div class="error-item"><strong>"Ya existe una categoría con el nombre ..."</strong> → Usa otro nombre.</div>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-question-circle me-2"></i>Preguntas frecuentes</h4>
+          <div class="faq-item"><strong>¿Qué es un producto no gravable?</strong> Pertenece a la categoría "No gravable": se compra y vende sin factura y <strong>no entra en la declaración fiscal</strong>.</div>
+          <div class="faq-item"><strong>¿Por qué no puedo cambiar la categoría de un producto a la de otro grupo?</strong> El sistema solo permite cambiarla a otra categoría <strong>del mismo grupo raíz</strong>, para no mezclar el canal gravable con el no gravable.</div>
+          <div class="faq-item"><strong>¿Cuándo un compuesto es elaborado o conformado?</strong> <strong>Elaborado</strong>: se prepara antes de vender. <strong>Conformado</strong>: se arma al vender con sus componentes.</div>
+        </div>
+      </div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">POS — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+</body>
+
+</html>

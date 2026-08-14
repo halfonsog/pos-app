@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comenzando — Manual de Usuario</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='index.html'"><i class="fas fa-arrow-left me-1"></i>Índice</button>
+          <span class="text-muted small">POS — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="manual-search">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" class="form-control" id="busqueda" placeholder="Buscar en esta página...">
+        </div>
+      </div>
+
+      <div id="contenido">
+        <h2 class="mb-3"><i class="fas fa-rocket me-2"></i>Comenzando</h2>
+
+        <div class="card-block">
+          <h4><i class="fas fa-route me-2"></i>Orden lógico de uso</h4>
+          <p class="mb-1">Para arrancar el negocio en la app, sigue este orden (cada paso depende del anterior):</p>
+          <ol class="steps">
+            <li><strong>Establecer los parámetros de configuración</strong> (Configuración → Parámetros Generales): ventas proyectadas, margen recomendado, impuesto sobre ventas, redondeo, impuestos del vector fiscal y día de pago de bonos. <a href="configuracion.html">Ver detalles</a>.</li>
+            <li><strong>Registrar los gastos fijos</strong> (alquiler, salarios, servicios) y los <strong>préstamos e inversiones</strong>: alimentan el % de gastos que se revierte en los precios.</li>
+            <li><strong>Crear los proveedores</strong> (a quiénes se compra y sus condiciones de pago).</li>
+            <li><strong>Crear el catálogo de productos</strong> con su categoría (define si es gravable o no gravable), unidades, recetas y ficha de costo. <a href="productos-recetas.html">Ver detalles</a>.</li>
+            <li><strong>Registrar las compras</strong> y <strong>llevarlas a stock</strong> (inventariar): así los productos tienen existencias y costo. <a href="compras-inventario.html">Ver detalles</a>.</li>
+            <li><strong>Gestionar el inventario</strong>: preparaciones, mermas, ajustes y transferencias.</li>
+            <li><strong>Vender</strong>: abrir turno, cobrar y cerrar el turno con arqueo. <a href="ventas-turnos.html">Ver detalles</a>.</li>
+            <li>Según tu actividad, atender <strong>mayoristas y encargos</strong>, y al cierre del mes hacer la <strong>contabilidad</strong> (impuestos, cierre de mes, DJ anual).</li>
+          </ol>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-gavel me-2"></i>Reglas básicas del sistema</h4>
+          <ul class="mb-0">
+            <li><strong>Un producto sin precio de venta no se puede vender.</strong> El precio se fija en la ficha de costo.</li>
+            <li><strong>Un compuesto no se puede vender si no hay existencias de sus ingredientes.</strong> La preparación necesita que los ingredientes existan en stock.</li>
+            <li><strong>Los ingredientes de un producto compuesto solo pueden ser</strong>: simples <em>a granel</em> o compuestos <em>elaborados</em> (D5). Un producto de reventa no puede ser ingrediente.</li>
+            <li><strong>El stock solo se modifica mediante procesos</strong> (nunca a mano): compra (inventariar), venta, devolución/anulación, preparación (salida de ingredientes + entrada del elaborado), merma, autoconsumo, donación (entrada/salida), intercambio reventa→granel, transferencia entre inventarios y ajuste manual.</li>
+            <li><strong>El costo de un producto no se edita a mano</strong>: sale del último costo de compra (simples) o de la suma de la receta (compuestos).</li>
+            <li><strong>La categoría es obligatoria al crear un producto</strong> y define si es <strong>gravable</strong> (entra a la declaración fiscal) o <strong>no gravable</strong> (se compra y vende sin factura). Una vez creado, no puedes cambiar de grupo (misma raíz).</li>
+            <li><strong>No se mezclan productos gravables y no gravables</strong> en una misma compra ni en una misma receta.</li>
+            <li><strong>El dólar se gestiona operativamente</strong> (precios de venta siempre en CUP; cada operación en USD lleva su tasa acordada en ese momento), pero <strong>todos los documentos fiscales y reportes financieros se hacen en pesos cubanos</strong> (equivalente en CUP con la última tasa).</li>
+            <li><strong>El impuesto de la venta es el % (impuesto_ventas) del precio de venta</strong>; el precio ya lo incluye. En la ficha de costo de los no gravables ese impuesto se muestra en 0 (margen real).</li>
+            <li><strong>Un solo turno abierto</strong> a la vez; no se cobra sin turno abierto.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-lightbulb me-2"></i>Consejos al empezar</h4>
+          <ul class="mb-0">
+            <li>Antes de cargar productos, ten claro tu % de gastos: afecta los precios recomendados.</li>
+            <li>Revisa el <strong>precio recomendado</strong> en la ficha de costo: es un punto de partida, tú decides el precio de venta final.</li>
+            <li>Decide desde el inicio qué productos serán <strong>no gravables</strong> (informales) y crea sus subcategorías bajo "No gravable".</li>
+          </ul>
+        </div>
+      </div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">POS — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+</body>
+
+</html>

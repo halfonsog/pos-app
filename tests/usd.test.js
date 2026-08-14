@@ -22,6 +22,12 @@ beforeAll(async () => {
   request = require('supertest')(app);
   const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'admin123' });
   adminToken = res.body.token;
+  const { getDb } = require('../src/backend/models/db');
+  const db = await getDb();
+  const cat = await db.get('SELECT id FROM categorias WHERE gravable = 1 AND es_sistema = 0');
+  global.__USD_CAT__ = cat.id;
+  // Abrir turno: facturar pedidos requiere turno abierto (00-pendientes #1)
+  await request.post('/api/ventas/abrir-turno').set(auth()).send({ monto_apertura: 0 });
 });
 
 afterAll(async () => {
@@ -41,7 +47,8 @@ let prodId, clienteId, pedidoId;
 async function setup() {
   const p = await request.post('/api/productos').set(auth())
     .field('codigo', 'USD1').field('nombre', 'Caja Ron').field('tipo', 'simple')
-    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1');
+    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1')
+    .field('categoria_id', String(global.__USD_CAT__));
   prodId = p.body.id;
   const { getDb } = require('../src/backend/models/db');
   const db = await getDb();

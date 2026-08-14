@@ -18,6 +18,7 @@ const { buildTestDb } = require('./helpers/testDb');
 
 let request;
 let adminToken;
+let catId;
 
 beforeAll(async () => {
   await buildTestDb(TEST_DB);
@@ -25,6 +26,10 @@ beforeAll(async () => {
   request = require('supertest')(app);
   const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'admin123' });
   adminToken = res.body.token;
+  const { getDb } = require('../src/backend/models/db');
+  const db = await getDb();
+  const cat = await db.get('SELECT id FROM categorias WHERE gravable = 1 AND es_sistema = 0');
+  catId = cat.id;
 });
 
 afterAll(async () => {
@@ -44,12 +49,14 @@ let reventaId, granelId;
 async function crearProductosBase() {
   const r = await request.post('/api/productos').set(auth())
     .field('codigo', 'REV1').field('nombre', 'Botella Aceite 1L').field('tipo', 'simple')
-    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1');
+    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1')
+    .field('categoria_id', String(catId));
   reventaId = r.body.id;
 
   const g = await request.post('/api/productos').set(auth())
     .field('codigo', 'GRA1').field('nombre', 'Aceite a granel').field('tipo', 'simple')
-    .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1');
+    .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1')
+    .field('categoria_id', String(catId));
   granelId = g.body.id;
 
   // Dar stock al reventa directamente en BD

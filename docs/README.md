@@ -4,7 +4,7 @@
 **Autor:** Heriberto Alfonso
 **Versión:** 0.6
 **Última actualización:** 2026-08-11
-**Estado:** En producción local (monousuario), mantenimiento activo. **160 tests verdes** (`npm test`, 12 suites).
+**Estado:** En producción local (monousuario), mantenimiento activo. **182 tests verdes** (`npm test`, 14 suites).
 
 Esta documentación tiene dos objetivos:
 
@@ -17,6 +17,7 @@ Solo refleja el **estado actual** del sistema (sin historial). Los temas abierto
 
 - **Documentos generales** (este nivel): visión transversal del sistema.
 - **`modulos/`**: un documento por módulo funcional con su propósito, tablas, endpoints, frontend, reglas de negocio y pendientes. **Empieza por el módulo que vayas a tocar.**
+- **`manual-usuario/`**: guías de uso por proceso (fuente de redacción). La entrega es la carpeta **HTML** `src/frontend/manual/` (servida en `/manual/`): `index.html` (índice por rol) + una página por proceso (`ventas-turnos.html`, `compras-inventario.html`, etc.) con sidebar compartido, búsqueda y filtro por rol (`manual.js` + `manual.css`).
 
 ## Documentos generales
 

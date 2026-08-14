@@ -84,6 +84,17 @@ describe('Autenticación', () => {
     expect(res.status).toBe(200);
   });
 
+  test('S6: bloqueo tras 5 intentos fallidos (429)', async () => {
+    // Usuario inexistente: no afecta a admin/vendedor para los demás tests
+    for (let i = 0; i < 5; i++) {
+      const r = await request.post('/api/auth/login').send({ username: 'hacker_test', password: 'mal' });
+      expect(r.status).toBe(401);
+    }
+    // El sexto intento se bloquea
+    const bloqueado = await request.post('/api/auth/login').send({ username: 'hacker_test', password: 'mal' });
+    expect(bloqueado.status).toBe(429);
+  });
+
   test('verify con token firmado con otro secreto → 401', async () => {
     const jwt = require('jsonwebtoken');
     const tokenFalso = jwt.sign({ id: 1, username: 'admin', rol: 'admin' }, 'otro_secreto');

@@ -33,14 +33,17 @@ Catálogo de productos: altas/bajas/ediciones, fotos, recetas de compuestos, fic
   gastos fijos (mensual) = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
   %gastos (global) = (gastos fijos + financiero del próximo vencimiento pagadero) ÷ ventas_proyectadas
   precio_neto      = costo_base × (1 + %gastos) × (1 + margen_recomendado%)
-  precio_recomendado = precio_neto × (1 + impuesto_ventas%)
+  precio_recomendado = precio_neto ÷ (1 − impuesto_ventas%)   <!-- el precio incluye el impuesto; impuesto = % del precio (2026-08-12) -->
   ```
+- **Categoría obligatoria (D36)**: al crear un producto, la categoría es requerida (define el canal fiscal gravable / no gravable). En edición no se puede cambiar de grupo raíz (D37).
+- **Costeo por canal**: los productos **no gravables** se calculan en la ficha de costo y en `precio_recomendado` con `impuesto = 0` (muestran el margen real, sin el colchón del 15%). Es informativo: el ticket sigue usando su propia regla. `utils/costos.js → impuestoDeProducto`.
 - **costo_base y precio_recomendado persistidos en `productos`** (D3). Triggers de recálculo: compra inventariada (cascada a compuestos contenedores), ficha de costo (solo costo_base de simples + precio_venta), cambio de configuración general o de gastos fijos, agregar/quitar ingrediente. **margen/gastos/impuesto son globales** (de `configuracion_contabilidad`), no por producto.
 - **Campos editables (D4)**: solo nombre, descripción, foto, categoría, stock_minimo, precio_venta, activo. El backend RECHAZA (400) tipo, sub_tipo, unidades, stock_actual, costo_base, precio_recomendado — cambian por conversiones (D6), movimientos o recálculo.
+- **Cambio de categoría (D37, 00-pendientes #1)**: al editar, la categoría solo puede cambiar a otra **del mismo grupo raíz** (y no se puede quitar). Evita cruzar entre el mundo gravable y no gravable. El frontend filtra el selector al grupo actual y avisa si es no gravable.
 - **Fotos**: multer+sharp, 800×800 JPEG, `uploads/productos/`, máx 3 MB.
 
 ## Problemas conocidos (../05-problemas-conocidos.md)
 F4 (eliminar desde listado sin handler), F11 (data:13 fantasma), N+1 en obtener, 30 console.log.
 
 ## Decisiones vigentes (../06-decisiones-y-roadmap.md)
-D1 (subtipos elaborado/conformado) · D2 (anti-ciclos) · D3 (costos persistidos + cascada; último costo) · D4 (campos editables con rechazo 400) · D5 (ingredientes = granel + elaborados) · D8 (subcategorías).
+D1 (subtipos elaborado/conformado) · D2 (anti-ciclos) · D3 (costos persistidos + cascada; último costo) · D4 (campos editables con rechazo 400) · D5 (ingredientes = granel + elaborados) · D8 (subcategorías) · D37 (categoría restringida al mismo grupo raíz).

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiscal y Contabilidad — Manual de Usuario</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='index.html'"><i class="fas fa-arrow-left me-1"></i>Índice</button>
+          <span class="text-muted small">POS — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="manual-search">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" class="form-control" id="busqueda" placeholder="Buscar en esta página...">
+        </div>
+      </div>
+
+      <div id="contenido">
+        <h2 class="mb-3"><i class="fas fa-calculator me-2"></i>Fiscal y Contabilidad
+          <span class="badge bg-danger align-middle">Solo Administrador</span></h2>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bullseye me-2"></i>Objetivo</h4>
+          <p class="mb-0">Llevar los impuestos, los cierres y la información financiera según la normativa cubana (ONAE), separando lo que se declara de lo que no.</p>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-globe me-2"></i>Los dos mundos (gravable / no gravable)</h4>
+          <ul class="mb-0">
+            <li><strong>Mundo gravable</strong>: lo que entra en la declaración (ventas y compras de productos gravables, con factura).</li>
+            <li><strong>Mundo no gravable</strong>: productos que se compran y venden <strong>sin factura</strong>; <strong>no aparecen</strong> en los reportes fiscales.</li>
+            <li>Los reportes fiscales se calculan <strong>solo con lo gravable</strong>; caja, banco e inventario siempre incluyen <strong>todo</strong>.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-list-ol me-2"></i>Cómo se hace</h4>
+          <h6 class="mt-2">Calcular impuestos del mes</h6>
+          <ol class="steps">
+            <li>En <strong>Contabilidad</strong>, elige mes y año.</li>
+            <li>Pulsa <strong>Calcular</strong>; se calculan los tributos sobre las <strong>ventas gravables</strong> y se guardan como liquidaciones pendientes.</li>
+            <li>Regístralas como pagadas cuando las pagues (salen del banco).</li>
+          </ol>
+          <h6 class="mt-3">Cerrar el mes</h6>
+          <ol class="steps">
+            <li>En <strong>Contabilidad → Cierre de Mes</strong>, pulsa <strong>Calcular</strong> para ver el desglose.</li>
+            <li>Pulsa <strong>Cerrar mes</strong> para <strong>persistir la ficha</strong>.</li>
+            <li>El <strong>excedente</strong> se aplica automáticamente: <strong>1º inversiones</strong> activas (la de más vencimientos primero), <strong>2º préstamos</strong> (preservando los intereses pactados); lo que sobre queda como ganancia.</li>
+            <li>Un mes <strong>solo se cierra una vez</strong>; después solo puedes <strong>ver la ficha</strong>.</li>
+          </ol>
+          <h6 class="mt-3">Declaración Jurada anual (DJ)</h6>
+          <ol class="steps">
+            <li>En <strong>Contabilidad</strong>, elige el año y usa <strong>Liquidación anual</strong>.</li>
+            <li>Se calcula la ganancia neta sobre el <strong>mundo gravable</strong> y el monto a pagar (5% de descuento antes del 28/02).</li>
+          </ol>
+          <h6 class="mt-3">Nóminas y bonos</h6>
+          <ul class="mb-0">
+            <li><strong>Nóminas</strong>: se generan al cerrar el mes; el salario se paga <strong>por el banco</strong>.</li>
+            <li><strong>Bonos semanales</strong>: se pagan <strong>en efectivo</strong> y <strong>no se declaran</strong> como salarios.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-exclamation-triangle me-2"></i>Reglas y restricciones</h4>
+          <ul class="mb-0">
+            <li>Reportes fiscales <strong>solo con lo gravable</strong>.</li>
+            <li>El mes se cierra <strong>una sola vez</strong> (ficha persistida).</li>
+            <li>El excedente va a inversiones primero y préstamos después; los intereses de los préstamos se <strong>preservan</strong>.</li>
+            <li><strong>Regla del 80%</strong> (informativa): en auditoría hay que poder justificar al menos el 80% de los gastos declarados.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bug me-2"></i>Errores comunes</h4>
+          <div class="error-item"><strong>"El mes X/Y ya está cerrado. Consulta su ficha."</strong> → Usa <strong>Calcular</strong> para ver la ficha guardada.</div>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-question-circle me-2"></i>Preguntas frecuentes</h4>
+          <div class="faq-item"><strong>¿Por qué el impuesto no coincide con mis ventas totales?</strong> Porque se calcula solo sobre las <strong>ventas gravables</strong>.</div>
+          <div class="faq-item"><strong>¿Cómo reducir la carga fiscal?</strong> Declara productos en categorías emparentadas con la categoría base <strong>"No gravable"</strong>: los gastos e ingresos de esos productos <strong>no van a facturas ni a documentos fiscales</strong>.</div>
+          <div class="faq-item"><strong>¿El cierre de mes mueve el dinero real?</strong> No; solo aplica el excedente a los vencimientos y guarda la ficha.</div>
+          <div class="faq-item"><strong>¿Se puede deshacer un cierre de mes?</strong> No está implementado; por eso pide confirmación.</div>
+        </div>
+      </div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">POS — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+</body>
+
+</html>

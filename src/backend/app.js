@@ -12,7 +12,10 @@ const app = express();
 app.use(helmet({
   contentSecurityPolicy: false // Para desarrollo local
 }));
-app.use(cors());
+// CORS restringido (S10): la app es un monolito local (frontend y API en el mismo
+// origen). No se envían cabeceras CORS, de modo que solo las peticiones del mismo
+// origen (el propio frontend) son válidas; orígenes externos quedan bloqueados.
+app.use(cors({ origin: false }));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

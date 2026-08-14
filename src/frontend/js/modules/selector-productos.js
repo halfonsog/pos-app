@@ -6,6 +6,23 @@ var SelectorProductos = window.SelectorProductos || {};
 
 SelectorProductos._config = {};
 
+// Devuelve true si el producto es GRAVABLE (entra a la declaración fiscal).
+// El estado se hereda de su categoría: es no gravable si ELLA o alguna ancestra
+// tiene gravable=0 (misma lógica que costos.idsNoGravables del backend).
+SelectorProductos._esGravable = function (p) {
+  if (!p || !p.categoria_id) return true; // sin categoría = gravable por defecto
+  const cats = State.getCache('categorias') || [];
+  const porId = new Map(cats.map(c => [Number(c.id), c]));
+  let cat = porId.get(Number(p.categoria_id));
+  let visitados = new Set();
+  while (cat && !visitados.has(Number(cat.id))) {
+    if (cat.gravable === 0) return false;
+    visitados.add(Number(cat.id));
+    cat = cat.padre_id ? porId.get(Number(cat.padre_id)) : null;
+  }
+  return true;
+};
+
 SelectorProductos.index = async function (params) {
   console.log('🛍️ Cargando selector de productos', params);
 
@@ -14,6 +31,7 @@ SelectorProductos.index = async function (params) {
     retorno: params.retorno || 'dashboard',
     titulo: params.titulo || 'Seleccionar Productos',
     productoYaSeleccionado: params.productoYaSeleccionado || null,
+    gravableRequerido: params.gravableRequerido, // 1 o 0 si ya hay un primer producto elegido
     retornoParams: params.retornoParams || {}
   };
 
@@ -21,6 +39,13 @@ SelectorProductos.index = async function (params) {
 
   try {
     Utils.showLoading('Cargando productos...');
+
+    // Asegurar caché de categorías para el filtro gravable (D36)
+    if (!State.getCache('categorias')) {
+      try {
+        State.setCache('categorias', await API.categorias.listar());
+      } catch (e) { /* sin categorías */ }
+    }
 
     let productos = await API.productos.listar();
 
@@ -35,6 +60,13 @@ SelectorProductos.index = async function (params) {
       if (config.productoYaSeleccionado) {
         productos = productos.filter(p => p.id != config.productoYaSeleccionado);
       }
+    }
+
+    // D36: si ya hay un primer producto (compra o receta), restringir el selector
+    // a productos del MISMO estado fiscal (gravable / no gravable).
+    if (config.gravableRequerido !== undefined && config.gravableRequerido !== null) {
+      const requerido = Number(config.gravableRequerido);
+      productos = productos.filter(p => (SelectorProductos._esGravable(p) ? 1 : 0) === requerido);
     }
 
     const layout = SelectorProductos.renderLayout(productos, config);
@@ -105,6 +137,13 @@ SelectorProductos.renderLayout = function (productos, config) {
               <span class="text-muted">${productos.length} productos</span>
             </div>
           </div>
+
+          ${config.gravableRequerido !== undefined && config.gravableRequerido !== null ? `
+            <div class="alert alert-${config.gravableRequerido == 1 ? 'success' : 'secondary'} py-2 mb-3">
+              <i class="fas fa-${config.gravableRequerido == 1 ? 'eye' : 'eye-slash'} me-1"></i>
+              Solo se muestran productos <strong>${config.gravableRequerido == 1 ? 'gravables' : 'no gravables'}</strong> (mismo grupo fiscal que el primer producto elegido).
+            </div>
+          ` : ''}
           
           <div class="row g-3" id="productosGrid">
             ${productos.length === 0 ? `
@@ -120,7 +159,8 @@ SelectorProductos.renderLayout = function (productos, config) {
                      data-unidad-id="${p.unidad_venta_id}"
                      data-unidad-compra="${p.unidad_compra_nombre || ''}"
                      data-unidad-compra-id="${p.unidad_compra_id || ''}"
-                     data-stock="${p.stock_actual || 0}">
+                     data-stock="${p.stock_actual || 0}"
+                     data-categoria="${p.categoria_id || ''}">
                   <div class="card-body">
                     <div class="d-flex align-items-start mb-2">
                       <div style="width: 50px; height: 50px;" class="me-2 flex-shrink-0">
@@ -194,7 +234,8 @@ SelectorProductos.bindEvents = function (productos, config) {
       unidad_venta_id: card.data('unidad-id'),
       unidad_compra: card.data('unidad-compra'),
       unidad_compra_id: card.data('unidad-compra-id'),
-      stock: card.data('stock')
+      stock: card.data('stock'),
+      categoria_id: card.data('categoria') || null
     };
 
     sessionStorage.setItem('selector-producto-seleccionado', JSON.stringify({

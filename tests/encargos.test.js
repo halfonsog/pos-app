@@ -22,6 +22,12 @@ beforeAll(async () => {
   request = require('supertest')(app);
   const res = await request.post('/api/auth/login').send({ username: 'admin', password: 'admin123' });
   adminToken = res.body.token;
+  const { getDb } = require('../src/backend/models/db');
+  const db = await getDb();
+  const cat = await db.get('SELECT id FROM categorias WHERE gravable = 1 AND es_sistema = 0');
+  catId = cat.id;
+  // Abrir turno: entregar encargos requiere turno abierto (00-pendientes #1)
+  await request.post('/api/ventas/abrir-turno').set(auth()).send({ monto_apertura: 0 });
 });
 
 afterAll(async () => {
@@ -38,10 +44,14 @@ const auth = () => ({ Authorization: `Bearer ${adminToken}` });
 
 let prodId, clienteLimitadoId;
 
+// Id de la categoría gravable sembrada en testDb (los productos requieren categoría)
+let catId;
+
 async function setupProducto() {
   const r = await request.post('/api/productos').set(auth())
     .field('codigo', 'ENC1').field('nombre', 'Producto Encargo').field('tipo', 'simple')
-    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1');
+    .field('sub_tipo', 'reventa').field('unidad_venta_id', '1')
+    .field('categoria_id', String(catId));
   prodId = r.body.id;
   const { getDb } = require('../src/backend/models/db');
   const db = await getDb();
@@ -129,8 +139,8 @@ describe('Encargos minoristas (Sprint 6)', () => {
     const { getDb } = require('../src/backend/models/db');
     const db = await getDb();
 
-    // abrir turno para que cuente en el arqueo
-    const turno = await db.run("INSERT INTO turnos (vendedor_id, monto_apertura, estado) VALUES (1, 0, 'abierto')");
+    // el turno abierto fue creado en beforeAll (la entrega requiere turno)
+    const turno = await db.get("SELECT id FROM turnos WHERE estado = 'abierto' ORDER BY id LIMIT 1");
 
     const res = await request.post(`/api/mayoristas/pedidos/${encargoId}/entregar`).set(auth())
       .send({ metodo_pago: 'efectivo' });
@@ -142,7 +152,7 @@ describe('Encargos minoristas (Sprint 6)', () => {
 
     const venta = await db.get('SELECT * FROM ventas WHERE id = ?', [pedido.venta_id]);
     expect(venta.tipo_venta).toBe('minorista');
-    expect(venta.turno_id).toBe(turno.lastID);
+    expect(venta.turno_id).toBe(turno.id);
     expect(venta.metodo_pago).toBe('efectivo');
 
     const prod = await db.get('SELECT stock_actual FROM productos WHERE id = ?', [prodId]);

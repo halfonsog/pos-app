@@ -204,6 +204,11 @@ const productoController = {
         return res.status(400).json({ error: 'Código y nombre requeridos' });
       }
 
+      // Categoría obligatoria: define el canal fiscal del producto (gravable / no gravable).
+      if (!data.categoria_id) {
+        return res.status(400).json({ error: 'La categoría es obligatoria (define si el producto es gravable o no gravable)' });
+      }
+
       if (!data.unidad_venta_id) {
         return res.status(400).json({ error: 'Unidad de venta requerida' });
       }
@@ -278,7 +283,50 @@ const productoController = {
       const params = [];
 
       if (data.nombre !== undefined) { updates.push('nombre = ?'); params.push(data.nombre); }
-      if (data.categoria_id !== undefined) { updates.push('categoria_id = ?'); params.push(data.categoria_id === '' ? null : data.categoria_id); }
+      if (data.categoria_id !== undefined) {
+        // Tema pendiente #1: al cambiar de categoría, la nueva debe tener la misma
+        // raíz que la actual. Evita cruzar entre el mundo gravable y el no gravable
+        // (coherencia fiscal, D31/D36).
+        const actual = await db.get('SELECT categoria_id FROM productos WHERE id = ?', [id]);
+        const nuevaCat = data.categoria_id === '' ? null : data.categoria_id;
+
+        if (nuevaCat) {
+          const cat = await db.get('SELECT id FROM categorias WHERE id = ?', [nuevaCat]);
+          if (!cat) {
+            return res.status(400).json({ error: 'La categoría indicada no existe' });
+          }
+        }
+
+        const raizDe = async (categoriaId) => {
+          if (!categoriaId) return null;
+          const r = await db.get(`
+            WITH RECURSIVE ancestros(id, pid) AS (
+              SELECT id, padre_id FROM categorias WHERE id = ?
+              UNION ALL
+              SELECT c.id, c.padre_id FROM categorias c JOIN ancestros a ON c.id = a.pid
+              WHERE a.pid IS NOT NULL
+            )
+            SELECT id FROM ancestros WHERE pid IS NULL
+          `, [categoriaId]);
+          return r?.id ?? categoriaId;
+        };
+
+        const raizActual = await raizDe(actual?.categoria_id);
+        const raizNueva = await raizDe(nuevaCat);
+
+        if (raizActual && raizNueva !== raizActual) {
+          return res.status(400).json({
+            error: 'La categoría solo se puede cambiar a otra dentro del mismo grupo (misma categoría raíz). Esto preserva la consistencia fiscal entre productos gravables y no gravables.'
+          });
+        }
+        if (raizActual && !nuevaCat) {
+          return res.status(400).json({
+            error: 'Un producto con categoría no puede quedarse sin categoría; elige otra del mismo grupo.'
+          });
+        }
+
+        updates.push('categoria_id = ?'); params.push(nuevaCat);
+      }
       if (data.stock_minimo !== undefined) { updates.push('stock_minimo = ?'); params.push(data.stock_minimo); }
       if (data.precio_venta !== undefined) { updates.push('precio_venta = ?'); params.push(data.precio_venta); }
       if (data.activo !== undefined) { updates.push('activo = ?'); params.push(data.activo === 'false' || data.activo === false ? 0 : 1); }
@@ -423,6 +471,23 @@ const productoController = {
       if (ciclo) {
         return res.status(400).json({
           error: `No se puede: "${padre.nombre}" ya es ingrediente (directo o indirecto) de "${hijo.nombre}". Se formaría un ciclo.`
+        });
+      }
+
+      // D36: una receta NO puede mezclar productos gravables y no gravables.
+      const esGravableProducto = async (pid) => {
+        const ids = await costos.idsNoGravables(db);
+        if (ids.length === 0) return true;
+        const p = await db.get('SELECT categoria_id FROM productos WHERE id = ?', [pid]);
+        return !ids.includes(p?.categoria_id);
+      };
+
+      const gravablePadre = await esGravableProducto(id);
+      const gravableHijo = await esGravableProducto(producto_hijo_id);
+      if (gravablePadre !== gravableHijo) {
+        return res.status(400).json({
+          error: 'No se puede mezclar en una misma receta productos gravables y no gravables (D36). ' +
+                 `"${padre.nombre}" ${gravablePadre ? 'sí' : 'no'} grava y "${hijo.nombre}" ${gravableHijo ? 'sí' : 'no'} grava.`
         });
       }
 

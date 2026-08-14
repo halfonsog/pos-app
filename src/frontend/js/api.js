@@ -235,6 +235,8 @@ const API = {
     registrarPago: (data) => API.post('/contabilidad/registrar-pago', data),
     historial: () => API.get('/contabilidad/historial'),
     cierreMes: (mes, anio) => API.get(`/contabilidad/cierre-mes?mes=${mes}&anio=${anio}`),
+    cerrarMes: (mes, anio) => API.post('/contabilidad/cierre-mes', { mes, anio }),
+    fichaCierreMes: (mes, anio) => API.get(`/contabilidad/cierre-mes/${mes}/${anio}`),
     liquidacionAnual: (anio) => API.get(`/contabilidad/liquidacion-anual?anio=${anio}`),
     libroDiario: (mes, anio) => API.get(`/contabilidad/libro-diario?mes=${mes}&anio=${anio}`),
     banco: () => API.get('/contabilidad/banco'),

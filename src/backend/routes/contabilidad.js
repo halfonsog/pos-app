@@ -17,6 +17,8 @@ router.get('/historial', contabilidadController.getHistorial);
 router.get('/balance', contabilidadController.getBalanceGeneral);
 router.get('/estado-resultados', contabilidadController.getEstadoResultados);
 router.get('/cierre-mes', contabilidadController.getCierreMes);
+router.post('/cierre-mes', contabilidadController.cerrarMes);
+router.get('/cierre-mes/:mes/:anio', contabilidadController.getCierreMesFicha);
 router.get('/liquidacion-anual', contabilidadController.getLiquidacionAnual);
 router.get('/banco', contabilidadController.getBanco);
 router.post('/banco/movimiento', contabilidadController.registrarMovimientoBanco);

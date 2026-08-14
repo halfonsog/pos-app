@@ -192,19 +192,11 @@ Configuracion.general = async function () {
                               value="${config.limite_escala_retencion ?? 15000}" step="1" min="0">
                         <small class="text-muted">Retención a trabajadores para la seguridad social (tributo 0820232)</small>
                       </div>
-                      <div class="row g-2 mb-3">
-                        <div class="col-6">
-                          <label class="form-label">Porciento a declarar (%)</label>
-                          <input type="number" class="form-control" id="porcientoDeclarar" 
-                                value="${config.porciento_declarar ?? 100}" step="1" min="0" max="100">
-                          <small class="text-muted">% de ventas y compras que se declara al fisco</small>
-                        </div>
-                        <div class="col-6">
-                          <label class="form-label">Día de pago de bonos</label>
-                          <select class="form-select" id="diaPagoBonos">
-                            ${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map((d, i) => `<option value="${i}" ${(config.dia_pago_bonos ?? 5) === i ? 'selected' : ''}>${d}</option>`).join('')}
-                          </select>
-                        </div>
+                      <div class="mb-3">
+                        <label class="form-label">Día de pago de bonos</label>
+                        <select class="form-select" id="diaPagoBonos">
+                          ${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map((d, i) => `<option value="${i}" ${(config.dia_pago_bonos ?? 5) === i ? 'selected' : ''}>${d}</option>`).join('')}
+                        </select>
                       </div>
                       <hr>
                       <div class="alert alert-info">
@@ -253,7 +245,6 @@ Configuracion._bindGeneralSubmit = function () {
       salario_minimo: parseFloat($('#salarioMinimo').val()),
       base_contribucion_especial: parseFloat($('#baseContribucion').val()),
       limite_escala_retencion: parseFloat($('#limiteEscala').val()),
-      porciento_declarar: parseFloat($('#porcientoDeclarar').val()),
       dia_pago_bonos: parseInt($('#diaPagoBonos').val())
     };
     try {
@@ -697,8 +688,7 @@ Configuracion.denominaciones = async function () {
                           <td>${Utils.formatMoney(d.valor)}</td>
                           <td class="text-center">
                             <div class="form-check form-switch d-inline-block">
-                              <input class="form-check-input toggle-denom" type="checkbox" 
-                                     data-id="${d.id}" ${d.activo ? 'checked' : ''}>
+                              <input class="form-check-input toggle-denom" type="checkbox" data-id="${d.id}" ${d.activo ? 'checked' : ''}>
                             </div>
                           </td>
                           <td class="text-center">

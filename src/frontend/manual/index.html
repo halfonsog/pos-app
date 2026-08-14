@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de Usuario — POS</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='/'"><i class="fas fa-arrow-left me-1"></i>Volver a la App</button>
+          <span class="text-muted small">POS — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="card-block">
+        <h4><i class="fas fa-info-circle me-2"></i>Bienvenido</h4>
+        <p class="mb-0">Este manual explica los <strong>procesos del día a día</strong>, las <strong>reglas</strong> que aplica el sistema y las <strong>flexibilidades</strong> de cada flujo. Elige un tema para empezar.</p>
+        <small class="text-muted">Solo se muestran los temas relevantes para tu rol.</small>
+      </div>
+
+      <div class="manual-grid" id="tarjetas"></div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">POS — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+  <script>
+    // Tarjetas del índice por rol (usando Manual.SECCIONES)
+    var renderTarjetas = function () {
+      var cont = document.getElementById('tarjetas');
+      var visibles = Manual.visibles();
+      cont.innerHTML = visibles.map(function (s) {
+        return `
+          <div class="card">
+            <div class="card-body d-flex align-items-start gap-3">
+              <div class="icono"><i class="fas ${s.icono}"></i></div>
+              <div>
+                <h6 class="mb-1">${s.titulo}</h6>
+                <small class="text-muted">${s.desc}</small>
+              </div>
+            </div>
+            <div class="card-footer bg-white">
+              <a class="btn btn-sm btn-primary w-100" href="${s.file}">Abrir <i class="fas fa-arrow-right ms-1"></i></a>
+            </div>
+          </div>`;
+      }).join('');
+    };
+    // Añadir descripción a cada sección
+    Manual.SECCIONES.forEach(function (s) {
+      s.desc = {
+        'comenzando.html': 'Orden lógico para arrancar y reglas básicas del sistema.',
+        'ventas-turnos.html': 'Abrir turno, cobrar, arqueo, cerrar turno y desglose por prioridades.',
+        'compras-inventario.html': 'Comprar, pagar, inventariar, ajustes de stock, mermas y transferencias.',
+        'productos-recetas.html': 'Altas y edición de productos, los 4 tipos, categorías (incl. "No gravable") y recetas.',
+        'mayoristas-encargos.html': 'Pedidos mayoristas, encargos minoristas, cobros y facturación parcial.',
+        'fiscal-contabilidad.html': 'Mundo gravable/no gravable, impuestos, cierre de mes, DJ anual y nóminas.',
+        'configuracion.html': 'Parámetros y su repercusión, gastos fijos, unidades y préstamos e inversiones.'
+      }[s.file] || '';
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+      Manual.init();
+      renderTarjetas();
+    });
+  </script>
+</body>
+
+</html>

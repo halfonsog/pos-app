@@ -167,7 +167,7 @@ const inventarioController = {
       const productos = await db.all(`
       SELECT 
         p.id, p.codigo, p.nombre,
-        p.stock_actual, uv.abreviatura as unidad_abrev
+        p.stock_actual, uv.abreviatura as unidad_abrev, uv.nombre as unidad_nombre
       FROM productos p
       LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
       WHERE p.tipo = 'compuesto' 

@@ -8,6 +8,21 @@ Compras.dataTable = null;
 Compras._detallesTemporales = [];
 Compras._productosDisponibles = [];
 
+// D36: devuelve true si una categoría es GRAVABLE (ella o ninguna ancestra es no gravable).
+Compras._esGravableCategoria = function (categoriaId) {
+  if (!categoriaId) return true;
+  const cats = State.getCache('categorias') || [];
+  const porId = new Map(cats.map(c => [Number(c.id), c]));
+  let cat = porId.get(Number(categoriaId));
+  const visitados = new Set();
+  while (cat && !visitados.has(Number(cat.id))) {
+    if (cat.gravable === 0) return false;
+    visitados.add(Number(cat.id));
+    cat = cat.padre_id ? porId.get(Number(cat.padre_id)) : null;
+  }
+  return true;
+};
+
 // ============================================
 // VISTA PRINCIPAL (INDEX - Cards Dashboard)
 // ============================================
@@ -553,6 +568,7 @@ Compras.formulario = async function (params) {
           Compras._detallesTemporales.push({
             producto_id: prod.id,
             producto_nombre: prod.nombre,
+            categoria_id: prod.categoria_id || null,
             unidad_compra: prod.unidad_compra || prod.unidad_venta,
             unidad_compra_id: prod.unidad_compra_id || prod.unidad_venta_id,
             cantidad: 1,
@@ -577,6 +593,7 @@ Compras.formulario = async function (params) {
         Compras._detallesTemporales.push({
           producto_id: producto.id,
           producto_nombre: producto.nombre,
+          categoria_id: producto.categoria_id || null,
           unidad_compra: producto.unidad_compra_nombre || producto.unidad_venta_nombre,
           unidad_compra_id: producto.unidad_compra_id || producto.unidad_venta_id,
           cantidad: 1,
@@ -858,10 +875,19 @@ Compras.bindFormularioEvents = function (id, productos) {
     const compraId = $('#compraId').val();
     const retorno = compraId ? `compras/editar/${compraId}` : 'compras/nuevo';
 
+    // D36: si ya hay un primer producto en la compra, restringir el selector a
+    // productos del MISMO estado fiscal (gravable / no gravable).
+    let gravableRequerido;
+    const primerDetalle = Compras._detallesTemporales[0];
+    if (primerDetalle && primerDetalle.categoria_id) {
+      gravableRequerido = Compras._esGravableCategoria(primerDetalle.categoria_id) ? 1 : 0;
+    }
+
     ViewManager.navegar('selector-productos', {
       origen: 'compra',
       retorno: retorno,
-      titulo: 'Seleccionar Productos para Compra'
+      titulo: 'Seleccionar Productos para Compra',
+      gravableRequerido
     });
   });
 
@@ -1083,157 +1109,6 @@ Compras.recopilarDatosFormulario = function () {
       precio_unitario: d.precio_unitario
     }))
   };
-};
-
-// ============================================
-// VISTA: SELECCIONAR PRODUCTOS
-// ============================================
-Compras.seleccionarProductos = async function (params) {
-  console.log('🛍️ Cargando selector de productos', params);
-
-  const retorno = params.retorno || 'compras/nuevo';
-
-  try {
-    Utils.showLoading('Cargando productos...');
-
-    const productos = await API.productos.listar();
-    const productosComprables = productos.filter(p =>
-      p.activo && p.tipo === 'simple'
-    );
-
-    const layout = Compras.renderSeleccionProductosLayout(productosComprables, retorno);
-    $('#app').html(layout);
-
-    Compras.bindSeleccionProductosEvents(productosComprables, retorno);
-
-    Utils.hideLoading();
-
-  } catch (error) {
-    Utils.hideLoading();
-    console.error(error);
-  }
-};
-
-Compras.renderSeleccionProductosLayout = function (productos, retorno) {
-  const user = State.getUser();
-
-  return `
-    <div class="app-wrapper">
-      ${Sidebar.render('compras')}
-      <main class="main-content">
-        ${Compras.renderNavbar(user)}
-        
-        <div class="container-fluid p-4">
-          <nav aria-label="breadcrumb" class="mb-3">
-            <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="#dashboard">Dashboard</a></li>
-              <li class="breadcrumb-item"><a href="#" class="breadcrumb-back">Compras</a></li>
-              <li class="breadcrumb-item"><a href="#${retorno}">Compra</a></li>
-              <li class="breadcrumb-item active">Seleccionar Productos</li>
-            </ol>
-          </nav>
-          <div class="d-flex align-items-center mb-4">
-            <button class="btn btn-outline-secondary me-3" id="btnVolver">
-              <i class="fas fa-arrow-left me-1"></i>Volver
-            </button>
-            <h2 class="mb-0"><i class="fas fa-box me-2"></i>Seleccionar Productos</h2>
-            <button class="btn btn-outline-primary ms-auto" id="btnNuevoProducto">
-              <i class="fas fa-plus me-1"></i>Nuevo Producto
-            </button>
-          </div>
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-search"></i></span>
-                <input type="text" class="form-control" id="buscarProducto" placeholder="Buscar por código o nombre...">
-              </div>
-            </div>
-            <div class="col-md-6 text-end">
-              <span class="text-muted">${productos.length} productos disponibles</span>
-            </div>
-          </div>
-          
-          <div class="row g-3" id="productosGrid">
-            ${productos.map(p => `
-              <div class="col-md-4 col-lg-3">
-                <div class="card h-100 producto-select-card" data-id="${p.id}" 
-                     data-nombre="${p.nombre}" data-codigo="${p.codigo}"
-                     data-unidad="${p.unidad_compra_nombre || p.unidad_venta_nombre || ''}"
-                     data-unidad-id="${p.unidad_compra_id || p.unidad_venta_id}">
-                  <div class="card-body">
-                    <div class="d-flex align-items-center mb-2">
-                      <div style="width: 40px; height: 40px;" class="me-2">
-                        ${p.foto
-      ? `<img src="/uploads/productos/${p.foto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`
-      : `<img src="${Utils.getProductPlaceholder(p, p.id, 40)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`
-    }
-                      </div>
-                      <div>
-                        <h6 class="mb-0">${p.nombre}</h6>
-                        <small class="text-muted">${p.codigo}</small>
-                      </div>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                      <span class="badge bg-secondary">${p.unidad_compra_abrev || p.unidad_venta_abrev || 'ud'}</span>
-                      <button class="btn btn-sm btn-primary seleccionar-producto">
-                        <i class="fas fa-plus"></i> Agregar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </main>
-    </div>
-  `;
-};
-
-Compras.bindSeleccionProductosEvents = function (productos, retorno) {
-  // Volver
-  $('#btnVolver').on('click', () => ViewManager.volver());
-  $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
-
-  // Nuevo producto - SOLO SIMPLE, desde compras
-  $('#btnNuevoProducto').on('click', () => {
-    ViewManager.navegar('productos/nuevo', {
-      tipo: 'simple',
-      origen: 'compra',
-      retorno: 'compras/seleccionar-productos',
-      retornoParams: { retorno }
-    });
-  });
-
-  // Búsqueda
-  $('#buscarProducto').on('input', function () {
-    const search = $(this).val().toLowerCase();
-    $('.producto-select-card').each(function () {
-      const nombre = $(this).data('nombre').toLowerCase();
-      const codigo = $(this).data('codigo').toLowerCase();
-      $(this).toggle(nombre.includes(search) || codigo.includes(search));
-    });
-  });
-
-  // Seleccionar producto
-  $('.seleccionar-producto').on('click', function () {
-    const card = $(this).closest('.producto-select-card');
-    const id = card.data('id');
-    const nombre = card.data('nombre');
-    const unidad = card.data('unidad');
-    const unidadId = card.data('unidad-id');
-
-    sessionStorage.setItem('productoSeleccionado', JSON.stringify({
-      producto_id: id,
-      producto_nombre: nombre,
-      unidad_compra: unidad,
-      unidad_compra_id: unidadId
-    }));
-
-    ViewManager.volver();
-  });
-
-  Compras.bindCommonEvents();
 };
 
 // ============================================

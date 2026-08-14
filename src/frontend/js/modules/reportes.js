@@ -443,17 +443,17 @@ Reportes.cargarRentabilidad = async function (inicio, fin) {
       total_vendido += p.total_vendido;
       costo_total += p.costo_total;
       gastos_fijos += p.gastos_fijos;
-      ganancia_bruta += ganancia_bruta;
+      ganancia_bruta += p.ganancia_bruta;
     });
     return `
       <tr>
         <td><b>Totales</b></td>
-        <td class="text-end"></td>
+        <td class="text-end">${Utils.formatNumber(cantidad_vendida, 2)}</td>
         <td class="text-end">${Utils.formatMoney(total_vendido)}</td>
         <td class="text-end text-danger">${Utils.formatMoney(costo_total)}</td>
         <td class="text-end text-danger">${Utils.formatMoney(gastos_fijos)}</td>
         <td class="text-end ${ganancia_bruta >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatMoney(ganancia_bruta)}</td>
-        <td class="text-end></td>
+        <td class="text-end"></td>
       </tr>`
   }
 

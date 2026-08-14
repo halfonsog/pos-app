@@ -5,6 +5,42 @@ const { JWT_SECRET } = require('../middleware/auth');
 
 const JWT_EXPIRES = '24h';
 
+// S6: lockout en memoria contra fuerza bruta (sin dependencias nuevas).
+// Máximo MAX_INTENTOS fallos por usuario en la ventana; luego bloquea LOCKOUT_MS.
+const MAX_INTENTOS = 5;
+const VENTANA_MS = 15 * 60 * 1000;   // 15 min
+const LOCKOUT_MS = 15 * 60 * 1000;   // 15 min
+const loginIntentos = new Map(); // username → { fallos, primeraFalla, bloqueadoHasta }
+
+function registrarFallo(username) {
+  const ahora = Date.now();
+  const reg = loginIntentos.get(username) || { fallos: 0, primeraFalla: ahora, bloqueadoHasta: 0 };
+  if (ahora - reg.primeraFalla > VENTANA_MS) {
+    reg.fallos = 0;
+    reg.primeraFalla = ahora;
+  }
+  reg.fallos += 1;
+  if (reg.fallos >= MAX_INTENTOS) {
+    reg.bloqueadoHasta = ahora + LOCKOUT_MS;
+    reg.fallos = 0; // reinicia contador; el bloqueo gobierna
+  }
+  loginIntentos.set(username, reg);
+}
+
+function verificarBloqueo(username) {
+  const reg = loginIntentos.get(username);
+  if (!reg) return 0;
+  const ahora = Date.now();
+  if (reg.bloqueadoHasta > ahora) {
+    return Math.ceil((reg.bloqueadoHasta - ahora) / 1000);
+  }
+  if (reg.bloqueadoHasta > 0 && reg.bloqueadoHasta <= ahora) {
+    // bloqueo expirado → limpiar
+    loginIntentos.delete(username);
+  }
+  return 0;
+}
+
 const authController = {
 
   // POST /api/auth/login
@@ -14,6 +50,15 @@ const authController = {
 
       if (!username || !password) {
         return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+      }
+
+      // S6: si el usuario está bloqueado, rechazar antes de verificar credenciales
+      const segRestantes = verificarBloqueo(username);
+      if (segRestantes > 0) {
+        const mins = Math.ceil(segRestantes / 60);
+        return res.status(429).json({
+          error: `Demasiados intentos fallidos. Intenta de nuevo en ${mins} minuto(s).`
+        });
       }
 
       const db = await getDb();
@@ -34,14 +79,19 @@ const authController = {
       );
 
       if (!user) {
+        registrarFallo(username);
         return res.status(401).json({ error: 'Credenciales inválidas' });
       }
 
       const validPassword = await bcrypt.compare(password, user.password_hash);
 
       if (!validPassword) {
+        registrarFallo(username);
         return res.status(401).json({ error: 'Credenciales inválidas' });
       }
+
+      // Login correcto → limpiar intentos de este usuario
+      loginIntentos.delete(username);
 
       // Actualizar last_login (verificar si la columna existe)
       try {

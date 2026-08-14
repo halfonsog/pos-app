@@ -27,11 +27,11 @@ const servicioController = {
     }
   },
 
-  // POST /api/servicios { descripcion, tipo, monto, moneda?, tasa_cambio?, cuenta, compra_id?, pedido_id?, referencia? }
+  // POST /api/servicios { descripcion, tipo, monto, moneda?, tasa_cambio?, cuenta, compra_id?, pedido_id?, referencia?, tiene_factura? }
   crear: async (req, res, next) => {
     try {
       const db = await getDb();
-      const { descripcion, tipo, monto, moneda, tasa_cambio, cuenta, compra_id, pedido_id, referencia } = req.body;
+      const { descripcion, tipo, monto, moneda, tasa_cambio, cuenta, compra_id, pedido_id, referencia, tiene_factura } = req.body;
 
       if (!descripcion || !descripcion.trim()) {
         return res.status(400).json({ error: 'La descripción del servicio es obligatoria' });
@@ -50,13 +50,21 @@ const servicioController = {
         return res.status(400).json({ error: 'Indica la tasa de cambio acordada para el servicio en USD' });
       }
 
+      // D33: solo los servicios CON factura entran al mundo declarado (libro diario/DJ).
+      // Se infiere del vínculo si no se indica: compra/pedido sin factura ⇒ sin factura.
+      let tieneFactura = tiene_factura === undefined ? 1 : (tiene_factura ? 1 : 0);
+      if (compra_id) {
+        const c = await db.get('SELECT codigo_factura FROM compras WHERE id = ?', [compra_id]);
+        if (c && !c.codigo_factura) tieneFactura = 0;
+      }
+
       await db.run('BEGIN TRANSACTION');
       try {
         const result = await db.run(`
-          INSERT INTO servicios (descripcion, tipo, monto, moneda, tasa_cambio, cuenta, compra_id, pedido_id, referencia, usuario_id, fecha)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', 'localtime'))
+          INSERT INTO servicios (descripcion, tipo, monto, moneda, tasa_cambio, cuenta, compra_id, pedido_id, referencia, tiene_factura, usuario_id, fecha)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', 'localtime'))
         `, [descripcion.trim(), tipo, montoNum, mon, mon === 'USD' ? tasa : 1, cta,
-            compra_id || null, pedido_id || null, referencia || null, req.usuario.id]);
+            compra_id || null, pedido_id || null, referencia || null, tieneFactura, req.usuario.id]);
 
         // Efecto en el saldo: pago sale, cobro entra (cuenta efectivo o banco)
         const tipoMov = tipo === 'pago' ? 'pago_servicio' : 'cobro_servicio';

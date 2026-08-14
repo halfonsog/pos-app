@@ -43,12 +43,6 @@ const Auth = {
                             <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
                         </button>
                     </form>
-                    
-                    <div class="text-center mt-3">
-                        <small class="text-muted">
-                            Demo: admin / admin123
-                        </small>
-                    </div>
                 </div>
             </div>
         `;

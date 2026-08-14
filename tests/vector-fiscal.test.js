@@ -39,16 +39,29 @@ beforeAll(async () => {
   // Turno para las ventas
   const turno = await db.run("INSERT INTO turnos (vendedor_id, monto_apertura, estado) VALUES (1, 0, 'cerrado')");
 
+  // Producto gravable para las ventas del vector (D32: solo cuentan líneas gravables)
+  await db.run("INSERT INTO categorias (nombre, descripcion, activo, gravable, es_sistema) VALUES ('Ventas', 'categoría gravable de prueba', 1, 1, 0)");
+  await db.run(`
+    INSERT INTO productos (codigo, nombre, tipo, sub_tipo, categoria_id, unidad_venta_id, costo_base, precio_venta, stock_actual, activo)
+    VALUES ('VEC-1', 'Producto vector', 'simple', 'reventa', (SELECT MAX(id) FROM categorias), 1, 100, 100, 99999, 1)
+  `);
+  const prod = await db.get("SELECT id FROM productos WHERE codigo = 'VEC-1'");
+
   // Ventas del vector: una venta agregada por mes (el motor usa SUM(total))
   const ventas = [
     ['2026-03-15', 30000], ['2026-04-15', 35000], ['2026-05-15', 37500],
     ['2026-06-15', 34800], ['2026-07-15', 37241]
   ];
   for (const [fecha, total] of ventas) {
-    await db.run(`
+    const r = await db.run(`
       INSERT INTO ventas (turno_id, vendedor_id, subtotal, impuesto, total, metodo_pago, estado, created_at)
       VALUES (?, 1, ?, 0, ?, 'efectivo', 'completada', ?)
     `, [turno.lastID, total, total, `${fecha} 12:00:00`]);
+    // Línea gravable por el total (la venta es 100% gravable → ratio = 1)
+    await db.run(`
+      INSERT INTO venta_detalles (venta_id, producto_id, cantidad, precio_unitario, total)
+      VALUES (?, ?, 1, ?, ?)
+    `, [r.lastID, prod.id, total, total]);
   }
 });
 

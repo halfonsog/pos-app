@@ -4,16 +4,18 @@
 Liquidación de tributos según normativa cubana (ONAE) para un TCP: cálculo por período, registro de pagos, historial, balance/estado de resultados y cierre de mes con desglose por prioridades. **Estado: vector fiscal completo y verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`).**
 
 ## Tablas
-`tributos` (9 precargados) · `configuracion_tributos` · `empleados` · `tributos_empleados` · `periodos_fiscales` · `liquidaciones_tributos` · `configuracion_tributos_historial` · `movimientos_bancarios` · `servicios` · `nominas` · `bonos` · `configuracion_contabilidad` (porciento_declarar, dia_pago_bonos; antes `parametros_contables`, m031). Migraciones 015, 021, 022, 025–027, 029, 030.
+`tributos` (9 precargados) · `configuracion_tributos` · `empleados` · `tributos_empleados` · `periodos_fiscales` · `liquidaciones_tributos` · `configuracion_tributos_historial` · `movimientos_bancarios` · `servicios` (con `tiene_factura`, D33) · `nominas` · `bonos` · `configuracion_contabilidad` (dia_pago_bonos; `porciento_declarar` eliminado en m032). Migraciones 015, 021, 022, 025–027, 029, 030, 032.
 
 ## Endpoints (ref: ../03-api.md) — todos [A+] admin
-- `POST /calcular-impuestos` (mes, anio) — motor de liquidación ✅ verificado contra el vector fiscal real · **aplica el Porciento a Declarar (PD)** a ventas
+- `POST /calcular-impuestos` (mes, anio) — motor de liquidación ✅ verificado contra el vector fiscal real · **base = ventas gravables** (mundo declarado, D30/D32)
 - `POST /registrar-pago` — marca liquidación pagada/parcial; **registra la salida en el banco** (los impuestos se pagan por banco online — propietario)
 - `GET /historial` — lista completa de liquidaciones
-- `GET /balance` · `GET /estado-resultados` — agregados del período (con montos reales y **declarados**)
-- `GET /cierre-mes?mes&anio` — desglose del recaudado por prioridades + dinero al banco vs caja + **pago a trabajadores** + comparación %gastos proyectado vs real
-- `GET /liquidacion-anual?anio` — Declaración Jurada (0530222): ganancia neta × impuesto_ganancia (declarada × PD), −5% antes del 28/02
-- `GET /libro-diario?mes&anio` — ventas y gastos por día, **reales y declarados** (× PD sobre ambos)
+- `GET /balance` · `GET /estado-resultados` — agregados del período (solo productos gravables)
+- `GET /cierre-mes?mes&anio` — desglose del recaudado por prioridades + dinero al banco vs caja + **pago a trabajadores** + comparación %gastos proyectado vs real (solo gravables en fiscal)
+- `POST /cierre-mes` — **cerrar el mes** (D38): persiste la ficha en `cierres_mes` y aplica el excedente a los vencimientos (inversiones primero con más vencimientos; préstamos preservando tarifas). Un mes solo se cierra una vez.
+- `GET /cierre-mes/:mes/:anio` — ficha persistida con el detalle de aplicaciones del excedente
+- `GET /liquidacion-anual?anio` — Declaración Jurada (0530222): ganancia neta × impuesto_ganancia (sobre el mundo declarado gravable), −5% antes del 28/02
+- `GET /libro-diario?mes&anio` — ventas y gastos **gravables** por día (D30/D32; servicios solo con factura, D33)
 - `GET /banco` · `POST /banco/movimiento` — saldos por cuenta y moneda (CUP/USD × efectivo/banco) + depósitos/retiros manuales
 - `POST /cambio-divisas` — cambio USD↔CUP a tasa acordada `{de, monto, tasa, cuenta?}`
 - `GET /exportar?mes&anio` — **CSV de liquidaciones** para software contable certificado (Versat Sarasola)
@@ -51,8 +53,16 @@ Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado
 - **Nómina mensual por empleado**: se genera al cerrar el mes desde empleados activos (sin duplicar); el **salario se paga por el banco**. El TCP también es empleado con su salario. Salarios editables en la ficha del empleado (salario_mensual, aporte_corto_plazo, utilidades).
 - **Bonos semanales en efectivo** (NO se declaran como salarios): el día de la semana de pago se configura en Parámetros (`dia_pago_bonos`); "Pagar Bonos" muestra por empleado: días trabajados de la semana (por actividad en la app), bonos ya pagados del mes, salario de fin de mes, total a recibir, y ventas por día del vendedor. El admin decide el monto y paga ahí mismo. Aparece en los pendientes del Dashboard el día configurado.
 
-## Porciento a declarar (PD)
-Campo `porciento_declarar` en Parámetros Contables (defecto 100%). **Escala ventas Y compras/gastos** en todo lo fiscal: vector fiscal, libro diario, estado de resultados, balance, cierre de mes, DJ anual y CSV exportable. `ventas_declaradas = ventas × PD`, igual para gastos.
+## Modelo fiscal de dos mundos: gravable / no gravable (D30–D36)
+Sustituye al Porciento a Declarar (m030, **deprecado**). La atribución fiscal es **por línea de producto** (nunca por documento), mediante la categoría de sistema **"No gravable"** (`categorias.gravable`, heredada por ancestría):
+
+- **Mundo real** (íntegro): inventario, caja, banco, arqueo, cierre de turno. El dinero de los productos no gravables existe y reconcilia.
+- **Mundo declarado** (solo gravables): vector fiscal, DJ, libro diario, balance, PyG, cierre de mes.
+- **Servicios**: flag `tiene_factura` (no afectan al impuesto sobre ventas, sí a la DJ). Con factura entra a lo declarado; sin factura solo en el mundo real.
+- **Regla 80%**: justificar ≥80% de los gastos declarados. **Informativa**, sin bloqueos; indicador en reportes (justificados / declarados).
+- **Cierre de mes (D38)**: al cerrar el mes el excedente se aplica a vencimientos (inversiones activas primero, mayor nº de vencimientos; luego préstamos preservando tarifas). Ficha persistida en `cierres_mes` + detalle en `cierre_mes_aplicaciones` (m033).
+- **Ventas/pedidos/encargos** (incluida la mayorista en la misma caja): filtro por línea gravable, sin restricciones de mezcla.
+- Guardas de coherencia (D36): bloquea compra facturada con no gravables y recetas mixtas; informa en ventas, ajustes y devoluciones.
 
 ## Soporte USD (aprobado por el propietario)
 - Precios siempre en CUP; cada operación en USD lleva la **tasa acordada en ese momento** (cobros de pedidos, pagos de compras por transferencia, servicios). No hay tasa general (la tasa cambia a diario).
@@ -61,7 +71,7 @@ Campo `porciento_declarar` en Parámetros Contables (defecto 100%). **Escala ven
 - Para el fisco solo cuenta el equivalente total en CUP (ley actual).
 
 ## Servicios
-Pagos y cobros por servicios (estiba, transporte...) con vínculo opcional a compra/pedido; mueven el saldo de la cuenta indicada (efectivo/banco), en CUP o USD con tasa.
+Pagos y cobros por servicios (estiba, transporte...) con vínculo opcional a compra/pedido; mueven el saldo de la cuenta indicada (efectivo/banco), en CUP o USD con tasa. Atributo `tiene_factura` (D33) determina si entran a lo declarado. Aparecen como línea informativa en el cierre de turno (D35).
 
 ## Exportación a software certificado
 `GET /contabilidad/exportar?mes&anio` → CSV de liquidaciones del período (para Versat Sarasola u otro software contable certificado). Cuando haya un fichero de ejemplo del certificado, se ajusta el formato exacto.

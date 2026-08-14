@@ -47,42 +47,42 @@ Contabilidad.index = async function () {
             </nav>
             <h2 class="mb-4"><i class="fas fa-calculator me-2"></i>Contabilidad y Finanzas</h2>
             
-            <!-- Cards de resumen -->
-            <div class="row mb-4">
-              <div class="col-md-3">
-                <div class="card bg-success text-white">
-                  <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-calendar-day me-1"></i> Ventas hoy</h6>
-                    <h3 class="mb-0">${Utils.formatMoney(ventasHoy, 0)}</h3>
-                    <small>${ahora.toLocaleDateString()}</small>
+            <!-- Cards de resumen (mismo look & feel que los demás dashboards) -->
+            <div class="row g-3 mb-4">
+              <div class="col-6 col-md-3">
+                <div class="summary-card border-success clickable" data-route="ventas/listado" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-success">${Utils.formatMoney(ventasHoy, 0)}</h3>
+                    <p class="summary-label"><i class="fas fa-calendar-day me-1"></i>Ventas hoy</p>
                   </div>
+                  <div class="summary-details"><small>${ahora.toLocaleDateString()}</small></div>
                 </div>
               </div>
-              <div class="col-md-3">
-                <div class="card bg-primary text-white">
-                  <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-calendar-alt me-1"></i> Ventas del mes</h6>
-                    <h3 class="mb-0">${Utils.formatMoney(ventasMes, 0)}</h3>
-                    <small>${mesActual}/${anioActual}</small>
+              <div class="col-6 col-md-3">
+                <div class="summary-card border-primary clickable" data-route="ventas/listado" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-primary">${Utils.formatMoney(ventasMes, 0)}</h3>
+                    <p class="summary-label"><i class="fas fa-calendar-alt me-1"></i>Ventas del mes</p>
                   </div>
+                  <div class="summary-details"><small>${mesActual}/${anioActual}</small></div>
                 </div>
               </div>
-              <div class="col-md-3">
-                <div class="card ${diasParaImpuestos <= 5 ? 'bg-danger' : diasParaImpuestos <= 10 ? 'bg-warning' : 'bg-secondary'} text-white">
-                  <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-file-invoice-dollar me-1"></i> Pago de impuestos</h6>
-                    <h3 class="mb-0">${diasParaImpuestos} días</h3>
-                    <small>Vencen día 15 del mes siguiente</small>
+              <div class="col-6 col-md-3">
+                <div class="summary-card border-${diasParaImpuestos <= 5 ? 'danger' : diasParaImpuestos <= 10 ? 'warning' : 'secondary'} clickable" data-route="contabilidad" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-${diasParaImpuestos <= 5 ? 'danger' : diasParaImpuestos <= 10 ? 'warning' : 'secondary'}">${diasParaImpuestos} días</h3>
+                    <p class="summary-label"><i class="fas fa-file-invoice-dollar me-1"></i>Pago de impuestos</p>
                   </div>
+                  <div class="summary-details"><small>Vencen día 15 del mes siguiente</small></div>
                 </div>
               </div>
-              <div class="col-md-3">
-                <div class="card bg-info text-white">
-                  <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-chart-pie me-1"></i> Cobertura de gastos</h6>
-                    <h3 class="mb-0">${cobertura.toFixed(0)}%</h3>
-                    <small>Ventas del mes vs gastos fijos (${Utils.formatMoney(totalGastosMensuales)})</small>
+              <div class="col-6 col-md-3">
+                <div class="summary-card border-info clickable" data-route="contabilidad" style="cursor:pointer">
+                  <div class="summary-content text-center">
+                    <h3 class="summary-number text-info">${cobertura.toFixed(0)}%</h3>
+                    <p class="summary-label"><i class="fas fa-chart-pie me-1"></i>Cobertura de gastos</p>
                   </div>
+                  <div class="summary-details"><small>Ventas del mes vs gastos fijos (${Utils.formatMoney(totalGastosMensuales)})</small></div>
                 </div>
               </div>
             </div>
@@ -106,14 +106,17 @@ Contabilidad.index = async function () {
               </div>
             </div>
 
-            <!-- Cierre de mes: desglose por prioridades -->
+            <!-- Cierre de mes: desglose por prioridades + aplicación del excedente -->
             <div class="card mb-4">
               <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Cierre de Mes — Desglose por Prioridades</h5>
-                <button class="btn btn-sm btn-primary" id="btnCierreMes"><i class="fas fa-play me-1"></i>Calcular</button>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-primary" id="btnCierreMes"><i class="fas fa-play me-1"></i>Calcular</button>
+                  <button class="btn btn-sm btn-success" id="btnCerrarMes"><i class="fas fa-lock me-1"></i>Cerrar mes</button>
+                </div>
               </div>
               <div class="card-body" id="resultadoCierreMes">
-                <p class="text-muted mb-0">Usa los mismos selectores de período de arriba. Muestra el reparto del recaudado por prioridades y la comparación del % de gastos proyectado vs real.</p>
+                <p class="text-muted mb-0">Usa los mismos selectores de período de arriba. Muestra el reparto del recaudado por prioridades y la comparación del % de gastos proyectado vs real. Al <strong>Cerrar mes</strong> se persiste la ficha y el excedente se aplica automáticamente a los vencimientos (inversiones primero, luego préstamos).</p>
               </div>
             </div>
 
@@ -214,9 +217,14 @@ Contabilidad.index = async function () {
       if (href && href !== '#') ViewManager.navegar(href.substring(1), {}, { reset: true });
     });
     $('#btnLogout').on('click', (e) => { e.preventDefault(); App.logout(); });
+    $('[data-route]').on('click', function () {
+      const route = $(this).data('route');
+      if (route) ViewManager.navegar(route, {}, { reset: true });
+    });
 
     $('#btnCalcularImpuestos').on('click', () => Contabilidad.calcularImpuestos());
     $('#btnCierreMes').on('click', () => Contabilidad.calcularCierreMes());
+    $('#btnCerrarMes').on('click', () => Contabilidad.cerrarMes());
     $('#btnLiquidacionAnual').on('click', () => Contabilidad.calcularLiquidacionAnual());
     $('#btnRecargarHistorial').on('click', () => Contabilidad.cargarHistorial());
     $('#btnConfigurarGastos').on('click', () => ViewManager.navegar('configuracion/gastos'));
@@ -351,6 +359,12 @@ Contabilidad.calcularCierreMes = async function () {
   resultDiv.html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Calculando...</div>');
 
   try {
+    // Si el mes ya está cerrado, mostrar su ficha persistida
+    const ficha = await API.contabilidad.fichaCierreMes(parseInt(mes), parseInt(anio)).catch(() => null);
+    if (ficha && ficha.success) {
+      return Contabilidad._renderFichaCierreMes(ficha.data);
+    }
+
     const res = await API.contabilidad.cierreMes(parseInt(mes), parseInt(anio));
     if (!res.success) {
       resultDiv.html(`<div class="alert alert-danger mb-0">${res.error}</div>`);
@@ -448,6 +462,11 @@ Contabilidad.calcularCierreMes = async function () {
               </p>
             </div>
           </div>
+          <div class="alert alert-info mt-3 mb-0">
+            <i class="fas fa-arrow-right me-1"></i>
+            Excedente: <strong>${Utils.formatMoney(d.excedente_reajustado)}</strong> → destino: <strong>${d.destino_excedente === 'ganancias' ? 'Ganancias (no se aplica)' : d.destino_excedente}</strong>.<br>
+            <small class="text-muted">Pulsa <strong>Cerrar mes</strong> para persistir esta ficha y aplicar el excedente a los vencimientos (inversiones primero, luego préstamos).</small>
+          </div>
         </div>
       </div>
     `);
@@ -455,6 +474,88 @@ Contabilidad.calcularCierreMes = async function () {
     console.error('Error:', error);
     resultDiv.html(`<div class="alert alert-danger mb-0">Error al calcular el cierre: ${error.message}</div>`);
   }
+};
+
+// Cierra el mes: persiste la ficha y aplica el excedente a los vencimientos.
+Contabilidad.cerrarMes = async function () {
+  const mes = $('#mesImpuesto').val();
+  const anio = $('#anioImpuesto').val();
+  const resultDiv = $('#resultadoCierreMes');
+
+  const confirmado = await Utils.confirm(
+    `¿Cerrar el mes ${mes}/${anio}? Se aplicará el excedente a los vencimientos (inversiones primero, luego préstamos). Esta acción no se puede deshacer.`,
+    'Cerrar mes'
+  );
+  if (!confirmado) return;
+
+  resultDiv.html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Cerrando mes...</div>');
+
+  try {
+    const res = await API.contabilidad.cerrarMes(parseInt(mes), parseInt(anio));
+    if (!res.success) {
+      resultDiv.html(`<div class="alert alert-danger mb-0">${res.error}</div>`);
+      return;
+    }
+    Toast.success('Mes cerrado');
+    Contabilidad._renderFichaCierreMes(res.data);
+  } catch (error) {
+    resultDiv.html(`<div class="alert alert-danger mb-0">Error al cerrar el mes: ${error.message}</div>`);
+  }
+};
+
+// Renderiza la ficha persistida de cierre de mes (con aplicaciones del excedente).
+Contabilidad._renderFichaCierreMes = function (data) {
+  const ficha = data.ficha;
+  const aplicaciones = data.aplicaciones || [];
+  const resultDiv = $('#resultadoCierreMes');
+
+  resultDiv.html(`
+    <div class="alert alert-success d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <i class="fas fa-lock me-1"></i>
+        <strong>Mes cerrado ${ficha.mes}/${ficha.anio}</strong> — ${new Date(ficha.creado_en).toLocaleString('es')}
+      </div>
+      <span class="badge bg-success">Excedente aplicado: ${Utils.formatMoney(ficha.excedente_aplicado)}</span>
+    </div>
+    <div class="row">
+      <div class="col-lg-7">
+        <table class="table table-bordered mb-3">
+          <tbody>
+            <tr><td>Recaudado del período</td><td class="text-end">${Utils.formatMoney(ficha.recaudado)}</td></tr>
+            <tr><td>Impuestos</td><td class="text-end">− ${Utils.formatMoney(ficha.impuestos)}</td></tr>
+            <tr><td>Costo base</td><td class="text-end">− ${Utils.formatMoney(ficha.costo_base)}</td></tr>
+            <tr><td>Gastos fijos equivalentes</td><td class="text-end">− ${Utils.formatMoney(ficha.gastos_fijos_equiv)}</td></tr>
+            <tr><td>Préstamos equivalentes</td><td class="text-end">− ${Utils.formatMoney(ficha.prestamos_equiv)}</td></tr>
+            <tr><td>Inversiones equivalentes</td><td class="text-end">− ${Utils.formatMoney(ficha.inversiones_equiv)}</td></tr>
+            <tr class="table-info"><td><strong>Margen</strong></td><td class="text-end"><strong>${Utils.formatMoney(ficha.margen)}</strong></td></tr>
+            <tr><td>Ganancias</td><td class="text-end">− ${Utils.formatMoney(ficha.ganancias)}</td></tr>
+            <tr class="table-warning"><td><strong>Excedente (destino: ${ficha.destino})</strong></td><td class="text-end"><strong>${Utils.formatMoney(ficha.excedente)}</strong></td></tr>
+            <tr class="table-success"><td>Aplicado a vencimientos</td><td class="text-end">${Utils.formatMoney(ficha.excedente_aplicado)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-lg-5">
+        <div class="card bg-light">
+          <div class="card-body">
+            <h6><i class="fas fa-hand-holding-usd me-1"></i>Aplicación del excedente</h6>
+            ${aplicaciones.length === 0
+              ? '<p class="text-muted small mb-0">No se aplicó excedente a vencimientos (no hay registros activos o el excedente fue 0).</p>'
+              : `<table class="table table-sm mb-0">
+                  <thead><tr><th>Registro</th><th>Tipo</th><th class="text-end">Monto</th></tr></thead>
+                  <tbody>
+                    ${aplicaciones.map(a => `
+                      <tr>
+                        <td><small>${a.registro_descripcion || a.descripcion}</small></td>
+                        <td><span class="badge bg-${a.tipo_registro === 'inversion' ? 'primary' : 'warning'}">${a.tipo_registro}</span></td>
+                        <td class="text-end">${Utils.formatMoney(a.monto_aplicado)}</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
 };
 
 // ── Liquidación anual (0530222, Declaración Jurada) ──
@@ -846,30 +947,28 @@ Contabilidad.cargarLibroDiario = async function () {
       <tr>
         <td>${Utils.formatearFecha(Utils.fechaISOToLocal(d.dia), 'fecha')}</td>
         <td class="text-center">${d.cantidad_ventas}</td>
-        <td class="text-end">${Utils.formatMoney(d.ventas_reales, 0)}</td>
-        <td class="text-end text-primary fw-bold">${Utils.formatMoney(d.ventas_declaradas, 0)}</td>
-        <td class="text-end">${Utils.formatMoney(d.gastos_reales, 0)}</td>
-        <td class="text-end text-danger fw-bold">${Utils.formatMoney(d.gastos_declarados, 0)}</td>
+        <td class="text-end">${Utils.formatMoney(d.ventas_gravables, 0)}</td>
+        <td class="text-end text-danger fw-bold">${Utils.formatMoney(d.gastos_gravables, 0)}</td>
       </tr>
     `).join('');
 
     const totales = res.data.reduce((acc, d) => ({
-      vr: acc.vr + d.ventas_reales, vd: acc.vd + d.ventas_declaradas,
-      gr: acc.gr + d.gastos_reales, gd: acc.gd + d.gastos_declarados
-    }), { vr: 0, vd: 0, gr: 0, gd: 0 });
+      vg: acc.vg + d.ventas_gravables,
+      gg: acc.gg + d.gastos_gravables
+    }), { vg: 0, gg: 0 });
 
     container.html(`
       <div class="p-2 bg-light border-bottom small">
-        <i class="fas fa-info-circle me-1"></i>Montos reales y <strong>declarados</strong> (porciento a declarar: <strong>${res.porciento_declarar}%</strong>) — ${res.periodo}
+        <i class="fas fa-info-circle me-1"></i>Mundo declarado: <strong>solo ventas y gastos de productos gravables</strong> (los no gravables se compran/venden sin factura) — ${res.periodo}
       </div>
       <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
-            <tr><th>Día</th><th class="text-center">Ventas</th><th class="text-end">Ventas reales</th><th class="text-end">Ventas declaradas</th><th class="text-end">Gastos reales</th><th class="text-end">Gastos declarados</th></tr>
+            <tr><th>Día</th><th class="text-center">Ventas</th><th class="text-end">Ventas gravables</th><th class="text-end">Gastos gravables</th></tr>
           </thead>
-          <tbody>${filas || '<tr><td colspan="6" class="text-center text-muted py-3">Sin actividad en el período</td></tr>'}</tbody>
+          <tbody>${filas || '<tr><td colspan="4" class="text-center text-muted py-3">Sin actividad en el período</td></tr>'}</tbody>
           <tfoot class="table-light">
-            <tr><th colspan="2">TOTAL</th><th class="text-end">${Utils.formatMoney(totales.vr, 0)}</th><th class="text-end">${Utils.formatMoney(totales.vd, 0)}</th><th class="text-end">${Utils.formatMoney(totales.gr, 0)}</th><th class="text-end">${Utils.formatMoney(totales.gd, 0)}</th></tr>
+            <tr><th colspan="2">TOTAL</th><th class="text-end">${Utils.formatMoney(totales.vg, 0)}</th><th class="text-end">${Utils.formatMoney(totales.gg, 0)}</th></tr>
           </tfoot>
         </table>
       </div>

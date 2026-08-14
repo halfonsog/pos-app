@@ -189,7 +189,8 @@ Mayoristas.pedidos = async function (params) {
 };
 
 // ═══════════════════════ NUEVO PEDIDO ═══════════════════════
-Mayoristas.nuevo = async function () {
+Mayoristas.nuevo = async function (params) {
+  params = params || {};
   try {
     Utils.showLoading('Cargando...');
     const [clientes, productos] = await Promise.all([API.clientes.listar(), API.productos.listar()]);

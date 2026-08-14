@@ -115,11 +115,12 @@ async function mismoTipo(unidadId1, unidadId2) {
 
 /**
  * Obtiene la unidad base para un tipo dado
- * @param {string} tipo - Tipo de unidad
- * @returns {Object} Unidad base
+ * @param {string} tipo - Tipo de unidad ('unidad', 'volumen', 'peso', 'longitud')
+ * @returns {Object|null} Unidad base
  */
-function getUnidadBase(tipo) {
-  return UNIDADES_BASE[tipo] || null;
+async function getUnidadBase(tipo) {
+  const bases = await obtenerUnidadesBase();
+  return bases.find(u => u.tipo === tipo && u.es_base === 1) || null;
 }
 
 module.exports = {

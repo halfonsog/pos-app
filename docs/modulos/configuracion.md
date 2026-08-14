@@ -4,7 +4,7 @@
 Tablas maestras y parámetros del sistema: parámetros contables, gastos fijos, categorías (con subcategorías), unidades de medida, denominaciones (arqueo), términos de pago, gestión de empleados/usuarios y **préstamos e inversiones**.
 
 ## Tablas (ref: ../02-base-de-datos.md)
-`configuracion_contabilidad` (registro único id=1) · `configuracion_gastos` · `categorias` (con `padre_id`) · `unidades` · `denominaciones` · `terminos_pago` · `usuarios` · `empleados` · `prestamos_inversiones` + `vencimientos` (m020)
+`configuracion_contabilidad` (registro único id=1) · `configuracion_gastos` · `categorias` (con `padre_id`, `gravable`, `es_sistema`) · `unidades` · `denominaciones` · `terminos_pago` · `usuarios` · `empleados` · `prestamos_inversiones` + `vencimientos` (m020)
 
 ## Endpoints (ref: ../03-api.md)
 `/api/configuracion/`: `general` (GET/PUT) · `gastos` CRUD · `denominaciones` (listar/todas/toggle) · `categorias` (listar/crear/actualizar, con padre_id y anti-ciclo) · `unidades` (listar/crear/actualizar) · `terminos-pago` CRUD · `/api/usuarios` CRUD · `/api/empleados` CRUD · `/api/config/prestamos-inversiones` (listar/crear/editar/cancelar/pagos).
@@ -35,12 +35,13 @@ Una vista SPA por sección, todas bajo el menú "Configuración" (`/configuracio
   gastos fijos       = Σ configuracion_gastos activos + Σ salario_mensual de empleados activos
   gasto financiero   = Σ aporte del próximo vencimiento pendiente de préstamos/inversiones activos
   precio_neto        = costo_base × (1 + %gastos) × (1 + margen_recomendado)
-  precio_recomendado = precio_neto × (1 + impuesto_ventas)
+  precio_recomendado = precio_neto ÷ (1 − impuesto_ventas)   <!-- impuesto = % del precio de venta (2026-08-12) -->
   ```
   `%gastos`, `total_gastos_fijos` (= configurados + salarios), `gastos_fijos_configurados`, `salarios_mes` y `gasto_financiero_mes` se calculan al vuelo en `obtenerGeneral` (no son columnas). Por **regla del propietario (2026-08-11)** los salarios entran en los gastos fijos también en los reportes fiscales (balance, estado de resultados, DJ anual). `utils/costos.js` (`obtenerGastosFijos`) aplica esta fórmula en el recálculo de precios.
 - **Unidades** (confirmado por el propietario): cada unidad no-base tiene unidad base de referencia implícita por su `tipo` (ud/l/lb/m) y un `coeficiente` de conversión respecto a esa base → la conversión entre unidades del mismo tipo es directa. **La unidad de compra y de venta de un producto deben ser del mismo tipo (misma base)** — validado al crear producto. Base (id≤4) bloqueadas; usuario crea desde id≥100; coeficiente debe ser > 0; **no se puede cambiar el `tipo` de una unidad en uso** por productos (rompería conversiones).
 - **Denominaciones**: toggle activo según billetes/monedas en circulación; alimentan el arqueo de caja (Ventas).
 - **Préstamos e Inversiones** (m020): registro de seguimiento con tabla de vencimientos autogenerada (fórmulas del propietario, ver ../02-base-de-datos.md §2.5). El **gasto financiero del mes** (Σ aportes del **próximo vencimiento pendiente** de registros activos — si paga el 01/09, los precios del mes actual lo cubren) se suma a los gastos fijos en el %gastos del costeo. En inversiones, un pago de capital distinto al programado reajusta el número de cuotas restantes. Cancelar un registro deja sin efecto sus vencimientos.
+- **Categorías (D8 + D31)**: subcategorías con `padre_id` (anti-ciclo). El flag `gravable` se **hereda del padre** (las raíces son gravables salvo la de sistema). La categoría raíz **"No gravable"** (`es_sistema=1`) no se puede editar/eliminar; sus hijas son no gravables → sus productos quedan fuera de la declaración fiscal (modelo de dos mundos, D30–D36).
 - **Auto-siembra**: si falta el registro id=1 de configuracion_contabilidad se crea solo.
 
 

@@ -112,14 +112,18 @@ const reportesController = {
       ORDER BY total_vendido DESC
     `, [inicio, fin]);
 
-      for (const p of productos) {
-        p.costo_total = p.costo_base * p.cantidad_vendida;
-        p.ganancia_bruta = p.total_vendido * p.margen_pct / 100;
+      // B16: unificar con la fórmula del propietario (misma que resumen-turno y el desglose).
+      //   costo_total = costo_base × cantidad · gastos_fijos = costo_total × %gastos (absorbente)
+      //   ganancia_bruta = total_vendido − costo_total − gastos_fijos
+      const costos = require('../utils/costos');
+      const params = await costos.obtenerParametros(db);
+      const pctGastos = params.pctGastos;
 
-        // Gastos fijos asignados
-        //const gastos_pct = (p.gastos_fijos_pct || 0) / 100;
-        //p.gastos_fijos = gastos_pct > 0 ? p.costo_base * (pctGastos / (1 - gastos_pct)) * p.cantidad_vendida : 0;
-        p.gastos_fijos = p.total_vendido * p.gastos_fijos_pct / 100;
+      for (const p of productos) {
+        p.costo_total = Math.round(p.costo_base * p.cantidad_vendida * 100) / 100;
+        p.gastos_fijos = Math.round(p.costo_total * pctGastos * 100) / 100;
+        p.ganancia_bruta = Math.round((p.total_vendido - p.costo_total - p.gastos_fijos) * 100) / 100;
+        p.margen_pct = p.total_vendido > 0 ? Math.round((p.ganancia_bruta / p.total_vendido) * 1000) / 10 : 0;
       }
 
       res.json(productos);
@@ -256,6 +260,10 @@ const reportesController = {
       const db = await getDb();
       const { anio } = req.query;
 
+      if (!anio) {
+        return res.status(400).json({ error: 'Año requerido' });
+      }
+
       const resumen = await db.all(`
       SELECT 
         strftime('%m', created_at) as mes,
@@ -268,7 +276,7 @@ const reportesController = {
         AND strftime('%Y', created_at) = ?
       GROUP BY mes
       ORDER BY mes
-    `, [anio.toString()]);
+    `, [String(anio)]);
 
       // Nombres de meses
       const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',

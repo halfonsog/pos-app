@@ -1,6 +1,65 @@
 const { getDb } = require('../models/db');
 const costos = require('../utils/costos');
 
+// D36: valida la coherencia fiscal de una compra:
+//  · NO se pueden mezclar productos gravables y no gravables en la MISMA compra
+//    (regla del propietario: la línea informal va por separado).
+//  · Una compra CON factura no puede contener productos no gravables.
+// Devuelve { error } o null si la guarda pasa.
+async function validarCoherenciaFiscalCompra(db, detalles, codigoFactura) {
+  if (!detalles || detalles.length === 0) return null;
+  const idsNoGrav = await costos.idsNoGravables(db);
+  if (idsNoGrav.length === 0) return null;
+
+  const placeholders = idsNoGrav.map(() => '?').join(',');
+  const cols = await db.all(`
+    SELECT p.id, p.nombre
+    FROM productos p
+    WHERE p.categoria_id IN (${placeholders})
+  `, idsNoGrav);
+
+  if (cols.length === 0) return null;
+  const noGravSet = new Set(cols.map(c => c.id));
+  const nombreNoGrav = new Map(cols.map(c => [c.id, c.nombre]));
+
+  let hayNoGrav = false;
+  let hayGrav = false;
+  let primerNoGrav = null;
+  let primerGrav = null;
+
+  for (const d of detalles) {
+    const pid = Number(d.producto_id);
+    if (noGravSet.has(pid)) {
+      hayNoGrav = true;
+      if (!primerNoGrav) primerNoGrav = nombreNoGrav.get(pid);
+    } else {
+      hayGrav = true;
+      if (!primerGrav) {
+        const p = await db.get('SELECT nombre FROM productos WHERE id = ?', [pid]);
+        primerGrav = p?.nombre || `#${pid}`;
+      }
+    }
+  }
+
+  // Regla del propietario: no mezclar gravables y no gravables en la misma compra
+  if (hayNoGrav && hayGrav) {
+    return {
+      error: `No se puede mezclar en una misma compra productos no gravables ("${primerNoGrav}") con productos gravables ("${primerGrav}"). ` +
+             'Registra la compra informal (no gravable) por separado, sin factura.'
+    };
+  }
+
+  // Compra con factura + no gravables → incoherente
+  if (hayNoGrav && codigoFactura) {
+    return {
+      error: `La compra tiene factura pero incluye el producto no gravable "${primerNoGrav}". ` +
+             'Los productos no gravables se compran sin factura (nota interna).'
+    };
+  }
+
+  return null;
+}
+
 const compraController = {
 
   // GET /api/compras
@@ -23,7 +82,8 @@ const compraController = {
           SELECT 
             cd.*,
             pr.nombre as producto_nombre,
-            pr.codigo as producto_codigo
+            pr.codigo as producto_codigo,
+            pr.categoria_id
           FROM compra_detalles cd
           JOIN productos pr ON cd.producto_id = pr.id
           WHERE cd.compra_id = ?
@@ -60,6 +120,7 @@ const compraController = {
         cd.*,
         pr.nombre as producto_nombre,
         pr.codigo as producto_codigo,
+        pr.categoria_id,
         uc.abreviatura as unidad_compra_abrev
       FROM compra_detalles cd
       JOIN productos pr ON cd.producto_id = pr.id
@@ -80,6 +141,13 @@ const compraController = {
       const db = await getDb();
       const { fecha_compra, codigo_factura, proveedor_id, pagado, detalles } = req.body;
       const usuario_id = req.usuario.id; // quién registra la compra (auditoría)
+
+      // D36: coherencia fiscal — no mezclar gravables con no gravables;
+      // compra con factura no puede incluir no gravables.
+      const incoherencia = await validarCoherenciaFiscalCompra(db, detalles, codigo_factura);
+      if (incoherencia) {
+        return res.status(400).json({ error: incoherencia.error });
+      }
 
       await db.run('BEGIN TRANSACTION');
 
@@ -136,6 +204,13 @@ const compraController = {
       const { id } = req.params;
       const { fecha_compra, codigo_factura, proveedor_id, detalles, pagado } = req.body;
 
+      // D36: coherencia fiscal — no mezclar gravables con no gravables;
+      // compra con factura no puede incluir no gravables.
+      const incoherencia = await validarCoherenciaFiscalCompra(db, detalles, codigo_factura);
+      if (incoherencia) {
+        return res.status(400).json({ error: incoherencia.error });
+      }
+
       // Verificar que no tenga dependencias de stock
       const compra = await db.get('SELECT estado_inventario FROM compras WHERE id = ?', [id]);
       if (!compra) return res.status(404).json({ error: 'Compra no encontrada' });
@@ -148,11 +223,17 @@ const compraController = {
         // Recalcular total
         const total = detalles.reduce((sum, d) => sum + (d.cantidad * d.precio_unitario), 0);
 
+        // B10: recalcular estado_pago según el pagado nuevo (misma lógica que en crear)
+        const pagadoNum = pagado || 0;
+        let estado_pago = 'pendiente';
+        if (pagadoNum >= total) estado_pago = 'pagado';
+        else if (pagadoNum > 0) estado_pago = 'parcial';
+
         // Actualizar compra
         await db.run(`
-        UPDATE compras SET fecha_compra = ?, codigo_factura = ?, proveedor_id = ?, total = ?, pagado = ?
+        UPDATE compras SET fecha_compra = ?, codigo_factura = ?, proveedor_id = ?, total = ?, pagado = ?, estado_pago = ?
         WHERE id = ?
-      `, [fecha_compra, codigo_factura, proveedor_id, total, pagado || 0, id]);
+      `, [fecha_compra, codigo_factura, proveedor_id, total, pagadoNum, estado_pago, id]);
 
         // Eliminar detalles antiguos
         await db.run('DELETE FROM compra_detalles WHERE compra_id = ?', [id]);

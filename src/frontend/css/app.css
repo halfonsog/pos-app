@@ -12,6 +12,18 @@
   min-height: 100vh;
 }
 
+/* Enlace "Ayuda" del sidebar: navega al manual en pestaña nueva (no es una ruta SPA) */
+.sidebar .manual-link {
+  display: block;
+  padding: .5rem 1rem;
+  border-radius: .25rem;
+  text-decoration: none;
+}
+.sidebar .manual-link:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .main-content {
   flex: 1;
   background-color: #f8f9fa;

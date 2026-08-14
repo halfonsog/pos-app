@@ -1,11 +1,8 @@
 # Temas Pendientes
 
+- ~~revisar q no se pueda facturar (mayorista), ni cobrar ecargos si no hay turno abierto~~ **✅ Resuelto (2026-08-12)**: `facturarPedido` y `entregarPedido` (encargo) validan que haya un turno abierto (400 si no). Tests actualizados para abrir turno.
 
-Ficha de Producto:
-- las listas (combo) de unidadades de venta y compra son largas. exceden la ventana visual quedando ocultas las unidades de abajo. Controlar el tamano del combo para q no salga de la ventana visual
-**no me gusto tu solucion** pues deforma el formulario. Es posible usar algun componente de bootstrap q sustituya el select despegable?
+- ~~error al pinchar en "Nuevo Pedido" en lista de Pedidos~~ **✅ Resuelto (2026-08-12)**: `Mayoristas.nuevo` normalizaba `params` como undefined al navegar desde la lista; ahora `params = params || {}`.
 
-Ficha de Preparar productos:
-- ficha de Preparar productos: el texto "Cantidad a preparar" debe ser cambiado por "[unidad] a preparar"
-- ficha de Preparar productos - modal de confirmacion: el texto "Preparar X unidades?" debe ser cambiado por "Preparar X [unidad]?"
+- ~~no veo la posibilidad de pagar (compras) ni cobrar (encargos y pedidos) en dolares. propongo un selector q por defecto indique CUP~~ **Mayormente resuelto (2026-08-12)**: el selector **CUP/USD con tasa acordada** ya existe en **pagos de compras** (compras.js modal de pago) y en **cobros de pedidos mayoristas** (mayoristas.js). Pendiente opcional: cobro de **encargos minoristas en USD** (hoy solo efectivo/tarjeta en CUP).
 

@@ -18,6 +18,7 @@ const { buildTestDb } = require('./helpers/testDb');
 let request;
 let adminToken;
 let vendedorToken;
+let catId;
 
 beforeAll(async () => {
   await buildTestDb(TEST_DB);
@@ -27,6 +28,12 @@ beforeAll(async () => {
   const resV = await request.post('/api/auth/login').send({ username: 'vendedor', password: 'vendedor123' });
   adminToken = resA.body.token;
   vendedorToken = resV.body.token;
+  const { getDb } = require('../src/backend/models/db');
+  const db = await getDb();
+  const cat = await db.get('SELECT id FROM categorias WHERE gravable = 1 AND es_sistema = 0');
+  catId = cat.id;
+  // Abrir turno: facturar/entregar pedidos requiere turno abierto (00-pendientes #1)
+  await request.post('/api/ventas/abrir-turno').set({ Authorization: `Bearer ${adminToken}` }).send({ monto_apertura: 0 });
 });
 
 afterAll(async () => {
@@ -72,7 +79,8 @@ describe('Clientes y tramos', () => {
     // Producto granel para vender por mayorista
     const g = await request.post('/api/productos').set(auth())
       .field('codigo', 'GM1').field('nombre', 'Cerveza Caja').field('tipo', 'simple')
-      .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1');
+      .field('sub_tipo', 'granel').field('unidad_venta_id', '1').field('unidad_compra_id', '1')
+      .field('categoria_id', String(catId));
     granelId = g.body.id;
 
     // darle costo y stock mayorista directamente
@@ -112,7 +120,8 @@ describe('Pedidos mayoristas', () => {
   test('conformado no se vende por mayorista → 400', async () => {
     const c = await request.post('/api/productos').set(auth())
       .field('codigo', 'CONF1').field('nombre', 'Café con leche').field('tipo', 'compuesto')
-      .field('sub_tipo', 'conformado').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'conformado').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     conformadoId = c.body.id;
 
     const res = await request.post('/api/mayoristas/pedidos').set(auth())
@@ -185,7 +194,8 @@ describe('Transferencias entre inventarios', () => {
     // crear reventa con stock minorista
     const r = await request.post('/api/productos').set(auth())
       .field('codigo', 'REV9').field('nombre', 'Pomo Refresco').field('tipo', 'simple')
-      .field('sub_tipo', 'reventa').field('unidad_venta_id', '1');
+      .field('sub_tipo', 'reventa').field('unidad_venta_id', '1')
+      .field('categoria_id', String(catId));
     reventaId = r.body.id;
     await db.run('UPDATE productos SET stock_actual = 50 WHERE id = ?', [reventaId]);
 

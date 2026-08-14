@@ -220,7 +220,6 @@ Productos.initDataTable = function (productos) {
       Utils.formatMoney(p.precio_venta),
       `${p.unidad_venta_tipo === 'unidad' ? Math.trunc(p.stock_efectivo) : Utils.formatNumber(p.stock_efectivo, 1)}  ${p.unidad_venta_abrev}`,
       p.activo ? '<span class="badge bg-success">Activo.</span>' : '<span class="badge bg-secondary">Inactivo</span>',
-      p.id, stockBajo ? 'true' : 'false', sinCosto ? 'true' : 'false',
       p.tipo,
       p.tiene_dependencias ? 'true' : 'false',
       p.foto
@@ -556,8 +555,9 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                     </select>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Categoría</label>
-                    <div class="input-group"><select class="form-select" id="categoriaId"><option value="">Seleccione...</option>${catHtml}</select><button class="btn btn-outline-secondary" type="button" id="btnNuevaCategoria"><i class="fas fa-plus"></i></button></div>
+                    <label class="form-label">Categoría <span class="text-danger">*</span></label>
+                    <div class="input-group"><select class="form-select" id="categoriaId" required><option value="">Seleccione...</option>${catHtml}</select><button class="btn btn-outline-secondary" type="button" id="btnNuevaCategoria"><i class="fas fa-plus"></i></button></div>
+                    <small class="text-muted d-block mt-1">La categoría define el canal fiscal (gravable / no gravable) y no se puede cambiar de grupo después.</small>
                   </div>
                   <!-- Unidad de Compra (solo a-granel) -->
                   <div class="col-md-4" id="rowUnidadCompra" style="display:none">
@@ -566,7 +566,7 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                       <button type="button" class="btn btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                         <span class="unidad-label">Seleccione...</span>
                       </button>
-                      <ul class="dropdown-menu shadow unidad-menu w-100" id="menu-unidadCompraId" style="max-height:240px;overflow-y:auto"></ul>
+                      <ul class="dropdown-menu shadow unidad-menu" id="menu-unidadCompraId" style="min-width:100%;width:max-content;max-width:100vw;max-height:240px;overflow-y:auto;white-space:nowrap"></ul>
                       <input type="hidden" id="unidadCompraId" value="">
                     </div>
                   </div>
@@ -576,7 +576,7 @@ Productos.renderFormularioLayout = function (producto, tipoInicial, htmlOpts) {
                       <button type="button" class="btn btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                         <span class="unidad-label">Seleccione...</span>
                       </button>
-                      <ul class="dropdown-menu shadow unidad-menu w-100" id="menu-unidadVentaId" style="max-height:240px;overflow-y:auto"></ul>
+                      <ul class="dropdown-menu shadow unidad-menu" id="menu-unidadVentaId" style="min-width:100%;width:max-content;max-width:100vw;max-height:240px;overflow-y:auto;white-space:nowrap"></ul>
                       <input type="hidden" id="unidadVentaId" value="">
                     </div>
                   </div>
@@ -769,6 +769,27 @@ Productos.llenarFormulario = function (p) {
 
   $('#categoriaId').val(p.categoria_id || '');
 
+  // Tema pendiente #1: al editar, la categoría solo se puede cambiar a otra del mismo
+  // grupo raíz (preserva la consistencia fiscal gravable/no gravable, D31).
+  const todasCats = State.getCache('categorias') || [];
+  const activasCats = todasCats.filter(c => c.activo);
+  if (p.categoria_id && activasCats.length) {
+    const raizDe = (c) => (c && c.padre_id ? c.padre_id : c.id);
+    const raizActual = raizDe(activasCats.find(c => c.id == p.categoria_id));
+    const mismas = activasCats.filter(c => raizDe(c) === raizActual);
+    const opciones = mismas.map(c =>
+      `<option value="${c.id}" ${String(c.id) === String(p.categoria_id) ? 'selected' : ''}>${c.nombre}</option>`
+    ).join('');
+    const aviso = mismas.some(c => c.id == p.categoria_id && c.gravable === 0)
+      ? '<small class="text-muted d-block mt-1"><i class="fas fa-eye-slash me-1"></i>No gravable: no entra en la declaración fiscal.</small>'
+      : '';
+    $('#categoriaId').replaceWith(`
+      <select class="form-select" id="categoriaId">${opciones || '<option value="">Sin opciones</option>'}</select>
+    `);
+    $('#categoriaId').parent().find('small').remove();
+    if (aviso) $('#categoriaId').parent().append(aviso);
+  }
+
   // Poblar menús de unidades con el valor guardado (edición: campos bloqueados)
   const todas = State.getCache('unidades') || [];
   const activas = todas.filter(u => u.activo);
@@ -915,6 +936,7 @@ Productos.bindFormularioEvents = function (id, params) {
 Productos.validarFormulario = function () {
   if (!$('#codigo').val().trim()) { Toast.warning('Código requerido'); return false; }
   if (!$('#nombre').val().trim()) { Toast.warning('Nombre requerido'); return false; }
+  if (!$('#productoId').val() && !$('#categoriaId').val()) { Toast.warning('La categoría es obligatoria (define el canal fiscal del producto)'); return false; }
   if (!$('#unidadVentaId').val()) { Toast.warning('Unidad de venta requerida'); return false; }
   const tipo = $('#tipo').val(), sub = $('#subTipo').val();
   if (tipo === 'simple' && sub === 'granel' && !$('#unidadCompraId').val()) {
@@ -1490,24 +1512,27 @@ Productos.renderCostoLayout = async function (producto) {
     return;
   }
   const margenMaxRate = (config.margen_recomendado || 20) / 100;
-  const impuestoDefRate = (config.impuesto_ventas || 15) / 100;
+  // Los productos NO gravables se costean sin impuesto (muestran el margen real; el
+  // impuesto solo aplica a los gravables). El ticket sigue usando su propia regla.
+  const esGravableCosto = Productos._esGravableProducto(producto);
+  const impuestoDefRate = (esGravableCosto ? (config.impuesto_ventas || 15) : 0) / 100;
   const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  // % gastos fijos global
   const costoBase = producto.costo_base || 0;
 
-  // Desglose con la fórmula del propietario (multiplicativa):
-  // precio_neto = costo × (1 + %gastos) × (1 + margen) · recomendado = neto × (1 + impuesto)
+  // Desglose con la fórmula del propietario (multiplicativa, regla 2026-08-12):
+  // precio_neto = costo × (1 + %gastos) × (1 + margen) · recomendado = neto ÷ (1 − impuesto)
   let gastosFijosRate = gastosDefRate;
   let margenRate = margenMaxRate;
   let gastosFijosMonto = costoBase * gastosFijosRate;
   let precioBase = costoBase + gastosFijosMonto;   // costo + gastos
   let margenMonto = precioBase * margenRate;
   let precioNeto = precioBase + margenMonto;
-  let impuestoMonto = precioNeto * impuestoDefRate;
-  const precioRecomendado = precioNeto + impuestoMonto;
+  let precioRecomendado = impuestoDefRate < 1 ? precioNeto / (1 - impuestoDefRate) : 0;
+  let impuestoMonto = precioRecomendado - precioNeto;
 
-  // Desglose del precio actual (si tiene): descomponer multiplicativamente
+  // Desglose del precio actual (si tiene): descomponer (impuesto = % del precio de venta)
   if (producto.precio_venta) {
-    precioNeto = producto.precio_venta / (1 + impuestoDefRate);
+    precioNeto = producto.precio_venta * (1 - impuestoDefRate);
     impuestoMonto = producto.precio_venta - precioNeto;
     precioBase = costoBase * (1 + gastosFijosRate);
     gastosFijosMonto = precioBase - costoBase;
@@ -1688,14 +1713,16 @@ Productos.bindCostoEvents = async function (producto) {
     return;
   }
   const margenMaxRate = (config.margen_recomendado || 20) / 100; //margenMaximo
-  const impuestoDefRate = (config.impuesto_ventas || 15) / 100; //  impuestoPct
+  // Los productos NO gravables se costean sin impuesto (margen real en la ficha).
+  const esGravableCosto = Productos._esGravableProducto(producto);
+  const impuestoDefRate = (esGravableCosto ? (config.impuesto_ventas || 15) : 0) / 100; //  impuestoPct
   const costoBase = producto.costo_base || 0;
   const gastosDefRate = (config.porcentaje_gastos || 0) / 100;  // % gastos fijos global
 
-  // Actualizar desglose visual (fórmula del propietario, multiplicativa)
+  // Actualizar desglose visual (fórmula del propietario, multiplicativa — regla 2026-08-12)
   const actualizarDesglose = function (precioVenta) {
-    // impuesto incluido en el precio
-    const precioNeto = precioVenta / (1 + impuestoDefRate);
+    // El precio incluye el impuesto y el impuesto es el % del precio de venta → neto = precio × (1 − tasa)
+    const precioNeto = precioVenta * (1 - impuestoDefRate);
     const impuestoMonto = precioVenta - precioNeto;
 
     // costo + gastos (fijo, del % global)
@@ -1785,8 +1812,9 @@ Productos.receta = async function (params) {
     // ✅ Obtener IDs de componentes ya existentes en la receta
     const idsExistentes = receta.map(c => c.producto_hijo_id);
 
-    // ✅ Filtrar solo productos válidos para receta
-    const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes);
+    // ✅ Filtrar solo productos válidos para receta (D5 + D36: mismo estado fiscal que el padre)
+    const gravablePadre = Productos._esGravableProducto(producto) ? 1 : 0;
+    const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes, gravablePadre);
 
     console.log('📦 Productos válidos para receta:', productosValidos.length);
     console.log('📦 Productos válidos:', productosValidos.map(p => p.nombre));
@@ -1818,6 +1846,12 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
 
   console.log('🎨 Productos para el select:', productosSimples.length);
 
+  // Canal fiscal del compuesto (para el aviso informativo)
+  const esGravable = Productos._esGravableProducto(producto);
+  const avisoCanal = esGravable
+    ? '<div class="alert alert-info py-2 mb-3"><i class="fas fa-eye me-1"></i>Producto <strong>gravable</strong>: solo puede usar ingredientes gravables.</div>'
+    : '<div class="alert alert-secondary py-2 mb-3"><i class="fas fa-eye-slash me-1"></i>Producto <strong>no gravable</strong>: solo puede usar ingredientes no gravables (fuera de la declaración fiscal).</div>';
+
   return `
     <div class="app-wrapper">
       ${Sidebar.render('productos')}
@@ -1842,6 +1876,7 @@ Productos.renderRecetaLayout = function (producto, productosDisponibles, compone
               <i class="fas fa-list-ul me-2"></i>Receta: 1 ${producto.unidad_venta_nombre || producto.unidad_venta_abrev || 'unidad'} de ${producto.nombre}
             </h2>
           </div>
+          ${avisoCanal}
           
           <div class="row">
             <div class="col-lg-5">
@@ -2016,7 +2051,8 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
       ]);
 
       const idsExistentes = recetaActualizada.map(c => c.producto_hijo_id);
-      const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes);
+      const gravablePadre = Productos._esGravableProducto(producto) ? 1 : 0;
+      const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes, gravablePadre);
 
       const layout = Productos.renderRecetaLayout(producto, productosValidos, recetaActualizada);
       $('#app').html(layout);
@@ -2052,7 +2088,8 @@ Productos.bindRecetaEvents = function (producto, componentesActuales) {
 
       // ✅ Aplicar el mismo filtro que en Productos.receta
       const idsExistentes = recetaActualizada.map(c => c.producto_hijo_id);
-      const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes);
+      const gravablePadre = Productos._esGravableProducto(producto) ? 1 : 0;
+      const productosValidos = Productos._filtrarProductosParaReceta(todosProductos, producto.id, idsExistentes, gravablePadre);
 
       const layout = Productos.renderRecetaLayout(producto, productosValidos, recetaActualizada);
       $('#app').html(layout);
@@ -2142,7 +2179,7 @@ Productos.renderNavbar = function (user) {
  * @param {Array} idsExistentes - IDs de productos que ya están en la receta
  * @returns {Array} Productos filtrados
  */
-Productos._filtrarProductosParaReceta = function (todosProductos, productoPadreId, idsExistentes) {
+Productos._filtrarProductosParaReceta = function (todosProductos, productoPadreId, idsExistentes, gravableRequerido) {
   return todosProductos.filter(p => {
     if (!p.activo) return false;
     if (p.id == productoPadreId) return false;
@@ -2150,8 +2187,28 @@ Productos._filtrarProductosParaReceta = function (todosProductos, productoPadreI
     // D5: solo granel o compuestos elaborados pueden ser ingredientes
     const esGranel = p.tipo === 'simple' && p.sub_tipo === 'granel';
     const esCompuestoElaborado = p.tipo === 'compuesto' && p.sub_tipo === 'elaborado';
-    return esGranel || esCompuestoElaborado;
+    if (!(esGranel || esCompuestoElaborado)) return false;
+    // D36: los ingredientes deben tener el MISMO estado fiscal que el producto padre
+    if (gravableRequerido !== undefined && gravableRequerido !== null) {
+      if ((Productos._esGravableProducto(p) ? 1 : 0) !== Number(gravableRequerido)) return false;
+    }
+    return true;
   });
+};
+
+// D36: un producto es gravable si su categoría (o ninguna ancestra) es no gravable.
+Productos._esGravableProducto = function (p) {
+  if (!p || !p.categoria_id) return true;
+  const cats = State.getCache('categorias') || [];
+  const porId = new Map(cats.map(c => [Number(c.id), c]));
+  let cat = porId.get(Number(p.categoria_id));
+  const visitados = new Set();
+  while (cat && !visitados.has(Number(cat.id))) {
+    if (cat.gravable === 0) return false;
+    visitados.add(Number(cat.id));
+    cat = cat.padre_id ? porId.get(Number(cat.padre_id)) : null;
+  }
+  return true;
 };
 
 Productos.bindIndexEvents = function () {

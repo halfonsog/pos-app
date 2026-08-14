@@ -102,15 +102,37 @@ const ventaController = {
       const montoEsperado = (turno.monto_apertura || 0) + (ventas?.total_efectivo || 0) + (cobrosMayoristas?.total || 0);
       const diferencia = (monto_real || 0) - montoEsperado;
 
-      await db.run(`
-        UPDATE turnos 
-        SET estado = 'cerrado', 
-            monto_cierre_esperado = ?,
-            monto_cierre_real = ?,
-            diferencia = ?,
-            cerrado_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [montoEsperado, monto_real, diferencia, turno.id]);
+      await db.run('BEGIN TRANSACTION');
+      try {
+        await db.run(`
+          UPDATE turnos 
+          SET estado = 'cerrado', 
+              monto_cierre_esperado = ?,
+              monto_cierre_real = ?,
+              diferencia = ?,
+              cerrado_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [montoEsperado, monto_real, diferencia, turno.id]);
+
+        // B14: persistir el arqueo (desglose por denominaciones) si viene
+        if (Array.isArray(desglose) && desglose.length > 0) {
+          for (const d of desglose) {
+            const valor = parseFloat(d.valor);
+            const cantidad = parseFloat(d.cantidad) || 0;
+            if (!isNaN(valor) && cantidad > 0) {
+              await db.run(`
+                INSERT INTO arqueos (turno_id, valor, cantidad, subtotal)
+                VALUES (?, ?, ?, ?)
+              `, [turno.id, valor, cantidad, Math.round(valor * cantidad * 100) / 100]);
+            }
+          }
+        }
+
+        await db.run('COMMIT');
+      } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+      }
 
       res.json({
         message: 'Turno cerrado correctamente',
@@ -152,10 +174,7 @@ const ventaController = {
       const impuestoRate = (config.impuesto_ventas) / 100;
       const REDONDEO = config.redondeo_venta;
 
-      // Variables para la respuesta
-      let ventaId, totalExacto, impuesto, totalRedondeado, ajusteRedondeo;
-
-      // Validar stock y calcular totalExacto (fuera de transacción)
+      // Calcular total exacto (el precio de venta YA incluye el impuesto — regla del propietario).
       totalExacto = 0;
       for (const d of detalles) {
         const producto = await db.get(
@@ -188,6 +207,8 @@ const ventaController = {
         totalExacto += d.cantidad * producto.precio_venta;
       }
 
+      // Regla del propietario (2026-08-12): el impuesto es el % (impuesto_ventas) del PRECIO
+      // DE VENTA. precio_venta incluye el impuesto. Impuesto = total × tasa; neto = total − impuesto.
       impuesto = totalExacto * impuestoRate;
       const subtotalExacto = totalExacto - impuesto;
       totalRedondeado = REDONDEO > 0 ? Math.ceil(totalExacto / REDONDEO) * REDONDEO : totalExacto;
@@ -506,9 +527,10 @@ const ventaController = {
 
       // Desglose del recaudado por prioridades (00-pendientes #3)
       // Período del turno: desde apertura hasta cierre (o ahora si sigue abierto)
+      // Modo operativo: el cierre de turno NO aplica el porciento a declarar
       const inicioTurno = turno.abierto_at;
       const finTurno = turno.cerrado_at || new Date().toISOString().replace('T', ' ').slice(0, 19);
-      const desglose = await costos.desglosePrioridades(db, inicioTurno, finTurno);
+      const desglose = await costos.desglosePrioridades(db, inicioTurno, finTurno, { operativo: true });
 
       res.json({
         turno,

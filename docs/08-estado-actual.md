@@ -2,14 +2,14 @@
 
 > **Snapshot compacto para abrir una sesión nueva sin re-explicar el proyecto.**
 > Leer esto + `AGENTS.md` basta para retomar el trabajo. Actualizar al cerrar cada jornada.
-> **Última actualización: 2026-08-11**
+> **Última actualización: 2026-08-12**
 
 ## Qué es esto
 POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/api` + SPA en `src/frontend`, JS vanilla + jQuery + Bootstrap). BD real en uso: `database/database.db` (**nunca reiniciar sin backup**; backups en `backups/`). Docs completas en `docs/` (módulos en `docs/modulos/`).
 
-## Estado verificado (2026-08-11)
-- **160 tests verdes** (`npm test`, 12 suites) contra BD temporal desde migraciones.
-- **36 tablas de negocio** (+ `schema_migrations`), **30 migraciones** (001–030, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
+## Estado verificado (2026-08-12)
+- **188 tests verdes** (`npm test`, 16 suites) contra BD temporal desde migraciones.
+- **38 tablas de negocio** (+ `schema_migrations`), **34 migraciones** (001–034, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
 - Servidor en producción local en `PORT 3000` (`npm start` = `node server.js`).
 
 ## Hecho y en producción
@@ -20,8 +20,9 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - **Encargos minoristas**: pedidos unificados (`tipo` mayorista/minorista), entregar-y-cobrar desde Ventas.
 - **Préstamos e Inversiones**: seguimiento con vencimientos autogenerados (fórmulas del propietario verificadas), gasto financiero mensual = Σ aportes del próximo vencimiento pendiente de registros activos integrado en el %gastos del costeo; desglose por prioridades en cierres.
 - **Gastos fijos (regla del propietario 2026-08-11)**: en el costeo de precios y en los reportes fiscales (balance, estado de resultados, DJ anual) = Σ `configuracion_gastos` activos + Σ `salario_mensual` de empleados activos, vía `utils/costos.js → obtenerGastosFijos`. En el cierre de mes el desglose muestra además `pago_trabajadores` (salarios+bónos pagados) como dato informativo.
-- **Contabilidad (ONAE)**: vector fiscal completo verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`); liquidación mensual/trimestral/anual (DJ 0530222), **porciento a declarar** en todo lo fiscal, libro diario, balance y estado de resultados, cierre de mes con desglose por prioridades + %gastos proyectado vs real + pago a trabajadores, banco por cuenta/moneda (CUP/USD) con cambio de divisas, **nóminas** (pago por banco) y **bonos semanales en efectivo** (no se declaran), servicios, exportar CSV para software certificado (Versat Sarasola).
+- **Contabilidad (ONAE)**: vector fiscal completo verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`); liquidación mensual/trimestral/anual (DJ 0530222) sobre el **mundo declarado (solo productos gravables)**, libro diario gravable, balance y estado de resultados, cierre de mes con desglose por prioridades + %gastos proyectado vs real + pago a trabajadores, banco por cuenta/moneda (CUP/USD) con cambio de divisas, **nóminas** (pago por banco) y **bonos semanales en efectivo** (no se declaran), servicios (con `tiene_factura`), exportar CSV para software certificado (Versat Sarasola). **Modelo fiscal de dos mundos (D30–D36, m032)**: categoría de sistema "No gravable" + `categorias.gravable` heredado por ancestría; el **Porciento a Declarar quedó eliminado** (campo `porciento_declarar` borrado de la BD). **Cierre de mes (D38, m033)**: ficha persistida + excedente aplicado automáticamente a vencimientos (inversiones primero, luego préstamos preservando tarifas).
 - **UI armonizada**: dashboards de todos los módulos con cards del estilo del principal y sin decimales; sidebar siempre "POS Manager"; módulo Clientes accesible a admin y vendedor.
+- **Manual de usuario (HTML multi-página)**: carpeta `src/frontend/manual/` servida en `/manual/` — `index.html` (índice por rol) + una página por proceso, con sidebar y búsqueda compartidos (`manual.js`/`manual.css`); accesible desde el menú lateral (**Ayuda**). Los borradores `.md` viven en `docs/manual-usuario/`.
 
 ## En curso / siguiente
 - **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista). Por definir (respuestas y borrador del propietario en `com.md`, pendiente #3).
@@ -31,7 +32,7 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - Ver lista completa en `00-pendientes.md`.
 
 ## Convenciones clave (resumen rápido)
-- Migraciones numeradas en `database/migrations/` (siguiente libre: **031**); **nunca editar una migración aplicada**; backup antes de tocar esquema.
+- Migraciones numeradas en `database/migrations/` (siguiente libre: **035**); **nunca editar una migración aplicada**; backup antes de tocar esquema.
 - Backend: routers finos + controladores con SQL parametrizado (`?`); `requireRole('admin')` donde aplique; servicios compartidos en `src/backend/utils/` (costos.js, conversiones.js, logger.js).
 - Frontend: módulos como objetos globales en `js/modules/`; vistas por ViewManager (`ViewManager.navegar`); **sin modales en módulos** (vistas completas); `Utils.confirm`, `Toast.*`, `Utils.fechaISOToLocal` antes de mostrar fechas (backend UTC, frontend local).
 - Reglas de negocio y decisiones del propietario en `docs/modulos/*.md` y `docs/06-decisiones-y-roadmap.md`; temas abiertos en `00-pendientes.md`.

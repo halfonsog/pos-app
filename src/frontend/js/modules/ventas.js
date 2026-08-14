@@ -217,6 +217,110 @@ Ventas.abrirTurno = function () {
 };
 
 // ============================================
+// CARD UNIFICADO: DESGLOSE POR PRIORIDADES DEL TURNO
+// ============================================
+// Sustituye los antiguos cards "Rentabilidad" y "Desglose por Prioridades".
+// Gastos en rojo, margen en rojo si < 0 / verde si no, excedente verde con
+// flecha al destino (inversiones → préstamos → ganancias). La nota verifica
+// que gastos fijos + financieros corresponden al % de gastos del período.
+Ventas.renderDesgloseTurno = function (d) {
+  if (!d) return '';
+
+  const pct = (v) => (d.recaudado > 0 ? ((v / d.recaudado) * 100).toFixed(1) : '0.0');
+  const p1 = (d.impuestos ?? ((d.prioridades || []).find(p => p.orden === 1)?.monto)) || 0;   // impuestos
+  const p2 = (d.costo_base ?? ((d.prioridades || []).find(p => p.orden === 2)?.monto)) || 0;   // costos base
+  // % de impuesto sobre su base exacta (venta neta + impuesto). El impuesto se
+  // calculó sobre el total EXACTO (antes del redondeo), por eso aquí da el 15%.
+  const impuestoPct = (d.venta_neta + p1) > 0
+    ? ((p1 / (d.venta_neta + p1)) * 100).toFixed(1)
+    : '0.0';
+  const gf = d.equivalentes?.gastos_fijos || 0;
+  const prest = d.equivalentes?.prestamos || 0;
+  const inv = d.equivalentes?.inversiones || 0;
+  const margen = d.margen ?? 0;
+  const ganancias = d.ganancias ?? 0;
+  const excedente = d.excedente_reajustado ?? 0;
+  const destino = d.destino_excedente || 'ganancias';
+  const destinoLabel = { inversiones: 'Inversiones', prestamos: 'Préstamos', ganancias: 'Ganancias' }[destino] || 'Ganancias';
+  const margenCls = margen < 0 ? 'text-danger' : 'text-success';
+  const ajuste = d.ajuste_redondeo ?? (d.recaudado - d.venta_neta - p1);
+  const ajusteEsPositivo = ajuste >= 0;
+
+  return `
+    <div class="card mb-4">
+      <div class="card-header"><h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Desglose por Prioridades</h5></div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <span>(+) Venta neta:</span>
+          <span>${Utils.formatMoney(d.venta_neta)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span>(+) Impuestos (${impuestoPct}%):</span>
+          <span>${Utils.formatMoney(p1)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 ${ajusteEsPositivo ? '' : 'text-danger'}" title="Ajuste para redondear al importe de la moneda mínima. No se grava; va directo al margen.">
+          <span>(-) Ajuste de redondeo:</span>
+          <span>${Utils.formatMoney(ajuste)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 fw-bold">
+          <span>(=) Recaudado del turno:</span>
+          <span>${Utils.formatMoney(d.recaudado)}</span>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between mb-2 text-danger">
+          <span>(-) Costo base (${pct(p2)}%):</span>
+          <span>${Utils.formatMoney(p2)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 text-danger" title="Σ configuracion_gastos + Σ salarios de empleados, equivalente al período">
+          <span>(-) Gastos fijos (${pct(gf)}%)*:</span>
+          <span>${Utils.formatMoney(gf)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 text-danger" title="Gasto financiero equivalente del período">
+          <span>(-) Préstamos (${pct(prest)}%):</span>
+          <span>${Utils.formatMoney(prest)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 text-danger">
+          <span>(-) Inversiones (${pct(inv)}%):</span>
+          <span>${Utils.formatMoney(inv)}</span>
+        </div>
+        ${d.servicios ? `
+        <div class="d-flex justify-content-between mb-2 ${(d.servicios.neto || 0) < 0 ? 'text-danger' : 'text-success'}" title="Servicios del turno: cobros − pagos. Informa sobre la caja sin afectar el cálculo de prioridades.">
+          <span>(±) Servicios del turno (cobros − pagos):</span>
+          <span>${(d.servicios.neto || 0) >= 0 ? '+' : ''}${Utils.formatMoney(d.servicios.neto)}</span>
+        </div>` : ''}
+        <hr>
+        <div class="d-flex justify-content-between mb-2 fw-bold ${margenCls}">
+          <span>(=) Margen (${pct(margen)}%):</span>
+          <span>${Utils.formatMoney(margen)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2 fw-bold">
+          <span>(-) Ganancias (máx. ${(d.prioridades || []).find(p => p.orden === 6)?.concepto?.match(/\d+/)?.pop() || ''}%):</span>
+          <span>${Utils.formatMoney(ganancias)}</span>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between fw-bold text-success">
+          <span>(=) Excedente <i class="fas fa-arrow-right ms-1"></i> ${destinoLabel}:</span>
+          <span>${Utils.formatMoney(excedente)}</span>
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-around text-center">
+        <div>
+          <small class="text-muted">% gastos proyectado</small>
+          <h5 class="mb-0">${d.comparacion_gastos?.proyectado_pct ?? 0}%</h5>
+        </div>
+        <div>
+          <small class="text-muted">% gastos real del período (fijos + financieros${d.prioridades?.length ? (d.excedente_reajustado && (d.destino_excedente === 'inversiones' || d.destino_excedente === 'prestamos') ? ' + excedente' : '') : ''})</small>
+          <h5 class="mb-0 ${(d.comparacion_gastos?.real_pct ?? 0) > (d.comparacion_gastos?.proyectado_pct ?? 0) ? 'text-danger' : 'text-success'}">${d.comparacion_gastos?.real_pct ?? 0}%</h5>
+        </div>
+      </div>
+      <div class="card-footer py-1 bg-white border-top-0">
+        <small class="text-muted">* Gastos fijos y financieros equivalentes según el % de gastos del negocio: (gastos fijos + préstamos + inversiones) ÷ venta neta del período. El excedente cubre primero inversiones, si no préstamos, y si no ganancias. El ajuste de redondeo no se grava y va directo al margen. La línea de servicios es informativa (caja), no forma parte del desglose de prioridades.</small>
+      </div>
+    </div>
+  `;
+};
+
+// ============================================
 // CERRAR TURNO (con arqueo y conteo)
 // ============================================
 Ventas.cerrarTurno = async function () {
@@ -236,7 +340,6 @@ Ventas.cerrarTurno = async function () {
     const montoApertura = turno.monto_apertura || 0;
     const ventasEfectivo = resumen.ventasPorMetodo.find(v => v.metodo_pago === 'efectivo')?.total || 0;
     const montoEsperado = montoApertura + ventasEfectivo;
-    const f = resumen.financiero;
 
     const layout = `
       <div class="app-wrapper">
@@ -274,80 +377,7 @@ Ventas.cerrarTurno = async function () {
                   </div>
                 </div>
 
-                <!-- Rentabilidad -->
-                <div class="card mb-4">
-                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Rentabilidad</h5></div>
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>(+) Venta total:</span>
-                      <span>${Utils.formatMoney(f.ventaTotal)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>(-) Impuestos (${(f.impuestos / f.ventaTotal * 100).toFixed(1)}%):</span>
-                      <span>${Utils.formatMoney(f.impuestos)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Venta neta:</span>
-                      <span>${Utils.formatMoney(f.ventaNeta)}</span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Costo base (${(f.costoBase / f.ventaNeta * 100).toFixed(1)}%):</span>
-                      <span>${Utils.formatMoney(f.costoBase)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Gastos fijos (${(f.gastosFijos / f.ventaNeta * 100).toFixed(1)}%):</span>
-                      <span>${Utils.formatMoney(f.gastosFijos)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Margen (${(f.margen / f.ventaNeta * 100).toFixed(1)}%):</span>
-                      <span class="text-success">${Utils.formatMoney(f.margen)}</span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>(+) Ajuste redondeo:</span>
-                      <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between fw-bold">
-                      <span>(=) Ganancia bruta:</span>
-                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaBruta)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                ${resumen.desglose_prioridades ? `
-                <!-- Desglose del recaudado por prioridades + % gastos proyectado vs real -->
-                <div class="card mb-4">
-                  <div class="card-header"><h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Desglose por Prioridades</h5></div>
-                  <div class="card-body p-0">
-                    <table class="table table-sm mb-0">
-                      <thead class="table-light"><tr><th class="text-center">#</th><th>Prioridad</th><th class="text-end">Monto</th></tr></thead>
-                      <tbody>
-                        ${resumen.desglose_prioridades.prioridades.map(p => `
-                          <tr>
-                            <td class="text-center">${p.orden}</td>
-                            <td>${p.concepto}</td>
-                            <td class="text-end">${Utils.formatMoney(p.monto)}</td>
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                      <tfoot class="table-light">
-                        <tr><th colspan="2">Recaudado del turno</th><th class="text-end">${Utils.formatMoney(resumen.desglose_prioridades.recaudado)}</th></tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                  <div class="card-footer d-flex justify-content-around text-center">
-                    <div>
-                      <small class="text-muted">% gastos proyectado</small>
-                      <h5 class="mb-0">${resumen.desglose_prioridades.comparacion_gastos.proyectado_pct}%</h5>
-                    </div>
-                    <div>
-                      <small class="text-muted">% gastos real del turno</small>
-                      <h5 class="mb-0 ${resumen.desglose_prioridades.comparacion_gastos.real_pct > resumen.desglose_prioridades.comparacion_gastos.proyectado_pct ? 'text-danger' : 'text-success'}">${resumen.desglose_prioridades.comparacion_gastos.real_pct}%</h5>
-                    </div>
-                  </div>
-                </div>
-                ` : ''}
+                ${Ventas.renderDesgloseTurno(resumen.desglose_prioridades)}
               </div>
               
               <div class="col-lg-6">
@@ -496,9 +526,19 @@ Ventas.bindCierreTurnoEvents = function (montoEsperado) {
     );
     if (!confirmado) return;
 
+    // B14: recolectar el arqueo (desglose por denominaciones con cantidad > 0)
+    const desglose = [];
+    $('.conteo-cantidad').each(function () {
+      const cantidad = parseInt($(this).val()) || 0;
+      const valor = parseFloat($(this).data('valor'));
+      if (cantidad > 0 && !isNaN(valor)) {
+        desglose.push({ valor, cantidad });
+      }
+    });
+
     try {
       Utils.showLoading('Cerrando turno...');
-      await API.ventas.cerrarTurno({ monto_real: total });
+      await API.ventas.cerrarTurno({ monto_real: total, desglose });
       Utils.hideLoading();
       Toast.success('Turno cerrado correctamente');
       ViewManager.volver(true);
@@ -819,6 +859,8 @@ Ventas.actualizarCarritoUI = function () {
 
   carrito.forEach((item, i) => {
     const esUnidad = item.tipoUnidad === 'unidad';
+    // Regla del propietario (2026-08-12): el precio incluye el impuesto y el impuesto es
+    // el % (impuesto_ventas) del precio de venta. Neto = total × (1 − tasa).
     const precioNeto = item.total * (1 - Ventas._impuestoPorcentaje);
 
     html += `
@@ -841,6 +883,7 @@ Ventas.actualizarCarritoUI = function () {
 
   });
 
+  // Regla del propietario: total = neto ÷ (1 − tasa) ; impuesto = total × tasa
   const total = subtotalSinImpuesto / (1 - Ventas._impuestoPorcentaje);
   const impuesto = total * Ventas._impuestoPorcentaje;
 
@@ -1067,13 +1110,14 @@ Ventas.procesarVenta = async function (metodoPago) {
   }
   const REDONDEO = config.redondeo_venta || 5;
 
-  // Calcular total exacto
+  // Calcular total exacto. Regla del propietario: el precio incluye el impuesto y el
+  // impuesto es el % (impuesto_ventas) del precio de venta. Neto = total × (1 − tasa).
   let subtotalSinImpuesto = 0;
   Ventas._carrito.forEach(item => {
-    subtotalSinImpuesto += item.total / (1 + Ventas._impuestoPorcentaje);
+    subtotalSinImpuesto += item.total * (1 - Ventas._impuestoPorcentaje);
   });
   subtotalSinImpuesto = Number(subtotalSinImpuesto.toFixed(2));
-  const impuesto = Number((subtotalSinImpuesto * Ventas._impuestoPorcentaje).toFixed(2));
+  const impuesto = Number((subtotalSinImpuesto * Ventas._impuestoPorcentaje / (1 - Ventas._impuestoPorcentaje)).toFixed(2));
   const totalExacto = subtotalSinImpuesto + impuesto;
   const totalRedondeado = REDONDEO > 0 ? Math.ceil(totalExacto / REDONDEO) * REDONDEO : totalExacto;
   const ajusteRedondeo = Number((totalRedondeado - totalExacto).toFixed(2));
@@ -1620,7 +1664,6 @@ Ventas.ficha = async function (params) {
 
 Ventas.verTurno = function (resumen) {
   const t = resumen.turno;
-  const f = resumen.financiero;
   const ventasEfectivo = resumen.ventasPorMetodo.find(v => v.metodo_pago === 'efectivo')?.total || 0;
   const montoEsperado = (t.monto_apertura || 0) + ventasEfectivo;
   const duracion = t.horas ? `${Math.floor(t.horas)}h ${Math.round((t.horas % 1) * 60)}m` : 'N/A';
@@ -1701,80 +1744,7 @@ Ventas.verTurno = function (resumen) {
                 </div>
               </div>
               
-              <!-- Rentabilidad -->
-              <div class="card mb-4">
-                <div class="card-header"><h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Rentabilidad</h5></div>
-                <div class="card-body">
-                  <div class="d-flex justify-content-between mb-2">
-                    <span>(+) Venta total:</span>
-                    <span>${Utils.formatMoney(f.ventaTotal)}</span>
-                  </div>
-                  <div class="d-flex justify-content-between mb-2">
-                      <span>(-) Impuestos (${f.ventaTotal > 0 ? ((f.impuestos / f.ventaTotal) * 100).toFixed(1) : 0}):</span>
-                      <span>${Utils.formatMoney(f.impuestos)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Venta neta:</span>
-                      <span>${Utils.formatMoney(f.ventaNeta)}</span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Costo base (${f.ventaNeta > 0 ? (f.costoBase / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
-                      <span>${Utils.formatMoney(f.costoBase)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                      <span>(-) Gastos fijos (${f.ventaNeta > 0 ? (f.gastosFijos / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
-                      <span>${Utils.formatMoney(f.gastosFijos)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                      <span>(=) Margen (${f.ventaNeta > 0 ? (f.margen / f.ventaNeta * 100).toFixed(1) : 0}%):</span>
-                      <span class="text-success">${Utils.formatMoney(f.margen)}</span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between mb-2">
-                      <span>(+) Ajuste redondeo:</span>
-                      <span>${Utils.formatMoney(f.ajusteRedondeo)}</span>
-                    </div>
-                    <div class="d-flex justify-content-between fw-bold">
-                      <span>(=) Ganancia bruta:</span>
-                      <span class="text-primary fs-5">${Utils.formatMoney(f.gananciaBruta)}</span>
-                    </div>
-                </div>
-              </div>
-
-              ${resumen.desglose_prioridades ? `
-              <!-- Desglose del recaudado por prioridades + % gastos proyectado vs real -->
-              <div class="card mb-4">
-                <div class="card-header"><h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Desglose por Prioridades</h5></div>
-                <div class="card-body p-0">
-                  <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th class="text-center">#</th><th>Prioridad</th><th class="text-end">Monto</th></tr></thead>
-                    <tbody>
-                      ${resumen.desglose_prioridades.prioridades.map(p => `
-                        <tr>
-                          <td class="text-center">${p.orden}</td>
-                          <td>${p.concepto}</td>
-                          <td class="text-end">${Utils.formatMoney(p.monto)}</td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                    <tfoot class="table-light">
-                      <tr><th colspan="2">Recaudado del turno</th><th class="text-end">${Utils.formatMoney(resumen.desglose_prioridades.recaudado)}</th></tr>
-                    </tfoot>
-                  </table>
-                </div>
-                <div class="card-footer d-flex justify-content-around text-center">
-                  <div>
-                    <small class="text-muted">% gastos proyectado</small>
-                    <h5 class="mb-0">${resumen.desglose_prioridades.comparacion_gastos.proyectado_pct}%</h5>
-                  </div>
-                  <div>
-                    <small class="text-muted">% gastos real del turno</small>
-                    <h5 class="mb-0 ${resumen.desglose_prioridades.comparacion_gastos.real_pct > resumen.desglose_prioridades.comparacion_gastos.proyectado_pct ? 'text-danger' : 'text-success'}">${resumen.desglose_prioridades.comparacion_gastos.real_pct}%</h5>
-                  </div>
-                </div>
-              </div>
-              ` : ''}
+              ${Ventas.renderDesgloseTurno(resumen.desglose_prioridades)}
             </div>
             
             <div class="col-lg-6">

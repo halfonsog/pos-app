@@ -1,24 +1,44 @@
 var Categorias = window.Categorias || {};
 
-Categorias.formulario = async function (params) {
-  const retorno = params.retorno || 'productos';
-  const id = params.id || null;
-  const nombreInicial = params.nombre || '';
-  const descripcionInicial = params.descripcion || '';
-  const padreInicial = params.padre_id || '';
-  const isEdit = !!id;
+  Categorias.formulario = async function (params) {
+    const retorno = params.retorno || 'productos';
+    const id = params.id || null;
+    const nombreInicial = params.nombre || '';
+    const descripcionInicial = params.descripcion || '';
+    const padreInicial = params.padre_id || '';
+    const gravableInicial = params.gravable === undefined ? 1 : params.gravable;
+    const esSistema = !!params.es_sistema;
+    const isEdit = !!id;
 
-  // Cargar categorías para el selector de padre (D8). Al editar, excluir la propia.
-  let opcionesPadre = '';
-  try {
-    const categorias = await API.categorias.listar();
-    opcionesPadre = categorias
-      .filter(c => c.activo && c.id != id && !c.padre_id) // solo raíces como padres (2 niveles)
-      .map(c => `<option value="${c.id}" ${String(c.id) === String(padreInicial) ? 'selected' : ''}>${c.nombre}</option>`)
-      .join('');
-  } catch (e) { /* sin padres disponibles */ }
+    // Cargar categorías para el selector de padre (D8). Al editar, excluir la propia.
+    let opcionesPadre = '';
+    let avisoGravable = '';
+    try {
+      const categorias = await API.categorias.listar();
+      opcionesPadre = categorias
+        .filter(c => c.activo && c.id != id && !c.padre_id) // solo raíces como padres (2 niveles)
+        .map(c => `<option value="${c.id}" ${String(c.id) === String(padreInicial) ? 'selected' : ''}>${c.nombre}${c.gravable === 0 ? ' (no gravable)' : ''}</option>`)
+        .join('');
 
-  const layout = `
+      if (esSistema) {
+        avisoGravable = `
+          <div class="alert alert-warning">
+            <i class="fas fa-shield-alt me-2"></i>Categoría de sistema "No gravable". No se puede modificar.
+          </div>
+        `;
+      } else if (!isEdit && padreInicial) {
+        const padreSel = categorias.find(c => String(c.id) === String(padreInicial));
+        if (padreSel && padreSel.gravable === 0) {
+          avisoGravable = `
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>Esta categoría será <strong>no gravable</strong> (hereda la exclusión fiscal de su padre): sus productos no entran en la declaración.
+            </div>
+          `;
+        }
+      }
+    } catch (e) { /* sin padres disponibles */ }
+
+    const layout = `
     <div class="app-wrapper">
       ${Sidebar.render('productos')}
       <main class="main-content">
@@ -44,23 +64,30 @@ Categorias.formulario = async function (params) {
                 <div class="card-body">
                   <form id="categoriaForm">
                     ${isEdit ? `<input type="hidden" id="categoriaId" value="${id}">` : ''}
+                    ${avisoGravable}
                     <div class="mb-3">
                       <label class="form-label">Nombre <span class="text-danger">*</span></label>
                       <input type="text" class="form-control" id="categoriaNombre" 
-                             value="${nombreInicial}" required autofocus>
+                             value="${nombreInicial}" required autofocus ${esSistema ? 'disabled' : ''}>
                     </div>
                     <div class="mb-3">
-                      <label class="form-label">Categoría padre <small class="text-muted">(opcional — convierte esta categoría en subcategoría)</small></label>
-                      <select class="form-select" id="categoriaPadre">
+                      <label class="form-label">Categoría padre <small class="text-muted">(opcional — convierte esta categoría en subcategoría; hereda gravable/no gravable)</small></label>
+                      <select class="form-select" id="categoriaPadre" ${esSistema ? 'disabled' : ''}>
                         <option value="">— Sin padre (categoría raíz) —</option>
                         ${opcionesPadre}
                       </select>
                     </div>
                     <div class="mb-3">
                       <label class="form-label">Descripción</label>
-                      <textarea class="form-control" id="categoriaDescripcion" rows="2">${descripcionInicial}</textarea>
+                      <textarea class="form-control" id="categoriaDescripcion" rows="2" ${esSistema ? 'disabled' : ''}>${descripcionInicial}</textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">
+                    <div class="mb-3">
+                      <span class="badge ${gravableInicial === 0 ? 'bg-secondary' : 'bg-success'}">
+                        ${gravableInicial === 0 ? '<i class="fas fa-eye-slash me-1"></i>No gravable (sin efecto fiscal)' : '<i class="fas fa-eye me-1"></i>Gravable (declarable)'}
+                      </span>
+                      ${esSistema ? '' : '<small class="text-muted d-block mt-1">El estado fiscal se hereda de la categoría padre; no se configura manualmente.</small>'}
+                    </div>
+                    <button type="submit" class="btn btn-primary" ${esSistema ? 'disabled' : ''}>
                       <i class="fas fa-save me-1"></i>${isEdit ? 'Actualizar' : 'Guardar'} Categoría
                     </button>
                   </form>
@@ -73,45 +100,46 @@ Categorias.formulario = async function (params) {
     </div>
   `;
 
-  $('#app').html(layout);
+    $('#app').html(layout);
 
-  // Eventos
-  $('#btnVolver').on('click', () => ViewManager.volver());
-  $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
+    // Eventos
+    $('#btnVolver').on('click', () => ViewManager.volver());
+    $('.breadcrumb-back').on('click', (e) => { e.preventDefault(); ViewManager.volver(); });
 
-  $('#categoriaForm').on('submit', async function (e) {
-    e.preventDefault();
-    const nombre = $('#categoriaNombre').val().trim();
-    if (!nombre) { Toast.warning('Nombre requerido'); return; }
+    $('#categoriaForm').on('submit', async function (e) {
+      e.preventDefault();
+      if (esSistema) return;
+      const nombre = $('#categoriaNombre').val().trim();
+      if (!nombre) { Toast.warning('Nombre requerido'); return; }
 
-    const data = {
-      nombre,
-      descripcion: $('#categoriaDescripcion').val().trim() || null,
-      padre_id: $('#categoriaPadre').val() || null
-    };
+      const data = {
+        nombre,
+        descripcion: $('#categoriaDescripcion').val().trim() || null,
+        padre_id: $('#categoriaPadre').val() || null
+      };
 
-    try {
-      Utils.showLoading('Guardando...');
+      try {
+        Utils.showLoading('Guardando...');
 
-      if (isEdit) {
-        await API.categorias.actualizar(id, data);
-      } else {
-        const result = await API.categorias.crear(data);
-        sessionStorage.setItem('nuevaCategoriaId', result.id);
+        if (isEdit) {
+          await API.categorias.actualizar(id, data);
+        } else {
+          const result = await API.categorias.crear(data);
+          sessionStorage.setItem('nuevaCategoriaId', result.id);
+        }
+
+        State.invalidateCache('categorias');
+        Utils.hideLoading();
+        Toast.success(isEdit ? 'Categoría actualizada' : 'Categoría creada');
+        ViewManager.volver();
+      } catch (error) {
+        Utils.hideLoading();
+        console.error(error);
       }
+    });
 
-      State.invalidateCache('categorias');
-      Utils.hideLoading();
-      Toast.success(isEdit ? 'Categoría actualizada' : 'Categoría creada');
-      ViewManager.volver();
-    } catch (error) {
-      Utils.hideLoading();
-      console.error(error);
-    }
-  });
-
-  Categorias.bindCommonEvents();
-};
+    Categorias.bindCommonEvents();
+  };
 
 // Listado de categorías (para Configuración)
 Categorias.listado = async function () {
@@ -151,20 +179,26 @@ Categorias.listado = async function () {
                   <div class="card-body p-0">
                     <table class="table table-hover mb-0">
                       <thead class="table-light">
-                        <tr><th>Nombre</th><th>Categoría padre</th><th>Descripción</th><th class="text-center">Activo</th><th class="text-center">Acciones</th></tr>
+                        <tr><th>Nombre</th><th>Categoría padre</th><th>Descripción</th><th class="text-center">Fiscal</th><th class="text-center">Activo</th><th class="text-center">Acciones</th></tr>
                       </thead>
                       <tbody>
                         ${categorias.map(c => `
                           <tr class="${c.activo ? '' : 'text-muted'}">
-                            <td>${c.padre_id ? '<span class="text-muted ms-2">└─</span> ' : '<i class="fas fa-folder text-warning me-1"></i> '}${c.nombre}</td>
+                            <td>${c.padre_id ? '<span class="text-muted ms-2">└─</span> ' : '<i class="fas fa-folder text-warning me-1"></i> '}${c.nombre}${c.es_sistema ? ' <i class="fas fa-shield-alt text-warning ms-1" title="Categoría de sistema"></i>' : ''}</td>
                             <td>${c.padre_nombre || '<span class="text-muted">—</span>'}</td>
                             <td>${c.descripcion || '-'}</td>
+                            <td class="text-center">
+                              ${c.gravable === 0
+                                ? '<span class="badge bg-secondary" title="No entra en la declaración fiscal"><i class="fas fa-eye-slash me-1"></i>No gravable</span>'
+                                : '<span class="badge bg-success" title="Entra en la declaración fiscal"><i class="fas fa-eye me-1"></i>Gravable</span>'}
+                            </td>
                             <td class="text-center">${c.activo ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
                             <td class="text-center">
+                              ${c.es_sistema ? '' : `
                               <button class="btn btn-sm btn-outline-primary editar-categoria" 
-                                data-id="${c.id}" data-nombre="${c.nombre}" data-descripcion="${c.descripcion || ''}" data-padre="${c.padre_id || ''}">
+                                data-id="${c.id}" data-nombre="${c.nombre}" data-descripcion="${c.descripcion || ''}" data-padre="${c.padre_id || ''}" data-gravable="${c.gravable}">
                                 <i class="fas fa-edit"></i>
-                              </button>
+                              </button>`}
                             </td>
                           </tr>
                         `).join('')}
@@ -202,10 +236,11 @@ Categorias.bindListadoEvents = function () {
     const nombre = $(this).data('nombre');
     const descripcion = $(this).data('descripcion');
     const padre_id = $(this).data('padre');
+    const gravable = $(this).data('gravable');
     // Abrir formulario de edición (puede ser el mismo que nuevo)
     ViewManager.navegar('categorias/nuevo', {
       retorno: 'configuracion/categorias',
-      id, nombre, descripcion, padre_id
+      id, nombre, descripcion, padre_id, gravable
     });
   });
 

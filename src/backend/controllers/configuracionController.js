@@ -49,7 +49,7 @@ const configuracionController = {
       const db = await getDb();
       const { ventas_proyectadas, margen_recomendado, impuesto_ventas, redondeo_venta, impuesto_ganancia,
               salario_minimo, base_contribucion_especial, limite_escala_retencion,
-              porciento_declarar, dia_pago_bonos } = req.body;
+              dia_pago_bonos } = req.body;
 
       // Leer actuales para no pisar con undefined los campos no enviados
       const actual = await db.get('SELECT * FROM configuracion_contabilidad WHERE id = 1');
@@ -59,7 +59,7 @@ const configuracionController = {
       SET ventas_proyectadas = ?, margen_recomendado = ?, impuesto_ventas = ?, 
           redondeo_venta = ?, impuesto_ganancia = ?,
           salario_minimo = ?, base_contribucion_especial = ?, limite_escala_retencion = ?,
-          porciento_declarar = ?, dia_pago_bonos = ?,
+          dia_pago_bonos = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
     `, [
@@ -71,7 +71,6 @@ const configuracionController = {
         salario_minimo ?? actual.salario_minimo,
         base_contribucion_especial ?? actual.base_contribucion_especial,
         limite_escala_retencion ?? actual.limite_escala_retencion,
-        porciento_declarar ?? actual.porciento_declarar ?? 100,
         dia_pago_bonos ?? actual.dia_pago_bonos ?? 5
       ]);
 
@@ -236,15 +235,27 @@ const configuracionController = {
       const { nombre, descripcion, padre_id } = req.body;
       if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
 
+      // D31: el flag gravable se HEREDA del padre (una categoría es no gravable si
+      // alguna ancestra lo es). Las raíces son gravables salvo la de sistema.
+      let gravable = 1;
       if (padre_id) {
-        const padre = await db.get('SELECT id FROM categorias WHERE id = ?', [padre_id]);
+        const padre = await db.get('SELECT id, gravable FROM categorias WHERE id = ?', [padre_id]);
         if (!padre) return res.status(400).json({ error: 'La categoría padre no existe' });
+        gravable = padre.gravable;
       }
 
-      const result = await db.run('INSERT INTO categorias (nombre, descripcion, padre_id) VALUES (?, ?, ?)',
-        [nombre, descripcion || null, padre_id || null]);
+      const result = await db.run('INSERT INTO categorias (nombre, descripcion, padre_id, gravable, es_sistema) VALUES (?, ?, ?, ?, 0)',
+        [nombre, descripcion || null, padre_id || null, gravable]).catch((e) => {
+          if (e.code && e.code.startsWith('SQLITE_CONSTRAINT')) {
+            const err = new Error(`Ya existe una categoría con el nombre "${nombre}"`);
+            err.status = 400;
+            throw err;
+          }
+          throw e;
+        });
       res.status(201).json({ id: result.lastID, message: 'Categoría creada' });
     } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
       next(error);
     }
   },
@@ -255,6 +266,13 @@ const configuracionController = {
       const db = await getDb();
       const { id } = req.params;
       const { nombre, descripcion, padre_id } = req.body;
+
+      // D31: las categorías de sistema (raíz "No gravable") no se pueden editar
+      const actualCat = await db.get('SELECT es_sistema, gravable FROM categorias WHERE id = ?', [id]);
+      if (!actualCat) return res.status(404).json({ error: 'Categoría no encontrada' });
+      if (actualCat.es_sistema) {
+        return res.status(403).json({ error: 'La categoría de sistema "No gravable" no se puede modificar' });
+      }
 
       if (padre_id !== undefined && padre_id !== null && padre_id !== '') {
         // Anti-ciclo: el padre no puede ser la propia categoría ni una descendiente (D8)
@@ -276,10 +294,26 @@ const configuracionController = {
         }
       }
 
-      await db.run('UPDATE categorias SET nombre = ?, descripcion = ?, padre_id = ? WHERE id = ?',
-        [nombre, descripcion || null, (padre_id === '' || padre_id === undefined) ? null : padre_id, id]);
+      // El gravable se recalcula al mover de padre (herencia por ancestría, D31)
+      const nuevoPadreId = (padre_id === '' || padre_id === undefined) ? null : padre_id;
+      let gravable = 1;
+      if (nuevoPadreId) {
+        const padre = await db.get('SELECT gravable FROM categorias WHERE id = ?', [nuevoPadreId]);
+        gravable = padre?.gravable ?? 1;
+      }
+
+      await db.run('UPDATE categorias SET nombre = ?, descripcion = ?, padre_id = ?, gravable = ? WHERE id = ?',
+        [nombre, descripcion || null, nuevoPadreId, gravable, id]).catch((e) => {
+          if (e.code && e.code.startsWith('SQLITE_CONSTRAINT')) {
+            const err = new Error(`Ya existe otra categoría con el nombre "${nombre}"`);
+            err.status = 400;
+            throw err;
+          }
+          throw e;
+        });
       res.json({ message: 'Categoría actualizada' });
     } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
       next(error);
     }
   },

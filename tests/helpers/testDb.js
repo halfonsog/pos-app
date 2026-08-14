@@ -41,6 +41,12 @@ async function buildTestDb(dbPath) {
      ('Administrador Test', 'administrador', 0), ('Vendedor Test', 'vendedor', 0)`
   );
 
+  // Categoría gravable por defecto para los tests (los productos se crean sin
+  // categoría en muchos tests; se asignan a esta para pasar la validación).
+  await db.run(
+    "INSERT INTO categorias (nombre, activo, gravable, es_sistema) VALUES ('Ventas test', 1, 1, 0)"
+  );
+
   const adminHash = bcrypt.hashSync('admin123', 10);
   const vendedorHash = bcrypt.hashSync('vendedor123', 10);
 
