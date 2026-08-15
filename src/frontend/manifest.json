@@ -1,6 +1,6 @@
 {
-  "name": "POS Manager",
-  "short_name": "POS",
+  "name": "PuntoX",
+  "short_name": "PuntoX",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -1,7 +1,7 @@
 {
-  "name": "punto-de-venta",
+  "name": "puntoux",
   "version": "1.0.0",
-  "description": "Sistema de Gestion para Puntos de Venta",
+  "description": "Sistema de Gestion para Puntos de Venta - PuntoX",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,6 +9,7 @@
     "db:init": "node database/scripts/init.js",
     "db:migrate": "node database/scripts/migrate.js",
     "db:seed": "node database/scripts/seeds.js",
+    "db:limpia": "node database/scripts/crear_limpia.js",
     "db:reset": "node database/scripts/init.js && node database/scripts/seeds.js",
     "test": "jest"
   },
@@ -17,6 +18,7 @@
     "testTimeout": 30000
   },
   "keywords": [
+    "puntoux",
     "punto-de-venta",
     "pos",
     "gestion",

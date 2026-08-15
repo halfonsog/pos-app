@@ -33,7 +33,8 @@ Contabilidad.index = async function () {
         <main class="main-content">
           <nav class="navbar navbar-light bg-white border-bottom px-3">
             <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
-            <div class="d-flex align-items-center ms-auto">
+                  ${Sidebar.brandNav()}
+      <div class="d-flex align-items-center ms-auto">
               <span class="me-3"><i class="fas fa-user me-1"></i>${user?.nombre_completo || 'Admin'}</span>
             </div>
           </nav>
@@ -879,7 +880,8 @@ Contabilidad.pagarBonos = async function () {
         <main class="main-content">
           <nav class="navbar navbar-light bg-white border-bottom px-3">
             <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
-            <div class="d-flex align-items-center ms-auto">
+                  ${Sidebar.brandNav()}
+      <div class="d-flex align-items-center ms-auto">
               <span class="me-3"><i class="fas fa-user me-1"></i>${State.getUser()?.nombre_completo || ''}</span>
             </div>
           </nav>

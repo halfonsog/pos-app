@@ -35,4 +35,5 @@ temp/
 # Empaquetado (artefactos descargados, no van al repo)
 deploy/node/
 deploy/*.zip
+deploy/database_limpia.db
 

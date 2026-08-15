@@ -22,13 +22,6 @@ INSERT INTO categorias (nombre, descripcion) VALUES
     ('Insumos', 'Materias primas y suministros'),
     ('Empaques', 'Vasos, bolsas, envolturas');
 
--- Tipos de gasto
-INSERT INTO tipos_gasto (nombre, descripcion, porcentaje_default) VALUES 
-    ('Impuesto sobre venta', 'IVA/IGIC', 7.0),
-    ('Margen mínimo', 'Margen de beneficio proyectado', 30.0),
-    ('Gastos fijos', 'Electricidad, agua, alquiler', 15.0),
-    ('Merma', 'Pérdida estimada por deterioro', 5.0);
-
 -- Empleado del propietario (todo usuario pertenece a un empleado — D18)
 INSERT INTO empleados (nombre, cargo, salario_mensual) VALUES ('Administrador', 'administrador', 0);
 

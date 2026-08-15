@@ -88,7 +88,7 @@ SelectorProductos.renderLayout = function (productos, config) {
   return `
     <div class="app-wrapper">
       <nav class="sidebar bg-dark text-white p-3" id="sidebar">
-        <h4 class="text-white mb-4"><i class="fas fa-store me-2"></i>POS Admin</h4>
+        <h4 class="text-white mb-4"><i class="fas fa-store me-2"></i>PuntoX</h4>
         <div class="nav flex-column">
           <a class="nav-link text-white-50" href="#dashboard"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a>
           <a class="nav-link text-white-50" href="#compras"><i class="fas fa-shopping-cart me-2"></i>Compras</a>

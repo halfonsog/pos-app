@@ -1,5 +1,5 @@
-' Abre POS: arranca el servidor Node oculto y abre el navegador.
-' Se instala en C:\Program Files\POS3\ (solo lectura); los datos en ProgramData.
+' Abre PuntoX: arranca el servidor Node oculto y abre el navegador.
+' Se instala en C:\Program Files\PuntoX\ (solo lectura); los datos en ProgramData.
 
 Dim fso, sh, http, nodeExe, serverJs, dbPath, uploadsDir, appData, cwd
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -10,7 +10,7 @@ cwd = fso.GetParentFolderName(WScript.ScriptFullName)
 
 nodeExe = cwd & "\node\node.exe"
 serverJs = cwd & "\server.js"
-appData = "C:\ProgramData\POS3"
+appData = "C:\ProgramData\PuntoX"
 dbPath = appData & "\database.db"
 uploadsDir = appData & "\uploads"
 

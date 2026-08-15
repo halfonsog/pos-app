@@ -1599,6 +1599,7 @@ Configuracion.renderNavbar = function (user) {
   return `
     <nav class="navbar navbar-light bg-white border-bottom px-3">
       <button class="btn btn-link d-md-none" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+            ${Sidebar.brandNav()}
       <div class="d-flex align-items-center ms-auto">
         <span class="me-3"><i class="fas fa-user me-1"></i>${user?.nombre_completo || 'Admin'}</span>
       </div>

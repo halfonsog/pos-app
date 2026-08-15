@@ -436,6 +436,7 @@ Inventario.renderNavbar = function (user) {
       <button class="btn btn-link d-md-none" id="toggleSidebar">
         <i class="fas fa-bars"></i>
       </button>
+            ${Sidebar.brandNav()}
       <div class="d-flex align-items-center ms-auto">
         <span class="me-3">
           <i class="fas fa-user me-1"></i>${user?.nombre_completo || 'Admin'}
