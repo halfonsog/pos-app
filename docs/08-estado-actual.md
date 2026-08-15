@@ -9,7 +9,7 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 
 ## Estado verificado (2026-08-12)
 - **191 tests verdes** (`npm test`, 16 suites) contra BD temporal desde migraciones.
-- **39 tablas de negocio** (+ `schema_migrations`), **35 migraciones** (001–035, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
+- **39 tablas de negocio** (+ `schema_migrations`), **36 migraciones** (001–036, no existe 007), ~**130 endpoints** REST, **16 módulos frontend** + 5 componentes.
 - Servidor en producción local en `PORT 3000` (`npm start` = `node server.js`).
 
 ## Hecho y en producción
@@ -23,6 +23,7 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - **Contabilidad (ONAE)**: vector fiscal completo verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`); liquidación mensual/trimestral/anual (DJ 0530222) sobre el **mundo declarado (solo productos gravables)**, libro diario gravable, balance y estado de resultados, cierre de mes con desglose por prioridades + %gastos proyectado vs real + pago a trabajadores, banco por cuenta/moneda (CUP/USD) con cambio de divisas, **nóminas** (pago por banco) y **bonos semanales en efectivo** (no se declaran), servicios (con `tiene_factura`), exportar CSV para software certificado (Versat Sarasola). **Modelo fiscal de dos mundos (D30–D36, m032)**: categoría de sistema "No gravable" + `categorias.gravable` heredado por ancestría; el **Porciento a Declarar quedó eliminado** (campo `porciento_declarar` borrado de la BD). **Cierre de mes (D38, m033)**: ficha persistida + excedente aplicado automáticamente a vencimientos (inversiones primero, luego préstamos preservando tarifas).
 - **UI armonizada**: dashboards de todos los módulos con cards del estilo del principal y sin decimales; sidebar siempre "POS Manager"; módulo Clientes accesible a admin y vendedor.
 - **Manual de usuario (HTML multi-página)**: carpeta `src/frontend/manual/` servida en `/manual/` — `index.html` (índice por rol) + una página por proceso, con sidebar y búsqueda compartidos (`manual.js`/`manual.css`); accesible desde el menú lateral (**Ayuda**). Los borradores `.md` viven en `docs/manual-usuario/`.
+- **Branding PuntoX (m036)**: nombre de negocio y logo configurables (`configuracion_contabilidad.nombre_negocio`/`logo`); sidebar con "Powered by / PuntoX" y logo al pie; nombre del negocio en la barra superior. **Empaquetado Windows** listo (guía en `deploy/README.md`): instalador con Node portable, BD limpia y branding de la demo.
 
 ## En curso / siguiente
 - **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista). Por definir (respuestas y borrador del propietario en `com.md`, pendiente #3).

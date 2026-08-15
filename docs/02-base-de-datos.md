@@ -45,6 +45,7 @@ Las migraciones se registran en `schema_migrations` (version, name, executed_at,
 | 033 | `033_cierre_mes.sql` | Cierre de mes (D38): tablas `cierres_mes` (ficha por mes, UNIQUE mes/anio) + `cierre_mes_aplicaciones` (aplicación del excedente a vencimientos) |
 | 034 | `034_arqueos.sql` | Arqueo de caja persistido (B14): detalle del conteo por denominaciones de cada turno cerrado |
 | 035 | `035_movimiento_compra_efectivo.sql` | Soporte USD completo: nuevo tipo `compra_efectivo` en `movimientos_bancarios` (pago de compra en efectivo, CUP o USD) |
+| 036 | `036_branding.sql` | Branding: `configuracion_contabilidad.nombre_negocio` (def 'PuntoX') y `logo` |
 
 ## 2. Catálogo completo de tablas
 
@@ -68,7 +69,7 @@ Seeds: Contado, 7 días, 30 días. Usados por proveedores y por clientes (condic
 `id` · `valor` · `activo` · `orden`. Toggle según lo que circula.
 **`configuracion_contabilidad`** — registro único (id=1). Antes `parametros_contables` (m031 lo renombró).
 
-`ventas_proyectadas` · `margen_recomendado` (def 20) · `impuesto_ventas` (def 15) · `redondeo_venta` (def 5) · `impuesto_ganancia` (def 35) · `salario_minimo` (def 3260) · `base_contribucion_especial` · `limite_escala_retencion` (def 15000) · `dia_pago_bonos` (def 5=viernes) · `updated_at` (el `porciento_declarar` se eliminó en m032 — sustituido por el modelo fiscal de dos mundos, D30–D36)
+`ventas_proyectadas` · `margen_recomendado` (def 20) · `impuesto_ventas` (def 15) · `redondeo_venta` (def 5) · `impuesto_ganancia` (def 35) · `salario_minimo` (def 3260) · `base_contribucion_especial` · `limite_escala_retencion` (def 15000) · `dia_pago_bonos` (def 5=viernes) · `nombre_negocio` (branding, def 'PuntoX', m036) · `logo` (branding, ruta de imagen, m036) · `updated_at` (el `porciento_declarar` se eliminó en m032 — sustituido por el modelo fiscal de dos mundos, D30–D36)
 - `total_gastos_fijos` y `porcentaje_gastos` **no son columnas**: se calculan al vuelo (fórmulas en `modulos/configuracion.md`).
 - Auto-siembra: si falta el registro id=1 se crea solo.
 

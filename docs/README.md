@@ -18,6 +18,7 @@ Solo refleja el **estado actual** del sistema (sin historial). Los temas abierto
 - **Documentos generales** (este nivel): visión transversal del sistema.
 - **`modulos/`**: un documento por módulo funcional con su propósito, tablas, endpoints, frontend, reglas de negocio y pendientes. **Empieza por el módulo que vayas a tocar.**
 - **`manual-usuario/`**: guías de uso por proceso (fuente de redacción). La entrega es la carpeta **HTML** `src/frontend/manual/` (servida en `/manual/`): `index.html` (índice por rol) + una página por proceso (`ventas-turnos.html`, `compras-inventario.html`, etc.) con sidebar compartido, búsqueda y filtro por rol (`manual.js` + `manual.css`).
+- **Empaquetado Windows**: guía completa en **`../deploy/README.md`** — cómo generar el `Instalador PuntoX.exe` (Node portable embebido, BD limpia, branding, Inno Setup).
 
 ## Documentos generales
 
