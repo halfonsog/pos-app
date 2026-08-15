@@ -39,7 +39,7 @@ Solo refleja el **estado actual** del sistema (sin historial). Los temas abierto
 
 ## Descripción en un párrafo
 
-Aplicación **offline, monolítica y monousuario** para gestión integral de un punto de venta: catálogo de productos (simples, a granel y compuestos con receta), compras a proveedores con cuentas por pagar, inventario con conversiones de unidades y preparación de productos, ventas con turnos de caja y arqueo por denominaciones (minoristas y mayoristas/encargos), costeo absorbente para fijar precios, reportes de rentabilidad y un módulo de contabilidad adaptado a la normativa cubana (ONAE) con banco, nóminas y bonos. Backend en Node.js/Express con SQLite; frontend SPA en JavaScript vanilla + jQuery + Bootstrap, instalable como PWA.
+Aplicación **offline, monolítica y monousuario** para gestión integral de un punto de venta: catálogo de productos (simples, a granel y compuestos con receta), compras a proveedores con cuentas por pagar, inventario con conversiones de unidades y preparación de productos, ventas con turnos de caja y arqueo por denominaciones (minoristas y mayoristas/encargos), costeo absorbente para fijar precios, reportes de rentabilidad y un módulo de contabilidad adaptado a la normativa cubana (ONAT) con banco, nóminas y bonos. Backend en Node.js/Express con SQLite; frontend SPA en JavaScript vanilla + jQuery + Bootstrap, instalable como PWA.
 
 ## Reglas de mantenimiento de esta documentación
 

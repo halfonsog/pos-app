@@ -1,7 +1,7 @@
 # Fiscal y Contabilidad
 
 ## Objetivo
-Llevar los impuestos, los cierres y la información financiera del negocio según la normativa cubana (ONAE), separando lo que se declara de lo que no.
+Llevar los impuestos, los cierres y la información financiera del negocio según la normativa cubana (ONAT), separando lo que se declara de lo que no.
 
 ## Cuándo se usa
 - Al final de cada mes (impuestos y cierre de mes).

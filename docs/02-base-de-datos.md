@@ -181,7 +181,7 @@ El **gasto financiero del mes** = Σ `aporte` del **próximo vencimiento pendien
 `id` · `producto_id → productos CASCADE` · `desde` · `hasta` (NULL = sin tope) · `precio` · `UNIQUE(producto_id, desde)`
 Resolución: el tramo donde cae la cantidad; sin tramo → `precio_venta` minorista. Cantidades en unidad de compra (unidad mayorista).
 
-### 2.7 Módulo tributario (m015, normativa cubana ONAE)
+### 2.7 Módulo tributario (m015, normativa cubana ONAT)
 
 **`tributos`** — catálogo de impuestos.
 `id` · `codigo UNIQUE` · `nombre` · `descripcion` · `periodo CHECK('mensual','trimestral','anual','puntual')` · `tipo_calculo CHECK('porcentaje_ventas','porcentaje_ingreso','escala_salario','fija','formula_libre')` · `expresion_formula` · `dias_limite_pago` · `activo`

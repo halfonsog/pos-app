@@ -1,5 +1,5 @@
 /**
- * Test del vector fiscal del propietario (docs/com.md) — ONAE, TCP con 1 empleado.
+ * Test del vector fiscal del propietario (docs/com.md) — ONAT, TCP con 1 empleado.
  *
  * Datos del vector: st=6000, at=0, ut=0, sm=3260, base_contribucion=2000
  * Ventas: Mar 30 000 · Abr 35 000 · May 37 500 · Jun 34 800 · Jul 37 241

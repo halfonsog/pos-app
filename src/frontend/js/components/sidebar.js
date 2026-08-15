@@ -27,7 +27,6 @@ Sidebar.render = function (activeModule) {
   // Branding: nombre de negocio y logo desde la configuración (cacheada al cargar).
   const config = State.getCache('configuracion') || {};
   const nombreNegocio = config.nombre_negocio || 'PuntoX';
-  const logo = config.logo;
 
   const adminModules = [
     { id: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
@@ -63,15 +62,10 @@ Sidebar.render = function (activeModule) {
     `;
   }).join('');
 
-  const logoHtml = logo
-    ? `<img src="${logo}" alt="${nombreNegocio}" class="img-fluid mb-2" style="max-height:60px;max-width:100%;object-fit:contain;">`
-    : `<i class="fas fa-store fa-2x mb-2"></i>`;
-
   return `
-    <nav class="sidebar bg-dark text-white p-3 d-flex flex-column" id="sidebar">
-      <div class="text-center mb-4 border-bottom border-secondary pb-3">
-        <div class="small text-white-50">Powered by</div>
-        <div class="fw-bold fs-4">PuntoX</div>
+    <nav class="sidebar bg-dark text-white p-2 d-flex flex-column" id="sidebar">
+      <div class="text-center mb-1 border-bottom border-secondary pb-1">
+        <img src="/img/pb.png" alt="Sistema de Gestion y Punto de Venta" class="img-fluid" style="max-height:70px;object-fit:contain;">
       </div>
       <div class="nav flex-column">
         ${items}
@@ -85,10 +79,6 @@ Sidebar.render = function (activeModule) {
         <a class="nav-link text-danger" href="#" id="btnLogout">
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
-      </div>
-      <div class="mt-auto pt-3 text-center border-top border-secondary">
-        ${logoHtml}
-        <div class="small text-white-50">${nombreNegocio}</div>
       </div>
     </nav>
   `;

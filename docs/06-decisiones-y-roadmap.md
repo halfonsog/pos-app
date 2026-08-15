@@ -140,7 +140,7 @@ Mismo módulo `pedidos` con `tipo='minorista'`: cliente por **nombre libre** (si
 ### Préstamos e Inversiones — especificación del propietario, vigente
 Registro de seguimiento (no paga deudas reales). Vencimientos el día 1 de cada mes, el primero el mes siguiente a `fecha_inicio`. Fórmulas por ordinal (pago_capital = capital_total ÷ plazo; tarifa = tasa_mensual × capital_gravado; capital_gravado para préstamo = capital − pago_capital; para inversión = 0 en mes 1, i × pago_capital desde mes 2). En inversiones, un pago distinto al programado reajusta las cuotas restantes. El **gasto financiero del mes** = Σ aportes del **próximo vencimiento pendiente** de registros activos → entra en el %gastos del costeo.
 
-### Contabilidad — normativa cubana (ONAE), vigente
+### Contabilidad — normativa cubana (ONAT), vigente
 Ver `modulos/contabilidad.md` para el vector fiscal completo (fórmulas verificadas contra el Excel del propietario). Destacan:
 - **Porciento a declarar (PD, m030)**: **DEPRECADO y ELIMINADO** (2026-08-12). Sustituido por el modelo fiscal de dos mundos (D30–D36): se declara el 100% de un subconjunto (lo gravable), no el X% de todo. El campo `porciento_declarar` fue borrado de la BD (m032).
 - **Nóminas**: generadas al cerrar el mes; salario pagado por banco. **Bonos semanales en efectivo** (no se declaran como salarios); ayuda a decidirlos por empleado.

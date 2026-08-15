@@ -48,6 +48,6 @@ La lógica que hay que respetar/reproducir.
 | [ventas.md](ventas.md) | POS + turnos + encargos ✅ |
 | [mayoristas.md](mayoristas.md) | Clientes, tramos, pedidos, facturación (incl. parcial), inventario separado, USD ✅ |
 | [configuracion.md](configuracion.md) | Parámetros, catálogos, usuarios/empleados, inversiones ✅ |
-| [contabilidad.md](contabilidad.md) | Vector fiscal ONAE + banco (USD) + nóminas/bonos + libro diario + CSV ✅ |
+| [contabilidad.md](contabilidad.md) | Vector fiscal ONAT + banco (USD) + nóminas/bonos + libro diario + CSV ✅ |
 | [reportes.md](reportes.md) | Funcional, acceso protegido ✅ |
 | [mantenimiento.md](mantenimiento.md) | Funcional, acceso protegido, backup/restore endurecido ✅ |

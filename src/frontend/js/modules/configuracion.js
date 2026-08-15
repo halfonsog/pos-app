@@ -174,7 +174,7 @@ Configuracion.general = async function () {
                         </small>
                       </div>
                       <hr>
-                      <h6 class="text-muted"><i class="fas fa-file-invoice-dollar me-1"></i>Parámetros tributarios (ONAE)</h6>
+                      <h6 class="text-muted"><i class="fas fa-file-invoice-dollar me-1"></i>Parámetros tributarios (ONAT)</h6>
                       <div class="mb-3">
                         <label class="form-label">Salario Mínimo ($/mes)</label>
                         <input type="number" class="form-control" id="salarioMinimo" 

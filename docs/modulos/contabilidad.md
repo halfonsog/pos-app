@@ -1,7 +1,7 @@
 # Módulo: Contabilidad (Tributos)
 
 ## Propósito
-Liquidación de tributos según normativa cubana (ONAE) para un TCP: cálculo por período, registro de pagos, historial, balance/estado de resultados y cierre de mes con desglose por prioridades. **Estado: vector fiscal completo y verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`).**
+Liquidación de tributos según normativa cubana (ONAT) para un TCP: cálculo por período, registro de pagos, historial, balance/estado de resultados y cierre de mes con desglose por prioridades. **Estado: vector fiscal completo y verificado contra el Excel del propietario (`tests/vector-fiscal.test.js`).**
 
 ## Tablas
 `tributos` (9 precargados) · `configuracion_tributos` · `empleados` · `tributos_empleados` · `periodos_fiscales` · `liquidaciones_tributos` · `configuracion_tributos_historial` · `movimientos_bancarios` · `servicios` (con `tiene_factura`, D33) · `nominas` · `bonos` · `configuracion_contabilidad` (dia_pago_bonos; `porciento_declarar` eliminado en m032). Migraciones 015, 021, 022, 025–027, 029, 030, 032.
@@ -24,7 +24,7 @@ Liquidación de tributos según normativa cubana (ONAE) para un TCP: cálculo po
 ## Frontend
 `js/modules/contabilidad.js` — cards (ventas hoy/mes, días para pago con semáforo, cobertura de gastos), calcular impuestos por período, cierre de mes con desglose por prioridades, historial con registro de pago por fila.
 
-## Reglas de negocio — Vector fiscal ONAE (verificado contra el Excel del propietario)
+## Reglas de negocio — Vector fiscal ONAT (verificado contra el Excel del propietario)
 Datos: `st` (salario), `at` (aporte corto plazo), `ut` (utilidades) por empleado; `sm` (salario mínimo), `base_contribucion_especial` en configuracion_contabilidad (editables en Configuración → Parámetros).
 
 | Código | Nombre | Período | Fórmula | Verificado |

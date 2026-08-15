@@ -168,7 +168,7 @@ Los encargos reutilizan el ciclo de vida de pedidos (m024): se crean con `POST /
 
 | Método | Ruta | Estado |
 |---|---|---|
-| POST | `/calcular-impuestos` | ✅ Motor de liquidación ONAE por período (mensual y trimestral; diciembre OK); base sobre **ventas gravables** (mundo declarado, D30/D32) |
+| POST | `/calcular-impuestos` | ✅ Motor de liquidación ONAT por período (mensual y trimestral; diciembre OK); base sobre **ventas gravables** (mundo declarado, D30/D32) |
 | POST | `/registrar-pago` | Marca liquidación pagada/parcial; registra la salida en el banco |
 | GET | `/historial` | ✅ Lista completa de liquidaciones |
 | GET | `/balance` | ✅ Ingresos/gastos/compras del período (solo gravables, D30/D32) |
