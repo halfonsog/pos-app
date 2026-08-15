@@ -12,8 +12,7 @@ Sidebar.nombreNegocio = function () {
 
 // Logo del negocio (branding) o vacío.
 Sidebar.logo = function () {
-  const config = State.getCache('configuracion') || {};
-  return config.logo || '';
+  return '/img/logo.png';
 };
 
 // Fragmento para la barra superior: nombre del negocio a la izquierda.
@@ -27,6 +26,7 @@ Sidebar.render = function (activeModule) {
   // Branding: nombre de negocio y logo desde la configuración (cacheada al cargar).
   const config = State.getCache('configuracion') || {};
   const nombreNegocio = config.nombre_negocio || 'PuntoX';
+  const logo = Sidebar.logo();
 
   const adminModules = [
     { id: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
@@ -79,6 +79,9 @@ Sidebar.render = function (activeModule) {
         <a class="nav-link text-danger" href="#" id="btnLogout">
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
+      </div>
+      <div class="text-center mb-1 border-bottom border-secondary pb-1">
+        <img src="${logo}" alt="${nombreNegocio}" class="img-fluid" style="max-height:150px;object-fit:contain;">
       </div>
     </nav>
   `;

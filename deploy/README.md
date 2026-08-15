@@ -49,9 +49,9 @@ node database/scripts/crear_limpia.js deploy/database_limpia.db "Mi Negocio" "/i
 
 ## Paso 3 — Colocar el logo del negocio (opcional)
 
-- Copia el archivo del logo en `deploy\img\logo.png` (PNG recomendado, fondo transparente ideal).
-- El instalador lo copia a la app y la BD limpia ya apunta a `/img/logo.png`.
-- Si no pones logo, el menú lateral muestra el icono por defecto (tienda).
+- Coloca el logo del negocio en `src\frontend\img\logo.png` (PNG recomendado, fondo transparente ideal). Es el que se muestra en la app (la BD limpia ya apunta a `/img/logo.png`).
+- El encabezado del menú lateral ("Powered by PuntoX") usa la imagen `src\frontend\img\pb.png`.
+- El instalador copia todo `src\frontend\` (incluye ambos logos) a la app instalada.
 
 ---
 

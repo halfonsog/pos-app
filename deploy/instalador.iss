@@ -48,9 +48,7 @@ Source: "..\node_modules\*"; DestDir: "{app}\node_modules"; Flags: recursesubdir
 Source: "Abrir PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Cerrar PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
 ; BD limpia (sin datos de prueba) → ProgramData\PuntoX
-Source: "database_limpia.db"; DestDir: "{commondata}\PuntoX"; DestName: "database.db"; Flags: onlyifdoesntexist
-; Logo del negocio (opcional) → se copia al frontend img y se referencia en la BD
-Source: "img\logo.png"; DestDir: "{app}\src\frontend\img"; Flags: onlyifdoesntexist
+Source: "database_limpia.db"; DestDir: "{commonappdata}\PuntoX"; DestName: "database.db"; Flags: onlyifdoesntexist
 
 [Icons]
 Name: "{group}\Abrir PuntoX"; Filename: "{app}\{#MyAppExeName}"
