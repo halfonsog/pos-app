@@ -19,7 +19,8 @@ Manual.SECCIONES = [
   { file: 'productos-recetas.html', titulo: 'Productos y Recetas', icono: 'fa-boxes', rol: 'todos' },
   { file: 'mayoristas-encargos.html', titulo: 'Mayoristas y Encargos', icono: 'fa-truck', rol: 'todos' },
   { file: 'fiscal-contabilidad.html', titulo: 'Fiscal y Contabilidad', icono: 'fa-calculator', rol: 'admin' },
-  { file: 'configuracion.html', titulo: 'Configuración', icono: 'fa-cog', rol: 'admin' }
+  { file: 'configuracion.html', titulo: 'Configuración', icono: 'fa-cog', rol: 'admin' },
+  { file: 'instalacion-red.html', titulo: 'Instalación y Red (varios PCs)', icono: 'fa-network-wired', rol: 'admin' }
 ];
 
 // Página actual = nombre del archivo (sin ruta)

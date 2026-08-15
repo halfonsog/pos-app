@@ -37,3 +37,6 @@ deploy/node/
 deploy/*.zip
 deploy/database_limpia.db
 
+
+deploy/Output/
+

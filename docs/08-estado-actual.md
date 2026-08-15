@@ -24,6 +24,7 @@ POS offline monousuario de Heriberto Alfonso: Express + SQLite monolítico (`/ap
 - **UI armonizada**: dashboards de todos los módulos con cards del estilo del principal y sin decimales; sidebar siempre "POS Manager"; módulo Clientes accesible a admin y vendedor.
 - **Manual de usuario (HTML multi-página)**: carpeta `src/frontend/manual/` servida en `/manual/` — `index.html` (índice por rol) + una página por proceso, con sidebar y búsqueda compartidos (`manual.js`/`manual.css`); accesible desde el menú lateral (**Ayuda**). Los borradores `.md` viven en `docs/manual-usuario/`.
 - **Branding PuntoX (m036)**: nombre de negocio y logo configurables (`configuracion_contabilidad.nombre_negocio`/`logo`); sidebar con "Powered by / PuntoX" y logo al pie; nombre del negocio en la barra superior. **Empaquetado Windows** listo (guía en `deploy/README.md`): instalador con Node portable, BD limpia y branding de la demo.
+- **Acceso por red local**: `server.js` escucha en `0.0.0.0` → la app instalada puede accederse desde otros PCs de la misma red (`http://IP:3000`), útil para almacén (mayorista) + punto de venta (minorista) contra la misma caja/BD. Guía en el manual (`manual/instalacion-red.html`).
 
 ## En curso / siguiente
 - **Sprint 7**: Promociones y campañas (último módulo nuevo; menú oculto hasta que exista). Por definir (respuestas y borrador del propietario en `com.md`, pendiente #3).

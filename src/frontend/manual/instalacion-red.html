@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instalación y Red (varios PCs) — Manual de Usuario</title>
+  <link rel="stylesheet" href="/lib/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/lib/css/fontawesome.min.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+  <div class="manual-wrapper">
+    <aside class="manual-sidebar" id="sidebar">
+      <div class="brand"><i class="fas fa-book me-2"></i>Manual de Usuario</div>
+      <nav class="nav flex-column" id="navIndice"></nav>
+    </aside>
+
+    <main class="manual-content flex-grow-1">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-outline-secondary btn-sm me-2" onclick="window.location.href='index.html'"><i class="fas fa-arrow-left me-1"></i>Índice</button>
+          <span class="text-muted small">PuntoX — Guía de uso</span>
+        </div>
+        <span class="badge bg-info" id="rolBadge"></span>
+      </div>
+
+      <div class="manual-search">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+          <input type="text" class="form-control" id="busqueda" placeholder="Buscar en esta página...">
+        </div>
+      </div>
+
+      <div id="contenido">
+        <h2 class="mb-3"><i class="fas fa-network-wired me-2"></i>Instalación y Red (varios PCs)
+          <span class="badge bg-danger align-middle">Solo Administrador</span></h2>
+
+        <div class="card-block">
+          <h4><i class="fas fa-bullseye me-2"></i>Objetivo</h4>
+          <p class="mb-0">Permitir que la app instalada en un PC sea accedida desde <strong>otros computadores de la misma red</strong> (ej. el vendedor mayorista en el almacén y el minorista en el punto de venta, compartiendo la misma base de datos).</p>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-info-circle me-2"></i>Qué significa "misma base de datos"</h4>
+          <ul class="mb-0">
+            <li>Todos los PCs conectados usan <strong>la misma instancia y los mismos datos</strong>: el mismo inventario, los mismos turnos y la misma caja.</li>
+            <li>Es un modelo <strong>monousuario</strong>: solo hay <strong>un turno abierto</strong> a la vez. Sirve para que el mayorista y el minorista trabajen contra el mismo negocio, no para tener dos cajas independientes en paralelo.</li>
+            <li>El acceso es por <strong>red local</strong> (WiFi o cable de la misma red).</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-list-ol me-2"></i>Cómo se hace (en el PC donde está instalada la app)</h4>
+          <h6 class="mt-2">1. Abrir el puerto en el firewall de Windows</h6>
+          <ol class="steps">
+            <li>Abre <strong>PowerShell como administrador</strong> (clic derecho → "Ejecutar como administrador").</li>
+            <li>Ejecuta:<br>
+              <code>New-NetFirewallRule -DisplayName "PuntoX" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow</code>
+            </li>
+            <li>Confirma que aparezca el mensaje de regla creada.</li>
+          </ol>
+          <h6 class="mt-3">2. Conocer la IP del PC servidor</h6>
+          <ol class="steps">
+            <li>Abre <strong>cmd</strong> (Símbolo del sistema) en el PC servidor.</li>
+            <li>Escribe <code>ipconfig</code> y anota la <strong>IPv4</strong> de la conexión de red activa (ej. <code>192.168.1.50</code>).</li>
+          </ol>
+          <h6 class="mt-3">3. Abrir PuntoX</h6>
+          <ol class="steps">
+            <li>En el PC servidor, pulsa <strong>"Abrir PuntoX"</strong> (debe estar el servidor corriendo).</li>
+          </ol>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-list-ol me-2"></i>Cómo se hace (desde los otros PCs)</h4>
+          <ol class="steps">
+            <li>En el otro PC (misma red), abre el navegador.</li>
+            <li>Escribe: <code>http://IP-DEL-PC-SERVIDOR:3000</code> (ej. <code>http://192.168.1.50:3000</code>).</li>
+            <li>Inicia sesión con tu usuario y contraseña.</li>
+          </ol>
+          <p class="text-muted small mb-0 mt-2"><i class="fas fa-info-circle me-1"></i>Los otros PCs <strong>no necesitan instalar nada</strong>: solo un navegador y acceso a la misma red.</p>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-exclamation-triangle me-2"></i>Seguridad y recomendaciones</h4>
+          <ul class="mb-0">
+            <li>El acceso expone la app a <strong>cualquier PC de esa red</strong> que conozca la IP y el puerto. Solo usarlo en una red de confianza (el negocio).</li>
+            <li>La comunicación es <strong>HTTP sin cifrado</strong> y el login tiene protección básica. <strong>No</strong> se recomienda abrir el puerto a internet (fuera de la red local) sin configurar HTTPS.</li>
+            <li>Cambia la contraseña por defecto (<code>admin/admin123</code>) tras el primer acceso.</li>
+            <li>Si se desinstala la app, los datos en <code>ProgramData\PuntoX</code> se conservan.</li>
+          </ul>
+        </div>
+
+        <div class="card-block">
+          <h4><i class="fas fa-question-circle me-2"></i>Preguntas frecuentes</h4>
+          <div class="faq-item"><strong>¿Puedo tener dos turnos abiertos a la vez?</strong> No: el sistema es de <strong>caja única</strong> (un solo turno abierto). Los otros PCs acceden al mismo negocio, no a cajas independientes.</div>
+          <div class="faq-item"><strong>¿Necesito instalar PuntoX en cada PC?</strong> No: solo en el PC servidor. Los demás usan el navegador apuntando a su IP.</div>
+          <div class="faq-item"><strong>¿Y si cambia la IP del PC servidor?</strong> Habría que usar la IP nueva. Para evitar esto, se puede asignar una IP fija (reservada en el router) o un nombre de host.</div>
+        </div>
+      </div>
+
+      <hr class="mt-5">
+      <p class="text-center text-muted small mb-0">PuntoX — Manual de Usuario · Última actualización: 2026-08-12</p>
+    </main>
+  </div>
+
+  <script src="manual.js"></script>
+</body>
+
+</html>

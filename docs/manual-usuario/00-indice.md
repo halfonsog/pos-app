@@ -8,12 +8,14 @@ Guía de uso de la aplicación pensada para el usuario final (propietario y empl
 
 | Proceso | Archivo | Qué cubre |
 |---|---|---|
+| Comenzando | `comenzando.md` | Orden lógico para arrancar y reglas básicas del sistema |
 | Ventas y turnos | `ventas-turnos.md` | Abrir turno, cobrar, arqueo, cerrar turno, desglose por prioridades |
 | Compras e inventario | `compras-inventario.md` | Comprar, pagar, inventariar, ajustes de stock, mermas, transferencias |
 | Productos y recetas | `productos-recetas.md` | Altas/edición de productos, categorías (incl. "No gravable"), recetas, costeo |
 | Fiscal y contabilidad | `fiscal-contabilidad.md` | Mundo gravable/no gravable, impuestos, cierre de mes, DJ anual, nóminas |
 | Mayoristas y encargos | `mayoristas-encargos.md` | Pedidos mayoristas, encargos minoristas, cobros, facturación parcial |
 | Configuración | `configuracion.md` | Parámetros contables, gastos fijos, unidades, préstamos e inversiones |
+| Instalación y red (varios PCs) | `instalacion-red.md` | Acceso desde varios PCs de la misma red (almacén y punto de venta) |
 
 ## Plantilla
 
