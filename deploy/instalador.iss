@@ -6,12 +6,11 @@
 ; ANTES DE COMPILAR:
 ;   1. node\  → Node.js portable (se genera con:  descargar node-v22-win-x64.zip y descomprimir en deploy\node\)
 ;   2. database_limpia.db  → BD limpia (se genera con:  npm run db:limpia)
-;   3. (Opcional) img\logo.png → logo del negocio (PuntoX Demo)
+;   3. icono.ico → icono de los accesos directos (se genera con:  node deploy/regenerar_icono.js)
 
 #define MyAppName "PuntoX"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Heriberto Alfonso"
-#define MyAppExeName "Abrir PuntoX.vbs"
 
 [Setup]
 AppId={{F0B3B0A1-9E31-4C2A-B6F2-0D8E4C9A7B00}
@@ -44,19 +43,23 @@ Source: "..\src\backend\*"; DestDir: "{app}\src\backend"; Flags: recursesubdirs 
 Source: "..\src\frontend\*"; DestDir: "{app}\src\frontend"; Flags: recursesubdirs createallsubdirs
 ; node_modules (dependencias ya instaladas, incluye binarios nativos)
 Source: "..\node_modules\*"; DestDir: "{app}\node_modules"; Flags: recursesubdirs createallsubdirs skipifsourcedoesntexist
-; Lanzadores (usar el mismo .vbs de abrir/cerrar)
+; Lanzadores (usar el mismo .vbs de abrir/cerrar) + icono
 Source: "Abrir PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Cerrar PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "icono.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; BD limpia (sin datos de prueba) → ProgramData\PuntoX
 Source: "database_limpia.db"; DestDir: "{commonappdata}\PuntoX"; DestName: "database.db"; Flags: onlyifdoesntexist
 
+; Lanzar los .vbs con wscript.exe explícito (evita error 193 si falta la asociación)
+#define VbsRun "wscript.exe"
+
 [Icons]
-Name: "{group}\Abrir PuntoX"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\Cerrar PuntoX"; Filename: "{app}\Cerrar PuntoX.vbs"
-Name: "{autodesktop}\Abrir PuntoX"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{autodesktop}\Cerrar PuntoX"; Filename: "{app}\Cerrar PuntoX.vbs"; Tasks: desktopicon
+Name: "{group}\Abrir PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
+Name: "{group}\Cerrar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Cerrar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
+Name: "{autodesktop}\Abrir PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
+Name: "{autodesktop}\Cerrar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Cerrar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar PuntoX ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; Description: "Iniciar PuntoX ahora"; Flags: nowait postinstall skipifsilent
 
 ; Al desinstalar NO se borra ProgramData (BD y fotos del usuario se conservan).

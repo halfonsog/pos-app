@@ -80,7 +80,7 @@ Sidebar.render = function (activeModule) {
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </div>
-      <div class="text-center mb-1 border-bottom border-secondary pb-1">
+      <div class="text-center mb-1 pb-1">
         <img src="${logo}" alt="${nombreNegocio}" class="img-fluid" style="max-height:150px;object-fit:contain;">
       </div>
     </nav>

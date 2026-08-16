@@ -55,6 +55,16 @@ node database/scripts/crear_limpia.js deploy/database_limpia.db "Mi Negocio" "/i
 
 ---
 
+## Paso 3b — Generar el icono de los accesos directos (`.ico`)
+
+Los accesos directos "Abrir/Cerrar PuntoX" usan `deploy\icono.ico`. Regenerarlo desde los iconos del frontend:
+```
+node deploy/regenerar_icono.js
+```
+(Crea `deploy\icono.ico` con los tamaños 16/32/192/512 a partir de `src\frontend\img\`.)
+
+---
+
 ## Paso 4 — Instalar Inno Setup (una vez)
 
 1. Descarga de https://jrsoftware.org/isinfo.php → **Inno Setup 6**.
