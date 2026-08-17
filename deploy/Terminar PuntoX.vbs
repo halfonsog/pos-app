@@ -1,5 +1,5 @@
-' Cierra PuntoX: detiene el servidor Node de la app (sin tocar otros procesos Node).
-' Busca el proceso node.exe cuya lÃ­nea de comando contiene "server.js" del PuntoX.
+' Termina PuntoX: detiene el servidor Node de la app (sin tocar otros procesos Node).
+' Busca el proceso node.exe cuya línea de comando contiene "server.js" del PuntoX.
 
 Dim sh, wmi, proc, matado
 Set sh = CreateObject("WScript.Shell")
@@ -16,7 +16,7 @@ Next
 On Error GoTo 0
 
 If matado Then
-  MsgBox "PuntoX se cerrÃ³ correctamente.", vbInformation, "PuntoX"
+  MsgBox "PuntoX se cerró correctamente.", vbInformation, "PuntoX"
 Else
-  MsgBox "No habÃ­a ningÃºn servidor PuntoX corriendo.", vbInformation, "PuntoX"
+  MsgBox "No había ningún servidor PuntoX corriendo.", vbInformation, "PuntoX"
 End If

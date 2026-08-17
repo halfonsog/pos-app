@@ -16,7 +16,7 @@ Permitir que la app instalada en un PC sea accedida desde **otros computadores d
 1. **Abrir el puerto en el firewall**: PowerShell como administrador →
    `New-NetFirewallRule -DisplayName "PuntoX" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow`
 2. **Conocer la IP**: `ipconfig` → anotar la **IPv4** activa (ej. `192.168.1.50`).
-3. **Abrir PuntoX** (el servidor debe estar corriendo).
+3. **Iniciar PuntoX** (el servidor debe estar corriendo).
 
 ## Cómo se hace (desde los otros PCs)
 1. Abrir el navegador.

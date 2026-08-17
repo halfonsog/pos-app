@@ -11,12 +11,17 @@
 #define MyAppName "PuntoX"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Heriberto Alfonso"
+#define MyAppURL "https://github.com/halfonsog/pos-app"
 
 [Setup]
 AppId={{F0B3B0A1-9E31-4C2A-B6F2-0D8E4C9A7B00}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\PuntoX
 DefaultGroupName=PuntoX
 OutputBaseFilename=Instalador PuntoX
@@ -24,6 +29,16 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
+
+; ── Metadatos profesionales del instalador (ver "Detalles" en el .exe) ──
+VersionInfoVersion=1.0.0.0
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppName} - Sistema de Gestion para Punto de Venta
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher}
+AppCopyright=Copyright (C) 2026 {#MyAppPublisher}
+
 ; App en Program Files (solo lectura para usuarios normales → fuente protegida).
 ; DATOS en C:\ProgramData\PuntoX (escritura permitida).
 
@@ -43,9 +58,9 @@ Source: "..\src\backend\*"; DestDir: "{app}\src\backend"; Flags: recursesubdirs 
 Source: "..\src\frontend\*"; DestDir: "{app}\src\frontend"; Flags: recursesubdirs createallsubdirs
 ; node_modules (dependencias ya instaladas, incluye binarios nativos)
 Source: "..\node_modules\*"; DestDir: "{app}\node_modules"; Flags: recursesubdirs createallsubdirs skipifsourcedoesntexist
-; Lanzadores (usar el mismo .vbs de abrir/cerrar) + icono
-Source: "Abrir PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Cerrar PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
+; Lanzadores (wscript.exe explícito) + icono
+Source: "Iniciar PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Terminar PuntoX.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "icono.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; BD limpia (sin datos de prueba) → ProgramData\PuntoX
 Source: "database_limpia.db"; DestDir: "{commonappdata}\PuntoX"; DestName: "database.db"; Flags: onlyifdoesntexist
@@ -54,12 +69,12 @@ Source: "database_limpia.db"; DestDir: "{commonappdata}\PuntoX"; DestName: "data
 #define VbsRun "wscript.exe"
 
 [Icons]
-Name: "{group}\Abrir PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
-Name: "{group}\Cerrar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Cerrar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
-Name: "{autodesktop}\Abrir PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
-Name: "{autodesktop}\Cerrar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Cerrar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
+Name: "{group}\Iniciar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Iniciar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
+Name: "{group}\Terminar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Terminar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"
+Name: "{autodesktop}\Iniciar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Iniciar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
+Name: "{autodesktop}\Terminar PuntoX"; Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Terminar PuntoX.vbs"""; IconFilename: "{app}\icono.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Abrir PuntoX.vbs"""; Description: "Iniciar PuntoX ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\{#VbsRun}"; Parameters: """{app}\Iniciar PuntoX.vbs"""; Description: "Iniciar PuntoX ahora"; Flags: nowait postinstall skipifsilent
 
 ; Al desinstalar NO se borra ProgramData (BD y fotos del usuario se conservan).

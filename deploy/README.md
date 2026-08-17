@@ -14,6 +14,8 @@ Guía completa para generar el **Instalador PuntoX.exe** (aplicación de escrito
 
 - La app se instala en `C:\Program Files\PuntoX\`: Windows **bloquea la escritura** para usuarios normales → los **ficheros fuente no se pueden modificar**.
 - Los **datos** (base de datos y fotos) se guardan en `C:\ProgramData\PuntoX\`, donde la app sí escribe. Al desinstalar se conservan (no se borran los datos del negocio).
+- Los accesos directos **"Iniciar PuntoX"** / **"Terminar PuntoX"** lanzan los `.vbs` con `wscript.exe` (evita error 193) y usan el icono `deploy\icono.ico`.
+- Si el servidor no arranca, "Iniciar PuntoX" muestra el contenido de `C:\ProgramData\PuntoX\servidor.log` para diagnosticar.
 
 ---
 
